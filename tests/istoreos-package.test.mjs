@@ -12,7 +12,7 @@ test('iStoreOS run payload stays lightweight and contains persistent manager UI 
   assert.doesNotMatch(builder, /Dockerfile|pnpm-lock|PAYLOAD\/app|sqlite-adapter/);
   assert.match(builder, /OUTPUT_DIR=\$\{1:-"\$ROOT_DIR\/artifacts\/istoreos"\}/);
   assert.match(builder, /OUTPUT="\$OUTPUT_DIR\/qidian-\$\{VERSION\}\.run"/);
-  assert.ok(builder.includes('=~ ^[0-9]\\.[0-9]\\.[0-9]$'), 'package version components are single digits');
+  assert.ok(builder.includes('=~ ^[0-9]\\.[0-9]\\.(0|[1-9][0-9]?)$'), 'package Patch component supports canonical values from 0 to 99');
   assert.match(builder, /sha256sum "\$\(basename -- "\$OUTPUT"\)"/);
 });
 
@@ -78,7 +78,7 @@ test('web updates use a limited host agent, verify the public release checksum, 
   assert.match(updater, /sha256sum -c/);
   assert.match(updater, /栖点-\$version\.run/);
   assert.match(updater, /browser_download_url/);
-  assert.ok(updater.includes("grep -Eq '^[0-9]\\.[0-9]\\.[0-9]$'"), 'updater rejects versions with a component above 9');
+  assert.ok(updater.includes("grep -Eq '^[0-9]\\.[0-9]\\.(0|[1-9][0-9]?)$'"), 'updater rejects major/minor above 9 and Patch above 99');
   assert.match(updater, /mkdir "\$OPERATION_LOCK"/);
   assert.match(updater, /rmdir "\$OPERATION_LOCK"/);
   assert.match(updater, /网页更新锁已失效/);

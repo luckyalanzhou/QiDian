@@ -6,7 +6,7 @@ OUTPUT_DIR=${1:-"$ROOT_DIR/artifacts/istoreos"}
 MAKESELF=${MAKESELF:-makeself}
 VERSION=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('$ROOT_DIR/package.json','utf8')).version)")
 
-if [[ ! "$VERSION" =~ ^[0-9]\.[0-9]\.[0-9]$ ]]; then
+if [[ ! "$VERSION" =~ ^[0-9]\.[0-9]\.(0|[1-9][0-9]?)$ ]]; then
   echo "Invalid package version: $VERSION" >&2
   exit 1
 fi

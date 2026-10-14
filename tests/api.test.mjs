@@ -165,7 +165,17 @@ test('update API rejects unsupported deployments and releases without the checks
       assets:[]
     })
   });
-  assert.equal(invalidComponentVersion.status,503,'release version components are restricted to one digit');
+  assert.equal(invalidComponentVersion.status,503,'release major and minor components are limited to one digit');
+
+  const invalidPatchVersion = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
+    ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
+    fetchRelease:async () => Response.json({
+      tag_name:'v0.1.100',
+      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.100',
+      assets:[]
+    })
+  });
+  assert.equal(invalidPatchVersion.status,503,'release Patch component is limited to 99');
 
   const overflow = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
     ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
@@ -186,15 +196,15 @@ test('update API rejects unsupported deployments and releases without the checks
   assert.equal(unsafeReleaseLink.status,503,'release links are restricted to the public repository');
 });
 
-test('version reset still offers the new single-digit release to devices on the previous 0.1.x line', async () => {
+test('version reset offers two-digit Patch releases to devices on the previous 0.1.x line', async () => {
   const response = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
     ...env,
     SELF_HOSTED:'true',
     QIDIAN_VERSION:'0.1.24',
     fetchRelease:async () => Response.json({
-      tag_name:'v0.0.1',
-      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.0.1',
-      assets:[{ name:'栖点-0.0.1.run' },{ name:'栖点-0.0.1.run.sha256' }],
+      tag_name:'v0.0.10',
+      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.0.10',
+      assets:[{ name:'栖点-0.0.10.run' },{ name:'栖点-0.0.10.run.sha256' }],
       draft:false,
       prerelease:false
     }),

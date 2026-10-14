@@ -9,8 +9,8 @@ const REQUIRED_ASSETS = (version) => [
 ];
 
 function parseVersion(version) {
-  const match = /^([0-9])\.([0-9])\.([0-9])$/.exec(version ?? '');
-  if (!match) throw new Error(`Expected a version with one digit per component, got ${version}`);
+  const match = /^([0-9])\.([0-9])\.(0|[1-9][0-9]?)$/.exec(version ?? '');
+  if (!match) throw new Error(`Expected major and minor from 0 to 9, and Patch from 0 to 99 without leading zeros, got ${version}`);
   return match;
 }
 
@@ -20,8 +20,8 @@ function incrementPatch(version) {
   let nextMinor = BigInt(minor);
   let nextPatch = BigInt(patch) + 1n;
 
-  const minorCarry = nextPatch / 10n;
-  nextPatch %= 10n;
+  const minorCarry = nextPatch / 100n;
+  nextPatch %= 100n;
   nextMinor += minorCarry;
 
   const majorCarry = nextMinor / 10n;
@@ -29,7 +29,7 @@ function incrementPatch(version) {
   nextMajor += majorCarry;
 
   if (nextMajor > 9n) {
-    throw new Error('Version limit 9.9.9 reached; update the version policy before another release');
+    throw new Error('Version limit 9.9.99 reached; update the version policy before another release');
   }
 
   return `${nextMajor}.${nextMinor}.${nextPatch}`;

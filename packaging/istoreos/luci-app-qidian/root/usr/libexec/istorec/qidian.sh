@@ -215,7 +215,7 @@ prepare() {
 	set_env APP_PORT "$port"
 	set_env REGISTRATION_ENABLED "$registration_enabled"
 	app_version=$(cat /etc/qidian-version 2>/dev/null || printf '0.0.0')
-	printf '%s\n' "$app_version" | grep -Eq '^[0-9]\.[0-9]\.[0-9]$' || fail '安装包版本号无效。'
+	printf '%s\n' "$app_version" | grep -Eq '^[0-9]\.[0-9]\.(0|[1-9][0-9]?)$' || fail '安装包版本号无效。'
 	set_env QIDIAN_VERSION "$app_version"
 	set_env QIDIAN_IMAGE "$IMAGE_REPOSITORY:latest"
 	set_env QIDIAN_UPDATE_REQUEST_PATH "$request_dir"

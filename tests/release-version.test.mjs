@@ -63,20 +63,24 @@ test('a draft candidate is resumed rather than skipped', () => {
   }), { version: '0.0.1', releaseExists: true });
 });
 
-test('version components carry at 10 and stay within one digit', () => {
-  assert.deepEqual(select({ currentVersion: '0.0.9' }), {
+test('Patch carries at 100 and major/minor carry at 10', () => {
+  assert.deepEqual(select({ currentVersion: '0.0.99' }), {
     version: '0.1.0',
     releaseExists: false,
   });
-  assert.deepEqual(select({ currentVersion: '0.9.9' }), {
+  assert.deepEqual(select({ currentVersion: '0.9.99' }), {
     version: '1.0.0',
     releaseExists: false,
   });
-  assert.throws(() => select({ currentVersion: '9.9.9' }), /9\.9\.9 reached/);
+  assert.deepEqual(select({ currentVersion: '9.8.99' }), {
+    version: '9.9.0',
+    releaseExists: false,
+  });
+  assert.throws(() => select({ currentVersion: '9.9.99' }), /9\.9\.99 reached/);
 });
 
-test('release versions must use exactly three single-digit numeric components', () => {
-  for (const currentVersion of ['0.1.27', '0.1.x', '0.01.2', '0.1.2-beta.1']) {
-    assert.throws(() => select({ currentVersion }), /one digit per component/);
+test('only Patch can use two digits and all components must be canonical', () => {
+  for (const currentVersion of ['0.1.100', '0.1.x', '0.01.2', '0.10.1', '10.0.0', '0.1.02', '0.1.2-beta.1']) {
+    assert.throws(() => select({ currentVersion }), /major and minor from 0 to 9, and Patch from 0 to 99/);
   }
 });
