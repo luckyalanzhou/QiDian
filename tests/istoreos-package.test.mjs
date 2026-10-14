@@ -45,6 +45,8 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /gh release upload "\$tag"/);
   assert.match(workflow, /--clobber/);
   assert.match(workflow, /\.assets\[\] \| \(\.label \/\/ \.name\)/);
+  assert.match(workflow, /git\/refs\/tags\/\$\{tag\}/);
+  assert.match(workflow, /--method PATCH/);
   assert.match(workflow, /gh release edit "\$tag".*--draft=false/);
   assert.match(workflow, /Prepare release checksum with the public asset name/);
   assert.match(workflow, /run\.release\.sha256#栖点-/);

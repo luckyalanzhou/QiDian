@@ -183,6 +183,16 @@ jobs:
             printf -- '- Docker Hub 多架构镜像：`luckyalanzhou/qidian:%s`（amd64 / arm64）。\n' "$version"
             printf -- '- 源码版本已自动递增并提交到 `main`。\n'
           } > "$notes_file"
+          if [ "$RELEASE_EXISTS" = "true" ]; then
+            tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha' 2>/dev/null || true)
+            if [ "$tag_sha" != "$TARGET_SHA" ]; then
+              if [ -n "$tag_sha" ]; then
+                gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" -f sha="$TARGET_SHA" -F force=true >/dev/null
+              else
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${tag}" -f sha="$TARGET_SHA" >/dev/null
+              fi
+            fi
+          fi
           if [ "$RELEASE_EXISTS" != "true" ]; then
             gh release create "$tag" --draft --target "$TARGET_SHA" --title "$title" --notes-file "$notes_file"
           fi
