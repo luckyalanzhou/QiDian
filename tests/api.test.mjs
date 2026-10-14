@@ -117,7 +117,7 @@ test('self-hosted version checks require login and queue only a verified latest 
   const release = {
     tag_name:'v0.1.6', html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6',
     body:'修复问题\n- 更新容器', published_at:'2026-10-12T00:00:00Z', draft:false, prerelease:false,
-    assets:[{ name:'qidian-0.1.6.run' },{ name:'qidian-0.1.6.run.sha256' }]
+    assets:[{ name:'栖点-0.1.6.run' },{ name:'栖点-0.1.6.run.sha256' }]
   };
   let queued = 0;
   const updateEnv = {
@@ -157,6 +157,16 @@ test('update API rejects unsupported deployments and releases without the checks
   });
   assert.equal(response.status,503);
 
+  const invalidComponentVersion = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
+    ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
+    fetchRelease:async () => Response.json({
+      tag_name:'v0.10.0',
+      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.10.0',
+      assets:[]
+    })
+  });
+  assert.equal(invalidComponentVersion.status,503,'release version components are restricted to one digit');
+
   const overflow = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
     ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
     fetchRelease:async () => Response.json({
@@ -174,6 +184,24 @@ test('update API rejects unsupported deployments and releases without the checks
     })
   });
   assert.equal(unsafeReleaseLink.status,503,'release links are restricted to the public repository');
+});
+
+test('version reset still offers the new single-digit release to devices on the previous 0.1.x line', async () => {
+  const response = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
+    ...env,
+    SELF_HOSTED:'true',
+    QIDIAN_VERSION:'0.1.24',
+    fetchRelease:async () => Response.json({
+      tag_name:'v0.0.1',
+      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.0.1',
+      assets:[{ name:'栖点-0.0.1.run' },{ name:'栖点-0.0.1.run.sha256' }],
+      draft:false,
+      prerelease:false
+    }),
+    isQidianUpdaterReady:async () => true
+  });
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).updateAvailable,true);
 });
 
 test('registration is controlled by deployment configuration', async () => {

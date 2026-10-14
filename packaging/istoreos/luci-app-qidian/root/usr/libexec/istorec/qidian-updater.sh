@@ -106,17 +106,22 @@ run_update() {
 	fi
 	tag=$(jsonfilter -i "$work_dir/release.json" -e '@.tag_name' 2>/dev/null || true)
 	case "$tag" in v[0-9]*) version=${tag#v} ;; *) append_log 'Release 版本号无效。'; exit 1 ;; esac
-	printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || { append_log 'Release 不是稳定版语义版本，已停止更新。'; exit 1; }
+	printf '%s\n' "$version" | grep -Eq '^[0-9]\.[0-9]\.[0-9]$' || { append_log 'Release 版本号必须由三个 0–9 数字组成，已停止更新。'; exit 1; }
 	write_state running "$version"
-	archive="qidian-$version.run"
-	base_url="https://github.com/$REPOSITORY/releases/download/$tag"
+	archive="栖点-$version.run"
+	checksum="$archive.sha256"
+	asset_prefix="https://github.com/$REPOSITORY/releases/download/$tag/"
+	installer_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$archive'].browser_download_url" 2>/dev/null || true)
+	checksum_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$checksum'].browser_download_url" 2>/dev/null || true)
+	case "$installer_url" in "$asset_prefix"*) ;; *) append_log 'Release 安装包链接无效。'; exit 1 ;; esac
+	case "$checksum_url" in "$asset_prefix"*) ;; *) append_log 'Release 校验文件链接无效。'; exit 1 ;; esac
 	append_log "发现栖点 $version，正在下载安装包和校验文件…"
-	if ! download "$base_url/$archive" "$work_dir/$archive" || ! download "$base_url/$archive.sha256" "$work_dir/$archive.sha256"; then
+	if ! download "$installer_url" "$work_dir/$archive" || ! download "$checksum_url" "$work_dir/$checksum"; then
 		append_log '安装包下载失败；请检查设备是否能访问 GitHub Release。'
 		exit 1
 	fi
 	append_log '正在校验 SHA-256…'
-	if ! (cd "$work_dir" && sha256sum -c "$archive.sha256"); then
+	if ! (cd "$work_dir" && sha256sum -c "$checksum"); then
 		append_log 'SHA-256 校验失败，安装包未执行。'
 		exit 1
 	fi

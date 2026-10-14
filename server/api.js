@@ -10,6 +10,7 @@ const CHUNK = 256 * 1024;
 const MAX_AVATAR_BYTES = 512 * 1024;
 const RELEASES_URL = 'https://api.github.com/repos/luckyalanzhou/qidian/releases/latest';
 const STABLE_VERSION = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const RELEASE_VERSION = /^v[0-9]\.[0-9]\.[0-9]$/;
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
 const json = (data, status = 200, extra = {}) => Response.json(data, { status, headers: { ...headers, ...extra } });
 
@@ -23,6 +24,9 @@ function versionParts(value) {
 function versionIsNewer(candidate, current) {
   const next = versionParts(candidate), installed = versionParts(current);
   if (!next || !installed) return false;
+  // Bridge devices on the previous 0.1.x line (whose patch component exceeded
+  // 9) to the new single-digit sequence after the repository was reset.
+  if (/^v?[0-9]\.[0-9]\.[0-9]$/.test(candidate) && installed[0] === 0 && installed[1] === 1 && installed[2] >= 10) return true;
   for (let index = 0; index < 3; index++) {
     if (next[index] !== installed[index]) return next[index] > installed[index];
   }
@@ -49,11 +53,11 @@ async function latestRelease(env) {
     if (url.origin !== 'https://github.com' || !url.pathname.startsWith('/luckyalanzhou/qidian/releases/tag/')) throw new Error('invalid release URL');
     releaseUrl = url.href;
   } catch { throw new HttpError(503, '最新版本信息格式无效'); }
-  if (!parts || release.draft || release.prerelease) throw new HttpError(503, '最新版本信息格式无效');
+  if (!parts || !RELEASE_VERSION.test(release.tag_name) || release.draft || release.prerelease) throw new HttpError(503, '最新版本信息格式无效');
   const version = parts.join('.');
   const assets = Array.isArray(release.assets) ? release.assets : [];
-  const installer = assets.find(asset => asset.name === `qidian-${version}.run`);
-  const checksum = assets.find(asset => asset.name === `qidian-${version}.run.sha256`);
+  const installer = assets.find(asset => asset.name === `栖点-${version}.run`);
+  const checksum = assets.find(asset => asset.name === `栖点-${version}.run.sha256`);
   return {
     version, releaseUrl,
     notes: typeof release.body === 'string' ? release.body.slice(0, 12000) : '',

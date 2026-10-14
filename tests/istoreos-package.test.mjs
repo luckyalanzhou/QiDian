@@ -12,6 +12,7 @@ test('iStoreOS run payload stays lightweight and contains persistent manager UI 
   assert.doesNotMatch(builder, /Dockerfile|pnpm-lock|PAYLOAD\/app|sqlite-adapter/);
   assert.match(builder, /OUTPUT_DIR=\$\{1:-"\$ROOT_DIR\/artifacts\/istoreos"\}/);
   assert.match(builder, /OUTPUT="\$OUTPUT_DIR\/qidian-\$\{VERSION\}\.run"/);
+  assert.ok(builder.includes('=~ ^[0-9]\\.[0-9]\\.[0-9]$'), 'package version components are single digits');
   assert.match(builder, /sha256sum "\$\(basename -- "\$OUTPUT"\)"/);
 });
 
@@ -26,8 +27,12 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /prefix=\$\{BASH_REMATCH\[0\]\}/);
   assert.match(workflow, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(workflow, /^  push:/m);
-  assert.match(workflow, /Increment patch version/);
+  assert.match(workflow, /Verify release publishing secret/);
+  assert.match(workflow, /Select or resume patch version/);
+  assert.match(workflow, /node scripts\/release-version\.mjs/);
+  assert.match(workflow, /RELEASE_PUBLISH_TOKEN/);
   assert.match(workflow, /Commit version bump to main/);
+  assert.match(workflow, /sha256sum --check/);
   assert.match(workflow, /docker\/login-action@v3/);
   assert.match(workflow, /username: luckyalanzhou/);
   assert.match(workflow, /password: \$\{\{ secrets\.DOCKERHUB_TOKEN \}\}/);
@@ -35,8 +40,14 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /platforms: linux\/amd64,linux\/arm64/);
   assert.match(workflow, /docker\.io\/luckyalanzhou\/qidian:\$\{\{ steps\.version\.outputs\.version \}\}/);
   assert.match(workflow, /docker\.io\/luckyalanzhou\/qidian:latest/);
-  assert.match(workflow, /gh release create "v\$\{version\}"/);
+  assert.match(workflow, /gh release create "\$tag" --draft/);
+  assert.match(workflow, /gh release upload "\$tag"/);
+  assert.match(workflow, /--clobber/);
+  assert.match(workflow, /gh release edit "\$tag".*--draft=false/);
+  assert.match(workflow, /Prepare release checksum with the public asset name/);
+  assert.match(workflow, /run\.release\.sha256#栖点-/);
   assert.match(workflow, /qidian-\$\{version\}\.run#栖点-\$\{version\}\.run/);
+  assert.match(workflow, /for expected in "栖点-\$\{version\}\.run" "栖点-\$\{version\}\.run\.sha256"/);
   assert.match(workflow, /git add package\.json/);
   assert.doesNotMatch(workflow, /luci-app-qidian\/Makefile|PKG_VERSION/);
 });
@@ -65,7 +76,9 @@ test('web updates use a limited host agent, verify the public release checksum, 
 
   assert.match(updater, /api\.github\.com\/repos\/\$REPOSITORY\/releases\/latest/);
   assert.match(updater, /sha256sum -c/);
-  assert.match(updater, /qidian-\$version\.run/);
+  assert.match(updater, /栖点-\$version\.run/);
+  assert.match(updater, /browser_download_url/);
+  assert.ok(updater.includes("grep -Eq '^[0-9]\\.[0-9]\\.[0-9]$'"), 'updater rejects versions with a component above 9');
   assert.match(updater, /mkdir "\$OPERATION_LOCK"/);
   assert.match(updater, /rmdir "\$OPERATION_LOCK"/);
   assert.match(updater, /网页更新锁已失效/);

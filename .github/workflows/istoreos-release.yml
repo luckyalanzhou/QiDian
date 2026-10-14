@@ -23,6 +23,10 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      - name: Verify release publishing secret
+        env:
+          RELEASE_PUBLISH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
+        run: test -n "$RELEASE_PUBLISH_TOKEN" || { echo "Repository secret RELEASE_PUBLISH_TOKEN is required." >&2; exit 1; }
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -36,35 +40,14 @@ jobs:
         with:
           username: luckyalanzhou
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Increment patch version
+      - name: Select or resume patch version
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          version=$(node --input-type=module <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs';
-          import { execFileSync } from 'node:child_process';
-
-          const packagePath = 'package.json';
-          const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
-          const match = manifest.version.match(/^(\d+)\.(\d+)\.(\d+)$/);
-          if (!match) throw new Error(`Expected stable x.y.z version, got ${manifest.version}`);
-
-          let alreadyReleased = false;
-          try {
-            execFileSync('gh', ['release', 'view', `v${manifest.version}`], { stdio: 'ignore' });
-            alreadyReleased = true;
-          } catch {}
-
-          if (alreadyReleased) {
-            manifest.version = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
-            writeFileSync(packagePath, `${JSON.stringify(manifest, null, 2)}\n`);
-          }
-          process.stdout.write(manifest.version);
-          NODE
-          )
+          version=$(node scripts/release-version.mjs)
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -111,8 +94,22 @@ jobs:
           sh -n packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh
       - name: Build iStoreOS package
         run: bash packaging/istoreos/build-run.sh artifacts/istoreos
+      - name: Prepare release checksum with the public asset name
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd artifacts/istoreos
+          sha256sum --check "qidian-${VERSION}.run.sha256"
+          digest=$(sha256sum "qidian-${VERSION}.run" | cut -d ' ' -f1)
+          printf '%s  栖点-%s.run\n' "$digest" "$VERSION" > "qidian-${VERSION}.run.release.sha256"
+          test "$(awk '{print $1}' "qidian-${VERSION}.run.release.sha256")" = "$digest"
       - name: Verify self-extracting archive checksum
-        run: sh artifacts/istoreos/qidian-*.run --check
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sh "artifacts/istoreos/qidian-${VERSION}.run" --check
+          (cd artifacts/istoreos && sha256sum --check "qidian-${VERSION}.run.sha256")
       - name: Commit version bump to main
         id: release_commit
         env:
@@ -132,10 +129,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
+          RELEASE_EXISTS: ${{ steps.version.outputs.release_exists }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ steps.release_commit.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
+          version="$VERSION"
+          tag="v${version}"
+          title="栖点 ${version} · iStoreOS Docker"
           notes_file=$(mktemp)
           details="$RELEASE_NOTES"
           if [ -z "$(printf '%s' "$details" | tr -d '[:space:]')" ]; then
@@ -171,10 +173,18 @@ jobs:
             printf -- '- Docker Hub 多架构镜像：`luckyalanzhou/qidian:%s`（amd64 / arm64）。\n' "$version"
             printf -- '- 源码版本已自动递增并提交到 `main`。\n'
           } > "$notes_file"
-          gh release create "v${version}" \
+          if [ "$RELEASE_EXISTS" != "true" ]; then
+            gh release create "$tag" --draft --target "$TARGET_SHA" --title "$title" --notes-file "$notes_file"
+          fi
+          gh release upload "$tag" \
             "artifacts/istoreos/qidian-${version}.run#栖点-${version}.run" \
-            "artifacts/istoreos/qidian-${version}.run.sha256#栖点-${version}.run.sha256" \
-            --target "${{ steps.release_commit.outputs.sha }}" \
-            --latest \
-            --title "栖点 ${version} · iStoreOS Docker" \
-            --notes-file "$notes_file"
+            "artifacts/istoreos/qidian-${version}.run.release.sha256#栖点-${version}.run.sha256" \
+            --clobber
+          assets=$(gh release view "$tag" --json assets --jq '.assets[].name')
+          for expected in "栖点-${version}.run" "栖点-${version}.run.sha256"; do
+            printf '%s\n' "$assets" | grep -Fqx "$expected" || {
+              echo "Release asset missing after upload: $expected" >&2
+              exit 1
+            }
+          done
+          gh release edit "$tag" --title "$title" --notes-file "$notes_file" --draft=false --latest

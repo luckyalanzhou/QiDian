@@ -1,0 +1,128 @@
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REQUIRED_ASSETS = (version) => [
+  `栖点-${version}.run`,
+  `栖点-${version}.run.sha256`,
+];
+
+function parseVersion(version) {
+  const match = /^([0-9])\.([0-9])\.([0-9])$/.exec(version ?? '');
+  if (!match) throw new Error(`Expected a version with one digit per component, got ${version}`);
+  return match;
+}
+
+function incrementPatch(version) {
+  const [, major, minor, patch] = parseVersion(version);
+  let nextMajor = BigInt(major);
+  let nextMinor = BigInt(minor);
+  let nextPatch = BigInt(patch) + 1n;
+
+  const minorCarry = nextPatch / 10n;
+  nextPatch %= 10n;
+  nextMinor += minorCarry;
+
+  const majorCarry = nextMinor / 10n;
+  nextMinor %= 10n;
+  nextMajor += majorCarry;
+
+  if (nextMajor > 9n) {
+    throw new Error('Version limit 9.9.9 reached; update the version policy before another release');
+  }
+
+  return `${nextMajor}.${nextMinor}.${nextPatch}`;
+}
+
+function isCompleteRelease(release, version) {
+  if (!release || release.isDraft) return false;
+  const assetNames = new Set((release.assets ?? []).map((asset) => asset.name));
+  return REQUIRED_ASSETS(version).every((name) => assetNames.has(name));
+}
+
+export function resolveReleaseVersion({ currentVersion, lastPackageCommit, getRelease }) {
+  parseVersion(currentVersion);
+  const currentRelease = getRelease(`v${currentVersion}`);
+
+  // A draft or incomplete release is an unfinished attempt. Keep its version so
+  // a rerun can replace partial assets and publish the same tag.
+  if (currentRelease && !isCompleteRelease(currentRelease, currentVersion)) {
+    return { version: currentVersion, releaseExists: true };
+  }
+
+  // The version bump is committed immediately before release creation. If that
+  // commit exists but no release does, this is a retry of the pending version.
+  if (!currentRelease && lastPackageCommit === `chore: release v${currentVersion}`) {
+    return { version: currentVersion, releaseExists: false };
+  }
+
+  // A normal manual run advances Patch. Skip any already complete version and
+  // resume the first draft or incomplete release encountered.
+  let version = incrementPatch(currentVersion);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const release = getRelease(`v${version}`);
+    if (!release) return { version, releaseExists: false };
+    if (!isCompleteRelease(release, version)) return { version, releaseExists: true };
+    version = incrementPatch(version);
+  }
+
+  throw new Error('Unable to select a free Patch version after 100 attempts');
+}
+
+function run(command, args) {
+  return execFileSync(command, args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+  }).trim();
+}
+
+function main() {
+  const manifestPath = 'package.json';
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const releases = JSON.parse(run('gh', [
+    'release', 'list', '--limit', '100', '--json', 'tagName,isDraft',
+  ]));
+  const releaseTags = new Set(releases.map((release) => release.tagName));
+  const releaseCache = new Map();
+  const getRelease = (tag) => {
+    if (!releaseTags.has(tag)) return null;
+    if (!releaseCache.has(tag)) {
+      releaseCache.set(tag, JSON.parse(run('gh', [
+        'release', 'view', tag, '--json', 'isDraft,assets',
+      ])));
+    }
+    return releaseCache.get(tag);
+  };
+  const lastPackageCommit = run('git', [
+    'log', '-1', '--format=%s', '--', 'package.json',
+  ]);
+  const selection = resolveReleaseVersion({
+    currentVersion: manifest.version,
+    lastPackageCommit,
+    getRelease,
+  });
+
+  if (selection.version !== manifest.version) {
+    manifest.version = selection.version;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, [
+      `version=${selection.version}`,
+      `release_exists=${selection.releaseExists}`,
+      '',
+    ].join('\n'));
+  }
+  process.stdout.write(selection.version);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+}

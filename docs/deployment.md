@@ -106,7 +106,7 @@ docker exec -it qidian node server/reset-password.mjs
 
 ### iStoreOS Web 在线更新
 
-第一次使用在线更新前，设备必须安装包含宿主更新代理的新版 `.run`，并至少在 LuCI 成功部署一次。
+版本序号已从旧版 `0.1.x` 重置为 `0.0.0`。现有旧版设备首次迁移时，请先从 Release 手动下载并安装新版 `.run`，再到 LuCI 点击一次 **安装 / 更新**；完成后即可使用 Web 在线更新。
 
 1. 登录栖点，点击顶栏版本号。
 2. 确认当前版本、最新版本和 Release 说明。
@@ -126,7 +126,7 @@ docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml
 docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml up -d
 ```
 
-需要固定版本时，将 `QIDIAN_IMAGE` 从 `latest` 改为明确版本，例如 `docker.io/luckyalanzhou/qidian:0.1.23`，再重新拉取和启动。
+需要固定版本时，将 `QIDIAN_IMAGE` 从 `latest` 改为明确版本，例如 `docker.io/luckyalanzhou/qidian:0.0.1`，再重新拉取和启动。
 
 ## 数据备份与迁移
 
