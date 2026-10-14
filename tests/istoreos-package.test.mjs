@@ -152,15 +152,21 @@ test('Docker service and LuCI use HTTP 9908 without requiring certificates', asy
   assert.ok(view.includes('"http://" + window.location.hostname'));
 });
 
-test('LuCI native service submenu exposes install progress without duplicate in-page tabs', async () => {
+test('LuCI keeps service and operation logs in one page with in-page tabs', async () => {
   const base = '../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/';
   const controller = await read(`${base}controller/qidian.lua`);
   const service = await read(`${base}view/qidian/status.htm`);
-  const logs = await read(`${base}view/qidian/logs.htm`);
 
-  assert.match(controller, /"qidian", "logs"}, template\("qidian\/logs"\)/);
+  assert.match(controller, /entry\(\{"admin", "services", "qidian"\}, cbi\("qidian"\)/);
+  assert.doesNotMatch(controller, /"qidian", "logs"/);
+  assert.doesNotMatch(service, /href="<%=logs_url%>"/);
   assert.match(controller, /"qidian", "log-data"}, call\("log_data"\)/);
-  assert.doesNotMatch(service + logs, /qidian-tabs/, 'the controller provides the service/log submenu; templates must not draw a second tab row');
+  assert.match(service, /class="qidian-tabs"/);
+  assert.match(service, /id="qidian-tab-service"/);
+  assert.match(service, /id="qidian-tab-logs"/);
+  assert.match(service, /function setPanel\(name\)/);
+  assert.match(service, /optionsSection\.hidden = showLogs/);
+  assert.match(service, /id="qidian-modal-show-logs"/);
   assert.match(service, /qidian-data-path/);
   assert.match(service, /id="qidian-advanced-actions"/);
   assert.match(service, /name\$="\.' \+ suffix/);
@@ -171,20 +177,22 @@ test('LuCI native service submenu exposes install progress without duplicate in-
   assert.match(service, /qidian-install-modal/);
   assert.match(service, /tail -c 65536/);
   assert.match(service, /if \(busy\) pollLog\(\)/);
-  assert.match(service, /href="<%=logs_url%>"/);
   assert.match(service, /event\.key === "Escape"/);
   assert.match(service, /点击打开栖点/);
   assert.match(service, /打开栖点并创建管理员/);
   assert.match(service, /docker exec -it qidian node server\/reset-password\.mjs/);
   assert.match(service, /navigator\.clipboard/);
   assert.match(service, /栖点服务已启动/);
-  assert.match(logs, /操作日志/);
-  assert.match(logs, /window\.setTimeout\(refresh, 1800\)/);
-  assert.match(logs, /qidian-log-state-text/);
-  assert.doesNotMatch(service + logs, /qidian-console-dots/);
-  assert.match(logs, /border-radius:4px/);
+  assert.match(service, /操作日志/);
+  assert.match(service, /window\.setTimeout\(pollLog, 1800\)/);
+  assert.match(service, /qidian-log-state-text/);
+  assert.doesNotMatch(service, /qidian-console-dots/);
+  assert.match(service, /qidian-log-card-foot/);
+  assert.match(service, /\.qidian-operation-log[^}]+color:var\(--qidian-ink\); background:var\(--qidian-surface\)/);
+  assert.match(service, /\.qidian-console-bar[^}]+background:var\(--qidian-surface-soft\); color:var\(--qidian-ink\)/);
+  assert.doesNotMatch(service, /\.qidian-operation-log\s*\{[^}]*background:#111/);
   assert.match(service, /max-height:180px[^}]+white-space:pre-wrap/, 'the install log stays compact and wraps long lines on phones');
-  assert.match(logs, /max-height:min\(42vh,320px\)[^}]+white-space:pre-wrap/, 'the LuCI log page uses a bounded phone console');
+  assert.match(service, /max-height:min\(42vh,320px\)[^}]+-webkit-overflow-scrolling:touch/, 'the inline LuCI log panel stays bounded on phones');
 
   const updater = await read('../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh');
   assert.match(updater, /while \[ ! -f "\$result_file" \]/);

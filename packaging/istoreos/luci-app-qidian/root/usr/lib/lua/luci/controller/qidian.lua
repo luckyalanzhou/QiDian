@@ -5,11 +5,9 @@ function index()
 		return
 	end
 
-	local root = entry({"admin", "services", "qidian"}, alias("admin", "services", "qidian", "service"), _("栖点知识库"), 60)
+	local root = entry({"admin", "services", "qidian"}, cbi("qidian"), _("栖点知识库"), 60)
 	root.dependent = true
 
-	entry({"admin", "services", "qidian", "service"}, cbi("qidian"), _("服务"), 10).leaf = true
-	entry({"admin", "services", "qidian", "logs"}, template("qidian/logs"), _("日志"), 20).leaf = true
 	entry({"admin", "services", "qidian", "log-data"}, call("log_data")).leaf = true
 end
 
