@@ -112,7 +112,9 @@ run_update() {
 	checksum="$archive.sha256"
 	asset_prefix="https://github.com/$REPOSITORY/releases/download/$tag/"
 	installer_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$archive'].browser_download_url" 2>/dev/null || true)
+	[ -n "$installer_url" ] || installer_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.label='$archive'].browser_download_url" 2>/dev/null || true)
 	checksum_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$checksum'].browser_download_url" 2>/dev/null || true)
+	[ -n "$checksum_url" ] || checksum_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.label='$checksum'].browser_download_url" 2>/dev/null || true)
 	case "$installer_url" in "$asset_prefix"*) ;; *) append_log 'Release 安装包链接无效。'; exit 1 ;; esac
 	case "$checksum_url" in "$asset_prefix"*) ;; *) append_log 'Release 校验文件链接无效。'; exit 1 ;; esac
 	append_log "发现栖点 $version，正在下载安装包和校验文件…"

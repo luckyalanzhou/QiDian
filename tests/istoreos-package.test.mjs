@@ -49,6 +49,8 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /Prepare release checksum with the public asset name/);
   assert.match(workflow, /run\.release\.sha256#栖点-/);
   assert.match(workflow, /qidian-\$\{version\}\.run#栖点-\$\{version\}\.run/);
+  assert.match(workflow, /run\.release\.sha256#栖点-/);
+  assert.match(workflow, /qidian-\$\{version\}\.run#栖点-\$\{version\}\.run/);
   assert.match(workflow, /for expected in "栖点-\$\{version\}\.run" "栖点-\$\{version\}\.run\.sha256"/);
   assert.match(workflow, /git add package\.json/);
   assert.doesNotMatch(workflow, /luci-app-qidian\/Makefile|PKG_VERSION/);
@@ -77,6 +79,8 @@ test('web updates use a limited host agent, verify the public release checksum, 
   const dockerfile = await read('../Dockerfile');
 
   assert.match(updater, /api\.github\.com\/repos\/\$REPOSITORY\/releases\/latest/);
+  assert.match(updater, /@\.assets\[@\.label='\$archive'\]/);
+  assert.match(updater, /@\.assets\[@\.label='\$checksum'\]/);
   assert.match(updater, /sha256sum -c/);
   assert.match(updater, /栖点-\$version\.run/);
   assert.match(updater, /browser_download_url/);
