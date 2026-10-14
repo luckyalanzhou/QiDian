@@ -1,0 +1,5 @@
+config qidian 'main'
+	option http_port '9908'
+	option registration_enabled '0'
+	option data_path ''
+	option update_control_path ''

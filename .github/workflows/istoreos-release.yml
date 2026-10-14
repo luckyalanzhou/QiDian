@@ -1,0 +1,180 @@
+name: iStoreOS Docker release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: "本版优化与新增内容，每行一项；留空时按提交记录生成"
+        required: false
+        type: string
+
+concurrency:
+  group: qidian-manual-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Sign in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: luckyalanzhou
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Increment patch version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+
+          const packagePath = 'package.json';
+          const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
+          const match = manifest.version.match(/^(\d+)\.(\d+)\.(\d+)$/);
+          if (!match) throw new Error(`Expected stable x.y.z version, got ${manifest.version}`);
+
+          let alreadyReleased = false;
+          try {
+            execFileSync('gh', ['release', 'view', `v${manifest.version}`], { stdio: 'ignore' });
+            alreadyReleased = true;
+          } catch {}
+
+          if (alreadyReleased) {
+            manifest.version = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+            writeFileSync(packagePath, `${JSON.stringify(manifest, null, 2)}\n`);
+          }
+          process.stdout.write(manifest.version);
+          NODE
+          )
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify source
+        run: |
+          pnpm check
+          pnpm test
+          pnpm build
+      - name: Build and smoke-test self-hosted container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull --build-arg "QIDIAN_VERSION=${{ steps.version.outputs.version }}" -t qidian-selfhost:release .
+          docker run -d --name qidian-smoke -p 127.0.0.1:9908:9908 \
+            --tmpfs /data:uid=1000,gid=1000 \
+            -e REGISTRATION_ENABLED=false qidian-selfhost:release
+          cleanup() { docker rm -f qidian-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9908/healthz >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:9908/ >/dev/null
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9908/api/vault)
+          test "$status" = 401 || { docker logs qidian-smoke; echo "Expected unauthenticated API status 401, got $status" >&2; exit 1; }
+      - name: Publish multi-architecture Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            QIDIAN_VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            docker.io/luckyalanzhou/qidian:${{ steps.version.outputs.version }}
+            docker.io/luckyalanzhou/qidian:latest
+      - name: Install Makeself
+        run: sudo apt-get update && sudo apt-get install --yes makeself
+      - name: Check packaging scripts
+        run: |
+          bash -n packaging/istoreos/build-run.sh
+          sh -n packaging/istoreos/install.sh
+          sh -n packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian.sh
+          sh -n packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh
+      - name: Build iStoreOS package
+        run: bash packaging/istoreos/build-run.sh artifacts/istoreos
+      - name: Verify self-extracting archive checksum
+        run: sh artifacts/istoreos/qidian-*.run --check
+      - name: Commit version bump to main
+        id: release_commit
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "luckyalanzhou"
+          git config user.email "zhiminzhou1@gmail.com"
+          git add package.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: release v${VERSION}"
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Publish public GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.QIDIAN_RELEASE_TOKEN }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          notes_file=$(mktemp)
+          details="$RELEASE_NOTES"
+          if [ -z "$(printf '%s' "$details" | tr -d '[:space:]')" ]; then
+            previous_tag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+            if [ -n "$previous_tag" ]; then
+              details=$(git log --reverse --format='%s' "${previous_tag}..HEAD^" --invert-grep --grep='^chore: release ')
+            else
+              details=$(git log -1 --format='%s' HEAD^)
+            fi
+          fi
+          {
+            printf '## 本版优化与新增\n\n'
+            item=0
+            while IFS= read -r detail || [ -n "$detail" ]; do
+              [ -n "$detail" ] || continue
+              case "$detail" in
+                feat:\ *) detail=${detail#feat: } ;;
+                fix:\ *) detail=${detail#fix: } ;;
+                chore:\ *) detail=${detail#chore: } ;;
+              esac
+              numbered_prefix='^[[:space:]]*[0-9]+[.)][[:space:]]+'
+              bullet_prefix='^[[:space:]]*[-+*][[:space:]]+'
+              while [[ "$detail" =~ $numbered_prefix ]] || [[ "$detail" =~ $bullet_prefix ]]; do
+                prefix=${BASH_REMATCH[0]}
+                detail=${detail#"$prefix"}
+              done
+              item=$((item + 1))
+              printf '%d. %s\n' "$item" "$detail"
+            done < <(printf '%s\n' "$details")
+            if [ "$item" -eq 0 ]; then printf '1. 完成本版维护与兼容性优化。\n'; fi
+            printf '\n## 安装包\n\n'
+            printf -- '- iStoreOS Docker 安装包 v%s。\n' "$version"
+            printf -- '- Docker Hub 多架构镜像：`luckyalanzhou/qidian:%s`（amd64 / arm64）。\n' "$version"
+            printf -- '- 源码版本已自动递增并提交到 `main`。\n'
+          } > "$notes_file"
+          gh release create "v${version}" \
+            "artifacts/istoreos/qidian-${version}.run#栖点-${version}.run" \
+            "artifacts/istoreos/qidian-${version}.run.sha256#栖点-${version}.run.sha256" \
+            --target "${{ steps.release_commit.outputs.sha }}" \
+            --latest \
+            --title "栖点 ${version} · iStoreOS Docker" \
+            --notes-file "$notes_file"

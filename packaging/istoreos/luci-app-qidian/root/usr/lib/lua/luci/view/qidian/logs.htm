@@ -1,0 +1,87 @@
+<% local sys = require "luci.sys"; local util = require "luci.util" %>
+<% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
+<% local result = util.trim(sys.exec("cat /tmp/qidian-operation.result 2>/dev/null")) %>
+<% local log = sys.exec("tail -c 65536 /tmp/qidian-operation.log 2>/dev/null") %>
+<% local log_endpoint = luci.dispatcher.build_url("admin/services/qidian/log-data") %>
+
+<div class="qidian-logs-page">
+	<div class="qidian-logs-heading">
+		<div><span><%:栖点服务%></span><h2><%:操作日志%></h2><p><%:安装、更新和服务操作记录。运行中自动刷新。%></p></div>
+		<span id="qidian-log-state" class="qidian-log-state <% if busy then %>is-busy<% elseif result == "failed" then %>is-error<% elseif result == "success" then %>is-success<% end %>"><i aria-hidden="true"></i><span id="qidian-log-state-text"><% if busy then %><%:正在运行%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:操作已完成%><% else %><%:等待操作%><% end %></span></span>
+	</div>
+
+	<div class="qidian-log-card">
+		<div class="qidian-console">
+			<div class="qidian-console-bar"><span><%:操作输出%></span><span id="qidian-live-indicator" class="qidian-live-indicator" <% if not busy then %>hidden<% end %>><i></i><%:实时更新%></span></div>
+			<pre id="qidian-operation-log" class="qidian-operation-log"><% if log == "" then %><%:暂无操作日志。前往“服务”页安装或更新栖点后，这里会显示完整过程。%><% else %><%=util.pcdata(log)%><% end %></pre>
+		</div>
+		<div class="qidian-log-card-foot"><span><%:最多显示最近 64 KB 输出。%></span><button id="qidian-log-refresh" type="button"><%:刷新日志%></button></div>
+	</div>
+</div>
+
+<script>
+(function () {
+	var endpoint = "<%=log_endpoint%>";
+	var output = document.getElementById("qidian-operation-log");
+	var lastLog = output.textContent;
+	var state = document.getElementById("qidian-log-state");
+	var refreshButton = document.getElementById("qidian-log-refresh");
+	var timer = null;
+	function setState(data) {
+		state.className = "qidian-log-state " + (data.busy ? "is-busy" : data.result === "failed" ? "is-error" : data.result === "success" ? "is-success" : "");
+		document.getElementById("qidian-log-state-text").textContent = data.busy ? "正在运行" : data.result === "failed" ? "上次操作失败" : data.result === "success" ? "操作已完成" : "等待操作";
+		document.getElementById("qidian-live-indicator").hidden = !data.busy;
+	}
+	function refresh() {
+		window.clearTimeout(timer);
+		refreshButton.disabled = true;
+		fetch(endpoint, { credentials: "same-origin", cache: "no-store" }).then(function (response) {
+			if (!response.ok) throw new Error("log request failed");
+			return response.json();
+		}).then(function (data) {
+			var atBottom = output.scrollTop + output.clientHeight >= output.scrollHeight - 32;
+			if (data.log !== lastLog) {
+				output.textContent = data.log || "暂无操作日志。前往“服务”页安装或更新栖点后，这里会显示完整过程。";
+				lastLog = data.log;
+				if (atBottom || data.busy) output.scrollTop = output.scrollHeight;
+			}
+			setState(data);
+			refreshButton.disabled = false;
+			if (data.busy) timer = window.setTimeout(refresh, 1800);
+		}).catch(function () {
+			state.className = "qidian-log-state is-error";
+			document.getElementById("qidian-log-state-text").textContent = "日志暂不可用";
+			refreshButton.disabled = false;
+			timer = window.setTimeout(refresh, 4000);
+		});
+	}
+	refreshButton.addEventListener("click", refresh);
+	if (<%=busy and "true" or "false"%>) { output.scrollTop = output.scrollHeight; refresh(); }
+})();
+</script>
+
+<style>
+.qidian-logs-page { --qidian-ink:var(--text-color-high,#303846); --qidian-muted:var(--text-color-medium,#68778a); --qidian-border:var(--border-color-medium,#d9dce2); --qidian-blue:var(--primary-color-high,#5b6fe8); --qidian-surface:var(--background-color-high,#fff); --qidian-surface-soft:var(--background-color-low,#f5f6f8); color:var(--qidian-ink); font-family:inherit; font-size:14px; }
+.qidian-logs-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:8px 0 14px; }
+.qidian-logs-heading > div > span { color:#68778a; font-size:12px; font-weight:600; }
+.qidian-logs-heading h2 { margin:3px 0 5px; font-size:20px; }
+.qidian-logs-heading p { margin:0; color:var(--qidian-muted); font-size:13px; }
+.qidian-log-state { display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; padding:6px 10px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface-soft); color:var(--qidian-muted); font-size:12px; font-weight:600; }
+.qidian-log-state i { width:7px; height:7px; border-radius:50%; background:currentColor; }
+.qidian-log-state.is-busy { border-color:#f1dfa5; background:var(--qidian-surface-soft); color:#79580d; }
+.qidian-log-state.is-busy i { animation:qidian-log-pulse 1s infinite alternate; }
+.qidian-log-state.is-success { border-color:#c8ecde; background:var(--qidian-surface-soft); color:#13795b; }
+.qidian-log-state.is-error { border-color:#f4d1d3; background:var(--qidian-surface-soft); color:#b43e48; }
+.qidian-log-card { overflow:hidden; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface); box-shadow:none; }
+.qidian-console { min-width:0; margin:12px; overflow:hidden; border:1px solid #222; border-radius:4px; background:#111; }
+.qidian-console-bar { display:flex; align-items:center; gap:10px; min-height:34px; box-sizing:border-box; padding:0 11px; border-bottom:1px solid #343a44; background:#252b34; color:#d5d9df; font-family:inherit; font-size:12px; line-height:1.4; }
+.qidian-live-indicator { display:inline-flex; align-items:center; gap:6px; margin-left:auto; color:#8cdbb7; font-size:11px; }
+.qidian-live-indicator[hidden] { display:none; }
+.qidian-live-indicator i { width:6px; height:6px; border-radius:50%; background:currentColor; }
+.qidian-operation-log { box-sizing:border-box; width:100%; max-width:100%; min-height:260px; max-height:66vh; margin:0; padding:15px; overflow:auto; color:#e2e5ea; background:#111; font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; white-space:pre; tab-size:2; }
+.qidian-log-card-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-top:1px solid var(--qidian-border); color:var(--qidian-muted); font-size:12px; background:var(--qidian-surface-soft); }
+.qidian-log-card-foot button { min-height:32px; padding:0 12px; border:1px solid var(--qidian-blue); border-radius:4px; background:var(--qidian-blue); color:#fff; cursor:pointer; }
+.qidian-log-card-foot button:disabled { opacity:.6; cursor:wait; }
+@keyframes qidian-log-pulse { to { opacity:.4; } }
+@media(max-width:640px) { .qidian-logs-heading { align-items:flex-start; flex-direction:column; gap:8px; } .qidian-logs-heading p { font-size:12px; } .qidian-console { margin:8px; } .qidian-operation-log { min-height:120px; max-height:min(42vh,320px); padding:9px; font-size:12px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; -webkit-overflow-scrolling:touch; } .qidian-log-card-foot { padding:8px 9px; } }
+</style>

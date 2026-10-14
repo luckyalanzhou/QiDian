@@ -1,0 +1,115 @@
+# 架构说明
+
+## 系统结构
+
+```mermaid
+flowchart LR
+  U[电脑或手机浏览器] -->|HTTP 9908 或 HTTPS 反向代理| W[Node.js 自托管服务]
+  W --> A[账号、会话与数据 API]
+  W --> S[静态 Web 资源]
+  A --> D[(SQLite)]
+  A --> F[附件与备份]
+  D --> V[Docker 持久化目录]
+  F --> V
+  A -->|只读取版本元数据| G[GitHub Release API]
+  A -->|受限请求文件| H[iStoreOS 宿主更新代理]
+  H -->|拉取并重建| I[Docker Hub 镜像]
+```
+
+| 层 | 实现 |
+|---|---|
+| 前端 | 原生 JavaScript、Vite、Tiptap 3、ProseMirror、DOMPurify、fflate |
+| 服务端 | Node.js 24 HTTP 服务，提供静态资源、账号、知识库、附件、备份和版本 API |
+| 数据库 | Node 内置 SQLite，WAL 模式、同步事务和顺序迁移 |
+| 镜像 | `luckyalanzhou/qidian`，支持 `linux/amd64` 与 `linux/arm64` |
+| iStoreOS | `.run` 安装 LuCI、Compose、管理脚本和受限更新代理 |
+
+正式入口是 `index.html`。前端代码位于 `src/`，服务端位于 `server/`，数据库迁移位于 `migrations/`。`private_wiki_prototype.html` 只作为原始设计基线，不参与构建。
+
+## 数据目录
+
+容器内统一使用 `/data`：
+
+```text
+/data/
+├── qidian.sqlite
+├── qidian.sqlite-wal / qidian.sqlite-shm   运行时文件
+├── migration-backups/                      结构迁移前的数据库副本
+└── .qidian-update-control/                 iStoreOS 更新请求、状态和日志
+```
+
+iStoreOS 将当前设备 Docker Root Dir 下的 `volumes/qidian/data` 挂载到 `/data`。通用 Docker 将 `qidian-data` 命名卷挂载到 `/data`。路径由部署端决定，应用代码不写死宿主目录。
+
+SQLite 启动参数包含外键、5 秒 busy timeout、WAL 和 FULL synchronous。服务启动时按文件名顺序执行尚未应用的迁移；迁移前复制数据库到 `migration-backups`。旧的单人表与早期认证字段保留，是为了兼容已有设备升级，不能作为“未使用文件”删除。
+
+## 账号与会话
+
+客户端使用 PBKDF2-HMAC-SHA-256 派生登录验证值，随机盐和迭代参数由服务端挑战决定。服务端保存派生结果，不保存明文密码。
+
+- 密码派生迭代次数：600,000。
+- 会话期限：连续 3 天未使用后失效，登录满 7 天强制重新验证；活动期限最多每小时续期一次。
+- Cookie：`qidian_session`、HttpOnly、SameSite=Strict；HTTPS 请求额外设置 Secure。
+- 登录、注册和更新操作包含 Origin 检查与请求频率限制。
+- 所有账号数据通过 `account_id` 隔离。
+- 修改或重置密码时删除该账号的其他会话。
+
+第一次自托管启动且数据库没有账号时，状态接口允许创建首个管理员。管理员创建完成后，注册由 `REGISTRATION_ENABLED` 控制。LuCI 只读取“等待创建管理员/管理员已创建”状态，不读取账号和密码。
+
+## 保存与多设备
+
+前端编辑停止约 250 毫秒后把当前知识库加入串行保存队列。保存请求携带 SQLite revision；服务端只有在 revision 匹配并完成事务后才返回成功。界面不会把“进入队列”显示成保存成功。
+
+前台页面每 2.5 秒读取轻量 revision，重新进入前台时立即检查。revision 改变后才下载完整知识库：
+
+1. 不同笔记、不同字段和不重叠正文修改自动合并。
+2. 合并结果先更新当前内存，再以最新 revision 写回。
+3. 同一段内容发生重叠修改时停止自动覆盖，保留本机和服务端两个版本。
+4. 用户先下载冲突对照 ZIP，再明确选择恢复服务端版本或继续处理本机版本。
+
+生产模式不把正文作为长期副本写入浏览器。网络失败时只保留当前页面内存和必要的一次恢复槽，服务恢复后重试。
+
+## 编辑与内容安全
+
+Tiptap JSON 是粘贴和编辑过程中的统一结构，SQLite 中继续保存经过清理的 HTML。Markdown 通过 `@tiptap/markdown` 转成 JSON，再经过允许节点、属性和 URL 规则清理。兼容纯文本整理器只在用户选择对应模式时使用，避免两套解析器重复插入。
+
+DOMPurify 和服务端校验共同阻止脚本、事件属性、表单、iframe、危险协议和越权附件地址。远程图片使用原 URL，不自动下载；本地图片通过鉴权附件 API 分块写入 SQLite。
+
+当前限制：
+
+- 单附件 8 MiB。
+- 每账号附件合计 100 MiB。
+- 每账号知识库正文 1 MiB。
+- 书签和分组合计 10,000，层级最多 32。
+
+## 历史与备份
+
+SQLite 触发器在数据更新前保存正文快照，每分钟最多一个，按创建时间保留最近 20 个。完整 ZIP 由前端读取已鉴权的知识库和附件后生成，包含 `vault.json` 与原始附件。单篇 HTML 导出会尽可能内嵌本地附件；远程资源仍依赖原站。
+
+正文快照、ZIP 导出和宿主目录备份用途不同。设备迁移或删除数据卷前，应同时导出 ZIP 并复制整个持久化目录。
+
+## 版本检查与在线更新
+
+已登录用户可读取当前版本和固定仓库的最新稳定 Release；只有首个账号可以提交设备更新。
+
+容器不挂载 Docker Socket。更新流程使用两个受控挂载目录：
+
+- 容器可写请求目录，只能创建固定的 `update-request` 文件。
+- 容器只读状态目录，用来读取状态和最近 64 KiB 日志。
+
+iStoreOS 宿主代理由 procd 管理，处理步骤如下：
+
+1. 从固定 GitHub 仓库读取最新 Release。
+2. 下载带版本号的 `.run` 和 `.sha256`。
+3. 校验 SHA-256 与版本号。
+4. 更新 LuCI 和宿主管理文件。
+5. 等待 10 秒，拉取适合当前架构的 Docker Hub 镜像。
+6. 使用设备锁重建容器并确认目标版本健康。
+7. Web 确认目标版本在线后倒计时 5 秒并刷新页面。
+
+更新状态与日志放在该设备的 Docker 数据目录下。历史成功状态不能代替本次任务结果，Web 必须确认当前目标版本已经运行。
+
+## 网络边界
+
+默认 HTTP 9908 只适合可信局域网。公网访问应使用 HTTPS 反向代理，并设置 `TRUST_PROXY=true`。代理必须重写 `X-Forwarded-Proto`、`X-Forwarded-Host` 和 `X-Forwarded-For`，同时阻止公网直接访问容器端口。
+
+版本检查会访问 GitHub，镜像安装和更新会访问 Docker Hub；知识库正文、附件和账号数据不会发送到这些服务。公网访问的 TLS、域名和端口转发由部署环境负责。
