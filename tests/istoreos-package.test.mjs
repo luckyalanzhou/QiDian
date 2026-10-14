@@ -179,6 +179,7 @@ test('Docker service and LuCI use HTTP 9908 without requiring certificates', asy
 test('LuCI separates service, deployment config, and operation logs in one page', async () => {
   const base = '../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/';
   const controller = await read(`${base}controller/qidian.lua`);
+  const model = await read(`${base}model/cbi/qidian.lua`);
   const service = await read(`${base}view/qidian/status.htm`);
 
   assert.match(controller, /entry\(\{"admin", "services", "qidian"\}, cbi\("qidian"\)/);
@@ -193,15 +194,20 @@ test('LuCI separates service, deployment config, and operation logs in one page'
   assert.match(service, /function setPanel\(name\)/);
   assert.match(service, /installConfigSlot\.appendChild\(installSection\)/);
   assert.doesNotMatch(service, /optionsSection\.hidden = showLogs/);
+  assert.match(model, /m:section\(NamedSection, "main", "qidian", translate\("部署与配置"\)\)/);
+  assert.match(model, /s\.description = translate\(/);
+  assert.match(service, /class="cbi-section qidian-service-hero"/);
+  assert.match(service, /class="cbi-value-title"/);
+  assert.match(service, /id="qidian-service-operations" class="cbi-section/);
+  assert.match(service, /serviceActionFields\.appendChild\(field\)/);
+  assert.doesNotMatch(service, /<details|<summary|advanced-actions-content|仅在需要重置密码时展开/);
   assert.match(service, /event\.key === "ArrowRight"[\s\S]*?event\.key === "End"/);
   assert.match(service, /id="qidian-modal-show-logs"/);
   assert.match(service, /qidian-data-path/);
-  assert.match(service, /id="qidian-advanced-actions"/);
   assert.match(service, /name\$="\.' \+ suffix/);
   assert.match(service, /name\$="\._remove"/);
   assert.match(service, /window\.confirm\("确认卸载栖点容器/);
-  assert.match(service, /<details id="qidian-account-tools"/);
-  assert.match(service, /仅在需要重置密码时展开/);
+  assert.match(service, /id="qidian-account-tools" class="cbi-section/);
   assert.match(service, /qidian-install-modal/);
   assert.match(service, /tail -c 65536/);
   assert.match(service, /if \(busy\) pollLog\(\)/);
@@ -223,8 +229,8 @@ test('LuCI separates service, deployment config, and operation logs in one page'
   assert.match(service, /\.qidian-operation-log[^}]+color:var\(--qidian-ink\); background:var\(--qidian-surface\)/);
   assert.match(service, /\.qidian-console-bar[^}]+background:var\(--qidian-surface-soft\); color:var\(--qidian-ink\)/);
   assert.doesNotMatch(service, /\.qidian-operation-log\s*\{[^}]*background:#111/);
-  assert.match(service, /\.qidian-install-section \.cbi-value \{ display:grid/);
-  assert.match(service, /\.qidian-service-details \{ display:grid; grid-template-columns:repeat\(3/);
+  assert.doesNotMatch(service, /\.qidian-install-section \.cbi-value\s*\{/);
+  assert.doesNotMatch(service, /\.qidian-service-details\s*\{[^}]*display:grid/);
   assert.match(service, /id="qidian-copy-path"/);
   assert.match(service, /max-height:180px[^}]+white-space:pre-wrap/, 'the install log stays compact and wraps long lines on phones');
   assert.match(service, /max-height:min\(42vh,320px\)[^}]+-webkit-overflow-scrolling:touch/, 'the inline LuCI log panel stays bounded on phones');

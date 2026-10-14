@@ -22,9 +22,10 @@ local m = Map("qidian", translate("栖点知识库"), translate("Docker 服务�
 local status = m:section(SimpleSection)
 status.template = "qidian/status"
 
-local s = m:section(NamedSection, "main", "qidian", translate("安装配置"))
+local s = m:section(NamedSection, "main", "qidian", translate("部署与配置"))
 s.addremove = false
 s.anonymous = true
+s.description = translate("使用 Docker Hub 成品镜像部署服务，并配置访问端口与账号注册方式。")
 
 local environment = s:option(DummyValue, "environment_display", translate("设备环境"))
 if not docker_ready then
