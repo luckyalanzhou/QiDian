@@ -190,7 +190,7 @@ jobs:
             "artifacts/istoreos/qidian-${version}.run#栖点-${version}.run" \
             "artifacts/istoreos/qidian-${version}.run.release.sha256#栖点-${version}.run.sha256" \
             --clobber
-          assets=$(gh release view "$tag" --json assets --jq '.assets[].name')
+          assets=$(gh release view "$tag" --json assets --jq '.assets[] | (.label // .name)')
           for expected in "栖点-${version}.run" "栖点-${version}.run.sha256"; do
             printf '%s\n' "$assets" | grep -Fqx "$expected" || {
               echo "Release asset missing after upload: $expected" >&2

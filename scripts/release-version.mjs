@@ -38,7 +38,7 @@ function incrementVersion(version, bumpType) {
 
 function isCompleteRelease(release, version) {
   if (!release || release.isDraft) return false;
-  const assetNames = new Set((release.assets ?? []).map((asset) => asset.name));
+  const assetNames = new Set((release.assets ?? []).flatMap(({ name, label }) => [name, label].filter(Boolean)));
   return REQUIRED_ASSETS(version).every((name) => assetNames.has(name));
 }
 

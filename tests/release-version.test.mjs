@@ -50,6 +50,17 @@ test('a complete release causes the next manual build to advance Patch', () => {
   }), { version: '0.0.2', releaseExists: false });
 });
 
+test('GitHub release asset labels count when the uploaded file names are internal', () => {
+  const assets = [
+    { name: 'qidian-0.0.1.run', label: '栖点-0.0.1.run' },
+    { name: 'qidian-0.0.1.run.release.sha256', label: '栖点-0.0.1.run.sha256' },
+  ];
+  assert.deepEqual(select({
+    currentVersion: '0.0.1',
+    releases: { 'v0.0.1': { isDraft: false, assets } },
+  }), { version: '0.0.2', releaseExists: false });
+});
+
 test('an already complete candidate is skipped', () => {
   assert.deepEqual(select({
     currentVersion: '0.0.0',
