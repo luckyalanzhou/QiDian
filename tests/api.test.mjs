@@ -160,24 +160,24 @@ test('update API rejects unsupported deployments and releases without the checks
   const invalidComponentVersion = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
     ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
     fetchRelease:async () => Response.json({
-      tag_name:'v0.10.0',
-      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.10.0',
+      tag_name:'v0.01.0',
+      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.01.0',
       assets:[]
     })
   });
-  assert.equal(invalidComponentVersion.status,503,'release major and minor components are limited to one digit');
+  assert.equal(invalidComponentVersion.status,503,'release versions reject leading zero components');
 
   const invalidPatchVersion = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
     ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
     fetchRelease:async () => Response.json({
-      tag_name:'v0.1.100',
-      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.100',
+      tag_name:'v0.1.010',
+      html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.010',
       assets:[]
     })
   });
-  assert.equal(invalidPatchVersion.status,503,'release Patch component is limited to 99');
+  assert.equal(invalidPatchVersion.status,503,'release Patch rejects leading zeros');
 
-  const overflow = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
+  const largeVersion = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
     ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
     fetchRelease:async () => Response.json({
       tag_name:'v999999999999999999999999.1.0',
@@ -185,7 +185,8 @@ test('update API rejects unsupported deployments and releases without the checks
       assets:[]
     })
   });
-  assert.equal(overflow.status,503,'unsafe integer versions are rejected');
+  assert.equal(largeVersion.status,200,'large SemVer components are compared without numeric overflow');
+  assert.equal((await largeVersion.json()).latestVersion,'999999999999999999999999.1.0');
 
   const unsafeReleaseLink = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
     ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',

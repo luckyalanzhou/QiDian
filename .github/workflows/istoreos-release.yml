@@ -3,6 +3,15 @@ name: iStoreOS Docker release
 on:
   workflow_dispatch:
     inputs:
+      release_bump:
+        description: "版本递增类型；按实际兼容性影响选择"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
       release_notes:
         description: "本版优化与新增内容，每行一项；留空时按提交记录生成"
         required: false
@@ -40,14 +49,15 @@ jobs:
         with:
           username: luckyalanzhou
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Select or resume patch version
+      - name: Select or resume release version
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_BUMP: ${{ inputs.release_bump }}
         shell: bash
         run: |
           set -euo pipefail
-          version=$(node scripts/release-version.mjs)
+          version=$(node scripts/release-version.mjs "$RELEASE_BUMP")
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

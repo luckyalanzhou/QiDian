@@ -10,11 +10,12 @@ const completeRelease = (version) => ({
   ],
 });
 
-const select = ({ currentVersion = '0.0.0', lastPackageCommit = 'feat: change', releases = {} } = {}) =>
+const select = ({ currentVersion = '0.0.0', lastPackageCommit = 'feat: change', releases = {}, bumpType = 'patch' } = {}) =>
   resolveReleaseVersion({
     currentVersion,
     lastPackageCommit,
     getRelease: (tag) => releases[tag] ?? null,
+    bumpType,
   });
 
 test('a manual release with no matching release advances Patch', () => {
@@ -63,24 +64,34 @@ test('a draft candidate is resumed rather than skipped', () => {
   }), { version: '0.0.1', releaseExists: true });
 });
 
-test('Patch carries at 100 and major/minor carry at 10', () => {
+test('Patch increases without an artificial limit', () => {
   assert.deepEqual(select({ currentVersion: '0.0.99' }), {
-    version: '0.1.0',
+    version: '0.0.100',
     releaseExists: false,
   });
-  assert.deepEqual(select({ currentVersion: '0.9.99' }), {
-    version: '1.0.0',
+  assert.deepEqual(select({ currentVersion: '9.9.99999999999999999999' }), {
+    version: '9.9.100000000000000000000',
     releaseExists: false,
   });
-  assert.deepEqual(select({ currentVersion: '9.8.99' }), {
-    version: '9.9.0',
-    releaseExists: false,
-  });
-  assert.throws(() => select({ currentVersion: '9.9.99' }), /9\.9\.99 reached/);
 });
 
-test('only Patch can use two digits and all components must be canonical', () => {
-  for (const currentVersion of ['0.1.100', '0.1.x', '0.01.2', '0.10.1', '10.0.0', '0.1.02', '0.1.2-beta.1']) {
-    assert.throws(() => select({ currentVersion }), /major and minor from 0 to 9, and Patch from 0 to 99/);
+test('manual Minor and Major bumps reset the lower components', () => {
+  assert.deepEqual(select({ currentVersion: '0.9.99', bumpType: 'minor' }), {
+    version: '0.10.0',
+    releaseExists: false,
+  });
+  assert.deepEqual(select({ currentVersion: '9.99.999', bumpType: 'major' }), {
+    version: '10.0.0',
+    releaseExists: false,
+  });
+});
+
+test('release versions use canonical non-negative integers without leading zeros', () => {
+  for (const currentVersion of ['0.1.x', '01.0.1', '0.01.2', '0.1.02', '0.1.2-beta.1']) {
+    assert.throws(() => select({ currentVersion }), /canonical Major.Minor.Patch integers/);
   }
+});
+
+test('release bump type must be patch, minor or major', () => {
+  assert.throws(() => select({ bumpType: 'build' }), /Unknown release bump type/);
 });

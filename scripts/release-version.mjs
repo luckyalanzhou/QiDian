@@ -9,27 +9,28 @@ const REQUIRED_ASSETS = (version) => [
 ];
 
 function parseVersion(version) {
-  const match = /^([0-9])\.([0-9])\.(0|[1-9][0-9]?)$/.exec(version ?? '');
-  if (!match) throw new Error(`Expected major and minor from 0 to 9, and Patch from 0 to 99 without leading zeros, got ${version}`);
+  const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(version ?? '');
+  if (!match) throw new Error(`Expected canonical Major.Minor.Patch integers without leading zeros, got ${version}`);
   return match;
 }
 
-function incrementPatch(version) {
+function incrementVersion(version, bumpType) {
   const [, major, minor, patch] = parseVersion(version);
   let nextMajor = BigInt(major);
   let nextMinor = BigInt(minor);
-  let nextPatch = BigInt(patch) + 1n;
+  let nextPatch = BigInt(patch);
 
-  const minorCarry = nextPatch / 100n;
-  nextPatch %= 100n;
-  nextMinor += minorCarry;
-
-  const majorCarry = nextMinor / 10n;
-  nextMinor %= 10n;
-  nextMajor += majorCarry;
-
-  if (nextMajor > 9n) {
-    throw new Error('Version limit 9.9.99 reached; update the version policy before another release');
+  if (bumpType === 'major') {
+    nextMajor += 1n;
+    nextMinor = 0n;
+    nextPatch = 0n;
+  } else if (bumpType === 'minor') {
+    nextMinor += 1n;
+    nextPatch = 0n;
+  } else if (bumpType === 'patch') {
+    nextPatch += 1n;
+  } else {
+    throw new Error(`Unknown release bump type: ${bumpType}`);
   }
 
   return `${nextMajor}.${nextMinor}.${nextPatch}`;
@@ -41,8 +42,11 @@ function isCompleteRelease(release, version) {
   return REQUIRED_ASSETS(version).every((name) => assetNames.has(name));
 }
 
-export function resolveReleaseVersion({ currentVersion, lastPackageCommit, getRelease }) {
+export function resolveReleaseVersion({ currentVersion, lastPackageCommit, getRelease, bumpType = 'patch' }) {
   parseVersion(currentVersion);
+  if (!['patch', 'minor', 'major'].includes(bumpType)) {
+    throw new Error(`Unknown release bump type: ${bumpType}`);
+  }
   const currentRelease = getRelease(`v${currentVersion}`);
 
   // A draft or incomplete release is an unfinished attempt. Keep its version so
@@ -57,17 +61,17 @@ export function resolveReleaseVersion({ currentVersion, lastPackageCommit, getRe
     return { version: currentVersion, releaseExists: false };
   }
 
-  // A normal manual run advances Patch. Skip any already complete version and
-  // resume the first draft or incomplete release encountered.
-  let version = incrementPatch(currentVersion);
+  // A normal manual run applies the selected SemVer bump. Skip any already
+  // complete version and resume the first draft or incomplete release found.
+  let version = incrementVersion(currentVersion, bumpType);
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const release = getRelease(`v${version}`);
     if (!release) return { version, releaseExists: false };
     if (!isCompleteRelease(release, version)) return { version, releaseExists: true };
-    version = incrementPatch(version);
+    version = incrementVersion(version, bumpType);
   }
 
-  throw new Error('Unable to select a free Patch version after 100 attempts');
+  throw new Error('Unable to select a free release version after 100 attempts');
 }
 
 function run(command, args) {
@@ -78,6 +82,7 @@ function run(command, args) {
 }
 
 function main() {
+  const bumpType = process.argv[2] || process.env.RELEASE_BUMP || 'patch';
   const manifestPath = 'package.json';
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const releases = JSON.parse(run('gh', [
@@ -101,6 +106,7 @@ function main() {
     currentVersion: manifest.version,
     lastPackageCommit,
     getRelease,
+    bumpType,
   });
 
   if (selection.version !== manifest.version) {

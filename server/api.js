@@ -10,22 +10,21 @@ const CHUNK = 256 * 1024;
 const MAX_AVATAR_BYTES = 512 * 1024;
 const RELEASES_URL = 'https://api.github.com/repos/luckyalanzhou/qidian/releases/latest';
 const STABLE_VERSION = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-const RELEASE_VERSION = /^v[0-9]\.[0-9]\.(0|[1-9]\d?)$/;
+const RELEASE_VERSION = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
 const json = (data, status = 200, extra = {}) => Response.json(data, { status, headers: { ...headers, ...extra } });
 
 function versionParts(value) {
   const match = STABLE_VERSION.exec(String(value || ''));
   if (!match) return null;
-  const parts = match.slice(1).map(Number);
-  return parts.every(Number.isSafeInteger) ? parts : null;
+  return match.slice(1).map(BigInt);
 }
 
 function versionIsNewer(candidate, current) {
   const next = versionParts(candidate), installed = versionParts(current);
   if (!next || !installed) return false;
   // Bridge devices on the previous 0.1.x line to the reset release sequence.
-  if (/^v?[0-9]\.[0-9]\.(0|[1-9]\d?)$/.test(String(candidate)) && installed[0] === 0 && installed[1] === 1 && installed[2] >= 10) return true;
+  if (/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(String(candidate)) && installed[0] === 0n && installed[1] === 1n && installed[2] >= 10n) return true;
   for (let index = 0; index < 3; index++) {
     if (next[index] !== installed[index]) return next[index] > installed[index];
   }

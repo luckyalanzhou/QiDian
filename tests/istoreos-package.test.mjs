@@ -12,7 +12,7 @@ test('iStoreOS run payload stays lightweight and contains persistent manager UI 
   assert.doesNotMatch(builder, /Dockerfile|pnpm-lock|PAYLOAD\/app|sqlite-adapter/);
   assert.match(builder, /OUTPUT_DIR=\$\{1:-"\$ROOT_DIR\/artifacts\/istoreos"\}/);
   assert.match(builder, /OUTPUT="\$OUTPUT_DIR\/qidian-\$\{VERSION\}\.run"/);
-  assert.ok(builder.includes('=~ ^[0-9]\\.[0-9]\\.(0|[1-9][0-9]?)$'), 'package Patch component supports canonical values from 0 to 99');
+  assert.ok(builder.includes('=~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$'), 'package versions use unbounded canonical SemVer integers');
   assert.match(builder, /sha256sum "\$\(basename -- "\$OUTPUT"\)"/);
 });
 
@@ -28,7 +28,8 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(workflow, /^  push:/m);
   assert.match(workflow, /Verify release publishing secret/);
-  assert.match(workflow, /Select or resume patch version/);
+  assert.match(workflow, /Select or resume release version/);
+  assert.match(workflow, /release_bump:[\s\S]*?options:[\s\S]*?- patch[\s\S]*?- minor[\s\S]*?- major[\s\S]*?default: patch/);
   assert.match(workflow, /node scripts\/release-version\.mjs/);
   assert.match(workflow, /RELEASE_PUBLISH_TOKEN/);
   assert.match(workflow, /Commit version bump to main/);
@@ -78,7 +79,7 @@ test('web updates use a limited host agent, verify the public release checksum, 
   assert.match(updater, /sha256sum -c/);
   assert.match(updater, /栖点-\$version\.run/);
   assert.match(updater, /browser_download_url/);
-  assert.ok(updater.includes("grep -Eq '^[0-9]\\.[0-9]\\.(0|[1-9][0-9]?)$'"), 'updater rejects major/minor above 9 and Patch above 99');
+  assert.ok(updater.includes("grep -Eq '^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$'"), 'updater validates canonical SemVer integers without fixed limits');
   assert.match(updater, /mkdir "\$OPERATION_LOCK"/);
   assert.match(updater, /rmdir "\$OPERATION_LOCK"/);
   assert.match(updater, /网页更新锁已失效/);

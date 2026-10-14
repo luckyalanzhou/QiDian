@@ -60,7 +60,7 @@ artifacts/istoreos/qidian-<版本>.run.sha256
 GitHub Actions 工作流 `iStoreOS Docker release` 只能手动触发。流程会：
 
 1. 运行 `pnpm check`、`pnpm test` 和 `pnpm build`。
-2. 以 `package.json` 为唯一版本来源；基准为 `0.0.0`，首次发布为 `0.0.1`。主版本和次版本为 `0–9`，Patch 为 `0–99`；Patch 到 100 时向前进位，次版本到 10 时继续向主版本进位。
+2. 以 `package.json` 为唯一版本来源；基准为 `0.0.0`，首次发布为 `0.0.1`。版本采用无固定上限的 `Major.Minor.Patch` 整数格式，不使用前导零。
 3. 构建容器并进行健康检查。
 4. 构建并推送 `linux/amd64`、`linux/arm64` Docker Hub 镜像，同时更新版本标签和 `latest`。
 5. 构建 `.run` 与 SHA-256 校验文件，Release 内仅发布 `栖点-<版本>.run` 和 `栖点-<版本>.run.sha256`。
@@ -70,7 +70,7 @@ GitHub Actions 工作流 `iStoreOS Docker release` 只能手动触发。流程�
 工作流需要仓库 Secrets `DOCKERHUB_TOKEN` 和 `RELEASE_PUBLISH_TOKEN`。Docker Hub 用户名已固定为 `luckyalanzhou`，无需另设用户名 Secret。
 
 普通推送到 `main` 不会自动发布；只有手动运行工作流才会构建新镜像和 Release。
-到达 `9.9.99` 后工作流会停止发布，需先调整版本规则。
+工作流默认递增 Patch；发布时可选择 Minor 或 Major。仅修复兼容性问题时递增 Patch，增加向后兼容功能时递增 Minor 并将 Patch 归零，出现不兼容变更时递增 Major 并将 Minor 与 Patch 归零。
 
 ## 更新机制
 

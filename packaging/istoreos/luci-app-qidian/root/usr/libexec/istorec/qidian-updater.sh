@@ -106,7 +106,7 @@ run_update() {
 	fi
 	tag=$(jsonfilter -i "$work_dir/release.json" -e '@.tag_name' 2>/dev/null || true)
 	case "$tag" in v[0-9]*) version=${tag#v} ;; *) append_log 'Release 版本号无效。'; exit 1 ;; esac
-	printf '%s\n' "$version" | grep -Eq '^[0-9]\.[0-9]\.(0|[1-9][0-9]?)$' || { append_log 'Release 版本号的主版本和次版本必须为 0–9，Patch 必须为 0–99，已停止更新。'; exit 1; }
+	printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || { append_log 'Release 版本号格式无效，已停止更新。'; exit 1; }
 	write_state running "$version"
 	archive="栖点-$version.run"
 	checksum="$archive.sha256"
