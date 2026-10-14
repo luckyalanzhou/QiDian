@@ -54,8 +54,8 @@ async function latestRelease(env) {
   if (!parts || !RELEASE_VERSION.test(release.tag_name) || release.draft || release.prerelease) throw new HttpError(503, '最新版本信息格式无效');
   const version = parts.join('.');
   const assets = Array.isArray(release.assets) ? release.assets : [];
-  const installer = assets.find(asset => asset.name === `栖点-${version}.run`);
-  const checksum = assets.find(asset => asset.name === `栖点-${version}.run.sha256`);
+  const installer = assets.find(asset => asset.name === `栖点-${version}.run` || asset.label === `栖点-${version}.run`);
+  const checksum = assets.find(asset => asset.name === `栖点-${version}.run.sha256` || asset.label === `栖点-${version}.run.sha256`);
   return {
     version, releaseUrl,
     notes: typeof release.body === 'string' ? release.body.slice(0, 12000) : '',

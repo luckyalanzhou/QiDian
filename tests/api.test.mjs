@@ -117,7 +117,10 @@ test('self-hosted version checks require login and queue only a verified latest 
   const release = {
     tag_name:'v0.1.6', html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6',
     body:'修复问题\n- 更新容器', published_at:'2026-10-12T00:00:00Z', draft:false, prerelease:false,
-    assets:[{ name:'栖点-0.1.6.run' },{ name:'栖点-0.1.6.run.sha256' }]
+    assets:[
+      { name:'qidian-0.1.6.run', label:'栖点-0.1.6.run' },
+      { name:'qidian-0.1.6.run.release.sha256', label:'栖点-0.1.6.run.sha256' }
+    ]
   };
   let queued = 0;
   const updateEnv = {
