@@ -27,7 +27,9 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /prefix=\$\{BASH_REMATCH\[0\]\}/);
   assert.match(workflow, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(workflow, /^  push:/m);
-  assert.match(workflow, /Verify release publishing secret/);
+  assert.match(workflow, /Verify publishing secrets/);
+  assert.match(workflow, /test -n "\$DOCKERHUB_TOKEN"/);
+  assert.match(workflow, /test -n "\$RELEASE_PUBLISH_TOKEN"/);
   assert.match(workflow, /Select or resume release version/);
   assert.match(workflow, /release_bump:[\s\S]*?options:[\s\S]*?- patch[\s\S]*?- minor[\s\S]*?- major[\s\S]*?default: patch/);
   assert.match(workflow, /node scripts\/release-version\.mjs/);
@@ -39,6 +41,18 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /password: \$\{\{ secrets\.DOCKERHUB_TOKEN \}\}/);
   assert.match(workflow, /docker\/build-push-action@v6/);
   assert.match(workflow, /platforms: linux\/amd64,linux\/arm64/);
+  assert.match(workflow, /cache: pnpm/);
+  assert.match(workflow, /cache-dependency-path: pnpm-lock\.yaml/);
+  assert.match(workflow, /timeout-minutes: 30/);
+  assert.match(workflow, /DOCKER_BUILD_RECORD_UPLOAD: false/);
+  assert.match(workflow, /setup-qemu-action@v3[\s\S]*?platforms: arm64/);
+  assert.match(workflow, /pnpm install --frozen-lockfile --prefer-offline/);
+  assert.ok(workflow.indexOf('name: Verify source') < workflow.indexOf('docker/setup-qemu-action@v3'), 'source verification fails before Docker emulation setup');
+  assert.ok(workflow.indexOf('name: Smoke-test self-hosted container') < workflow.indexOf('name: Sign in to Docker Hub'), 'Docker Hub login happens only after the local smoke test');
+  assert.match(workflow, /Build amd64 image for smoke test[\s\S]*?platforms: linux\/amd64[\s\S]*?load: true/);
+  assert.doesNotMatch(workflow, /docker build --pull/);
+  assert.match(workflow, /cache-from: type=gha,scope=qidian-image/);
+  assert.match(workflow, /cache-to: type=gha,mode=max,scope=qidian-image/);
   assert.match(workflow, /docker\.io\/luckyalanzhou\/qidian:\$\{\{ steps\.version\.outputs\.version \}\}/);
   assert.match(workflow, /docker\.io\/luckyalanzhou\/qidian:latest/);
   assert.match(workflow, /gh release create "\$tag" --draft/);
@@ -98,6 +112,9 @@ test('web updates use a limited host agent, verify the public release checksum, 
   assert.match(compose, /QIDIAN_UPDATE_STATUS_PATH:\?[^\n]*:\/run\/qidian-update-status:ro/);
   assert.doesNotMatch(compose, /docker\.sock/);
   assert.match(dockerfile, /ARG QIDIAN_VERSION/);
+  assert.match(dockerfile, /FROM --platform=\$BUILDPLATFORM node:24-bookworm-slim AS build/);
+  assert.match(dockerfile, /--mount=type=cache,id=pnpm-store,target=\/pnpm\/store/);
+  assert.match(dockerfile, /pnpm install --frozen-lockfile --prefer-offline/);
 });
 
 test('generic Docker install uses a device-managed named volume and has no host updater privileges', async () => {

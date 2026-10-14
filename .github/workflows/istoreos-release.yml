@@ -27,28 +27,29 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: false
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-      - name: Verify release publishing secret
+      - name: Verify publishing secrets
         env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           RELEASE_PUBLISH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
-        run: test -n "$RELEASE_PUBLISH_TOKEN" || { echo "Repository secret RELEASE_PUBLISH_TOKEN is required." >&2; exit 1; }
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
+        run: |
+          test -n "$DOCKERHUB_TOKEN" || { echo "Repository secret DOCKERHUB_TOKEN is required." >&2; exit 1; }
+          test -n "$RELEASE_PUBLISH_TOKEN" || { echo "Repository secret RELEASE_PUBLISH_TOKEN is required." >&2; exit 1; }
       - uses: pnpm/action-setup@v4
         with:
           version: 11.25.0
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - name: Sign in to Docker Hub
-        uses: docker/login-action@v3
+      - uses: actions/setup-node@v4
         with:
-          username: luckyalanzhou
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Select or resume release version
         id: version
         env:
@@ -60,17 +61,31 @@ jobs:
           version=$(node scripts/release-version.mjs "$RELEASE_BUMP")
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
       - name: Verify source
         run: |
           pnpm check
           pnpm test
           pnpm build
-      - name: Build and smoke-test self-hosted container
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - name: Build amd64 image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          pull: true
+          build-args: |
+            QIDIAN_VERSION=${{ steps.version.outputs.version }}
+          tags: qidian-selfhost:release
+          cache-from: type=gha,scope=qidian-image
+      - name: Smoke-test self-hosted container
         shell: bash
         run: |
           set -euo pipefail
-          docker build --pull --build-arg "QIDIAN_VERSION=${{ steps.version.outputs.version }}" -t qidian-selfhost:release .
           docker run -d --name qidian-smoke -p 127.0.0.1:9908:9908 \
             --tmpfs /data:uid=1000,gid=1000 \
             -e REGISTRATION_ENABLED=false qidian-selfhost:release
@@ -83,6 +98,11 @@ jobs:
           curl --fail --silent http://127.0.0.1:9908/ >/dev/null
           status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9908/api/vault)
           test "$status" = 401 || { docker logs qidian-smoke; echo "Expected unauthenticated API status 401, got $status" >&2; exit 1; }
+      - name: Sign in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: luckyalanzhou
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Publish multi-architecture Docker image
         uses: docker/build-push-action@v6
         with:
@@ -94,6 +114,8 @@ jobs:
           tags: |
             docker.io/luckyalanzhou/qidian:${{ steps.version.outputs.version }}
             docker.io/luckyalanzhou/qidian:latest
+          cache-from: type=gha,scope=qidian-image
+          cache-to: type=gha,mode=max,scope=qidian-image
       - name: Install Makeself
         run: sudo apt-get update && sudo apt-get install --yes makeself
       - name: Check packaging scripts
