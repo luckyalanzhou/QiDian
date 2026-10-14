@@ -747,8 +747,24 @@ test('clipboard classifier separates safe rich HTML, Markdown and ordinary prose
   assert.equal(classifyClipboard({ text:'[!WARNING] 危险操作' }), 'markdown');
   assert.equal(classifyClipboard({ text:'这是一段普通文字\n下一行仍是普通文字。' }), 'plain');
   assert.equal(classifyClipboard({ html:'<p><strong>网页格式</strong></p>', text:'## 标题' }), 'html');
+  assert.equal(classifyClipboard({ html:'<div><p>## 标题</p><p>内容</p></div>', text:'## 标题\n\n内容' }), 'markdown');
   assert.equal(classifyClipboard({ text:'## 标题', mode:'plain' }), 'plain');
   assert.equal(classifyClipboard({ text:'普通内容', mode:'markdown' }), 'markdown');
+});
+test('rich paste parses Markdown when the clipboard HTML only wraps the raw Markdown text', async () => {
+  const { dom, w } = await mount();
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const source = '# sub-store 使用笔记\n\n## 安装\n\n1. 从 GitHub Releases 下载最新 `.run`。';
+  const html = '<div><p># sub-store 使用笔记</p><p>## 安装</p><p>1. 从 GitHub Releases 下载最新 `.run`。</p></div>';
+  const paste = new w.Event('paste', { bubbles:true, cancelable:true });
+  Object.defineProperty(paste, 'clipboardData', { value:{ files:[], getData(type){ return type === 'text/html' ? html : type === 'text/plain' ? source : ''; } } });
+  w.currentEditor.view.someProp('handlePaste', handler => handler(w.currentEditor.view, paste, null));
+  const result = w.currentEditor.getHTML();
+  assert.match(result, /<h1>sub-store 使用笔记<\/h1>/);
+  assert.match(result, /<h2>安装<\/h2>/);
+  assert.match(result, /<ol><li><p>从 GitHub Releases 下载最新 <code>\.run<\/code>。<\/p><\/li><\/ol>/);
+  assert.doesNotMatch(result, /# sub-store|## 安装/);
+  dom.window.close();
 });
 test('legacy matching mode keeps its prior plain-text structure conversion available', async () => {
   const { dom, w } = await mount();

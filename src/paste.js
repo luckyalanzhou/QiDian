@@ -21,13 +21,37 @@ export function looksLikeMarkdown(value) {
   return MARKDOWN_PATTERNS.some(pattern => pattern.test(text));
 }
 
+const RICH_HTML_SELECTOR = [
+  'a[href]', 'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'mark', 'small', 'sub', 'sup',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'hr', 'img',
+  'figure', 'figcaption', 'table', 'details', 'summary', 'kbd', 'samp', 'var', 'abbr', 'cite', 'q',
+  '.callout',
+].join(',');
+const RICH_STYLE_PROPERTIES = ['color', 'background-color', 'font-weight', 'font-style', 'text-decoration', 'text-align', 'font-size', 'vertical-align'];
+const RICH_HTML_FALLBACK = /<(?:a\b[^>]*href|b|strong|i|em|u|s|strike|del|mark|small|sub|sup|h[1-6]|ul|ol|li|blockquote|pre|code|hr|img|figure|figcaption|table|details|summary|kbd|samp|var|abbr|cite|q)\b|class\s*=\s*["'][^"']*\bcallout\b|style\s*=\s*["'][^"']*(?:color|background-color|font-weight|font-style|text-decoration|text-align|font-size|vertical-align)\s*:/i;
+
+function hasRichClipboardFormatting(html) {
+  const source = String(html || '');
+  const Parser = globalThis.DOMParser;
+  if (typeof Parser !== 'function') return RICH_HTML_FALLBACK.test(source);
+  try {
+    const parsed = new Parser().parseFromString(source, 'text/html');
+    if (parsed.body.querySelector(RICH_HTML_SELECTOR)) return true;
+    return [...parsed.body.querySelectorAll('[style]')].some(element =>
+      RICH_STYLE_PROPERTIES.some(property => element.style.getPropertyValue(property).trim()),
+    );
+  } catch {
+    return RICH_HTML_FALLBACK.test(source);
+  }
+}
+
 export function classifyClipboard({ html = '', text = '', mode = 'rich' } = {}) {
   const hasHtml = Boolean(String(html).trim());
   const hasText = Boolean(String(text).length);
   if (mode === 'plain') return hasText || hasHtml ? 'plain' : 'empty';
   if (mode === 'markdown') return hasText || hasHtml ? 'markdown' : 'empty';
-  if (mode === 'legacy') return hasText || hasHtml ? 'legacy' : 'empty';
-  if (hasHtml) return 'html';
+  if (mode === 'legacy') return hasHtml ? 'html' : hasText ? 'legacy' : 'empty';
+  if (hasHtml) return hasText && looksLikeMarkdown(text) && !hasRichClipboardFormatting(html) ? 'markdown' : 'html';
   if (!hasText) return 'empty';
   return looksLikeMarkdown(text) ? 'markdown' : 'plain';
 }

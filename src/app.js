@@ -473,7 +473,7 @@ function handleEditorPaste({event,editor}){
  autofillPastedTitle('editTitle',html,text);
  if(isCodeSelection(editor)){event.preventDefault();insertPlainDocument(editor,text);return true}
  const selected=mode==='match'?'legacy':mode;
- const kind=hasHTML&&selected!=='plain'&&(selected!=='markdown'||!text)?'html':classifyClipboard({text,mode:selected});
+ const kind=classifyClipboard({html:hasHTML?html:'',text,mode:selected});
  event.preventDefault();
  if(kind==='html'){
   let safe;try{safe=cleanHTML(html,mode==='rich')}catch(error){insertPlainDocument(editor,text);toast('网页内容过于复杂，已按纯文本插入，原文字未丢失');return true}
@@ -507,7 +507,7 @@ async function pasteRich(e){const mode=(e.currentTarget.id==='capturePad'?$('#ca
  autofillPastedTitle(isCapture?'captureName':'editTitle',html,text);
  const parent=window.getSelection()?.anchorNode,element=parent?.nodeType===1?parent:parent?.parentElement;
  if(element?.closest('pre,code')){e.preventDefault();insertCaptureText(text);return}
- const selected=mode==='match'?'legacy':mode,kind=hasHTML&&selected!=='plain'&&(selected!=='markdown'||!text)?'html':classifyClipboard({text,mode:selected});
+ const selected=mode==='match'?'legacy':mode,kind=classifyClipboard({html:hasHTML?html:'',text,mode:selected});
  e.preventDefault();
  if(kind==='html'){
   try{insertCaptureHTML(cleanHTML(html,mode==='rich'))}catch(error){insertCaptureText(text);toast('网页内容过于复杂，已按纯文本插入，原文字未丢失');return}
