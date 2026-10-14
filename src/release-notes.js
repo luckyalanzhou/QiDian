@@ -43,7 +43,7 @@ function normalizeOrderedItem(value, number) {
 export function renderReleaseNotes(container, markdown) {
   const document = container.ownerDocument;
   const fragment = document.createDocumentFragment();
-  const lines = String(markdown ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const lines = String(markdown ?? '').replace(/\r\n?/g, '\n').split('\n').filter(line => !/^\s*(?:[-+*]\s+|\d+[.)]\s+)release\s+v?\d+(?:\.\d+){2}\s*$/i.test(line));
   let paragraph = [], list = null, listKind = '', codeLines = null;
   const flushParagraph = () => {
     if (!paragraph.length) return;

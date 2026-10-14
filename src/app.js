@@ -332,8 +332,8 @@ function renderHome() {
   destroyRichEditor();
   setBreadcrumb(active === 'all' ? (typeFilter === 'all' ? '全部笔记' : typeLabel(typeFilter)) : active === 'recent' ? '最近编辑' : active === 'pinned' ? '重要收藏' : active === 'drafts' ? '草稿箱' : active);
   const filtered = listNotes(noteQuery),heading=typeFilter!=='all'?typeLabel(typeFilter):active==='all'?'全部笔记':active==='recent'?'最近编辑':active==='pinned'?'重要收藏':active==='drafts'?'草稿箱':active;
-  main.innerHTML=`<div class="section-head workspace-page-head"><div><h1>${esc(heading)}</h1><p class="muted">${filtered.length} 篇笔记</p></div><div class="section-right"><span class="muted">${filtered.length} 篇</span><button class="secondary-btn" data-new="note">${icons('plus')} 新建笔记</button></div></div>
-    <label class="workspace-search note-page-search">${icons('search')}<input id="notePageSearch" type="search" aria-label="搜索当前笔记" placeholder="搜索当前笔记" value="${esc(noteQuery)}"></label><div class="filter-tabs home-type-tabs"><button data-type="all" class="${typeFilter==='all'?'selected':''}">全部类型</button>${data.noteTypes.map(type=>`<button data-type="${esc(type.id)}" class="${typeFilter===type.id?'selected':''}">${esc(displayTypeName(type))}</button>`).join('')}</div>
+  main.innerHTML=`<div class="section-head workspace-page-head"><div><h1>${esc(heading)}</h1><p class="muted">${filtered.length} 篇笔记</p></div><div class="section-right"><button class="secondary-btn" data-new="note">${icons('plus')} 新建笔记</button></div></div>
+    <label class="workspace-search note-page-search">${icons('search')}<input id="notePageSearch" type="search" aria-label="筛选当前笔记标题、正文、分类和标签" placeholder="筛选本页笔记标题、正文、分类和标签" value="${esc(noteQuery)}"></label><div class="filter-tabs home-type-tabs"><button data-type="all" class="${typeFilter==='all'?'selected':''}">全部类型</button>${data.noteTypes.map(type=>`<button data-type="${esc(type.id)}" class="${typeFilter===type.id?'selected':''}">${esc(displayTypeName(type))}</button>`).join('')}</div>
     <div class="notes note-list">${filtered.map(noteCard).join('')}</div>${!filtered.length?`<div class="empty">${active==='drafts'?'暂无草稿。可以创建一条笔记。':'还没有笔记，先写下第一条。'}</div>`:''}
     <div class="about-note">${initial.local?'本地开发预览 · 未部署':'Docker 服务'}</div>`;
   $('#notePageSearch').oninput=event=>{noteQuery=event.target.value;const arr=listNotes(noteQuery);main.querySelector('.note-list').innerHTML=arr.map(noteCard).join('')||'<div class="empty">没有找到匹配的笔记</div>';main.querySelector('.workspace-page-head .muted').textContent=arr.length+' 篇笔记';};
@@ -564,9 +564,10 @@ function renderVersionInfo(info){
 }
 function setVersionAction(info){
  const button=$('#installVersion');
+ button.hidden=false;
  if(updateTargetVersion){button.disabled=true;button.textContent='更新进行中…';return}
  if(!info){button.disabled=true;button.textContent='暂不可用';return}
- if(!info.updateAvailable){button.disabled=true;button.textContent='当前已是最新';return}
+ if(!info.updateAvailable){button.disabled=true;button.textContent='当前已是最新';button.hidden=true;return}
  if(!info.installerAvailable){button.disabled=true;button.textContent='安装包暂未就绪';return}
  if(!info.updaterAvailable){button.disabled=true;button.textContent='需先更新管理组件';return}
  if(!info.canUpdateDevice){button.disabled=true;button.textContent='仅首个账号可更新';return}

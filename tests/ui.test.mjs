@@ -138,15 +138,24 @@ test('topbar version badge shows the current version, marks updates, and opens r
   assert.match(w.document.querySelector('#versionState').textContent,/已提交/);
   dom.window.close();
 });
+test('latest-version state is shown as status instead of a disabled primary action', async () => {
+  const { dom, w } = await mount(empty, { versionInfo:{currentVersion:'0.1.6',latestVersion:'0.1.6',updateAvailable:false,canUpdateDevice:true,installerAvailable:true,updaterAvailable:true,releaseUrl:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6',notes:'## 本版优化与新增\n\n1. 修复问题。'} });
+  w.document.querySelector('#versionButton').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(w.document.querySelector('#versionState').textContent,/当前已是最新版本/);
+  assert.equal(w.document.querySelector('#installVersion').hidden,true);
+  assert.equal(w.document.querySelector('#refreshVersion').hidden,false);
+  dom.window.close();
+});
 test('mobile version details stay in a compact centered panel', async () => {
   const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
   assert.match(styles, /@media\(max-width:560px\)\{#versionInfoOverlay\{align-items:center;/);
   assert.match(styles, /\.release-notes\{min-height:42px;max-height:160px;font-size:13\.5px/);
   assert.match(styles, /\.update-progress-log\{min-height:44px;max-height:132px/);
 });
-test('release notes use readable Markdown blocks and treat embedded HTML as text', () => {
+test('release notes use readable Markdown blocks, suppress generated release commit noise, and treat embedded HTML as text', () => {
   const dom=new JSDOM('<div id="notes"></div>',{url:'https://qidian.example/'}),container=dom.window.document.querySelector('#notes');
-  renderReleaseNotes(container,'## 本版优化与新增\n\n1. 1. 适配账号偏好。\n2. 2. 支持 `v0.1.26`。\n\n- 保留安装包说明。\n\n[版本详情](https://github.com/luckyalanzhou/qidian/releases)\n\n<img src=x onerror=alert(1)>\n\n[危险链接](javascript:alert(1))');
+  renderReleaseNotes(container,'## 本版优化与新增\n\n1. 1. 适配账号偏好。\n2. 2. 支持 `v0.1.26`。\n3. release v0.0.1\n\n- 保留安装包说明。\n\n[版本详情](https://github.com/luckyalanzhou/qidian/releases)\n\n<img src=x onerror=alert(1)>\n\n[危险链接](javascript:alert(1))');
   assert.equal(container.querySelector('h2')?.textContent,'本版优化与新增');
   assert.deepEqual([...container.querySelectorAll('ol li')].map(node=>node.textContent),['适配账号偏好。','支持 v0.1.26。']);
   assert.deepEqual([...container.querySelectorAll('ul li')].map(node=>node.textContent),['保留安装包说明。']);
@@ -1189,6 +1198,15 @@ test('account menu separates profile from app settings and removes settings from
   assert.ok(w.document.querySelector('#appSettingsOverlay').textContent.includes('备份与迁移'));
   dom.window.close();
 });
+test('account settings keep the footer visible while long dialog content scrolls independently', async () => {
+  const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
+  assert.match(styles,/\.account-dialog\{display:flex;flex-direction:column;min-height:0;max-height:min\(90vh,920px\);overflow:hidden\}/);
+  assert.match(styles,/\.account-dialog>\.dialog-body\{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain\}/);
+  assert.match(styles,/\.account-dialog>\.dialog-foot\{background:var\(--panel\)\}/);
+  assert.match(styles,/\.account-password-section #changePasswordButton\{margin-bottom:5px\}/);
+  assert.match(styles,/\.bookmark-page \.bookmark-card:focus-within>\.item-menu/);
+  assert.match(styles,/@media\(hover:none\), \(max-width:720px\)\{\.bookmark-page \.bookmark-card>\.item-menu,.bookmark-page \.bookmark-section-heading>\.item-menu\{opacity:1\}\}/);
+});
 test('automatic backup history lists revisions with separate download and restore actions', async () => {
   const { dom, w } = await mount(empty, { backups:[{ revision:12, created:Date.UTC(2026,9,10) }, { revision:11, created:Date.UTC(2026,9,9) }] });
   w.document.querySelector('#accountButton').click();
@@ -1528,7 +1546,7 @@ test('global search labels both content types while local note search and return
  const link=w.document.querySelector('#switcherList [data-search-bookmark]');assert.equal(link.href,'https://example.com/a');assert.equal(link.target,'_blank');
  assert.deepEqual([...w.document.querySelectorAll('#switcherList .search-kind')].map(n=>n.textContent),['笔记','书签']);
  w.document.querySelector('#mobileCats').click();w.document.querySelector('#switcher').classList.remove('open');
- const local=w.document.querySelector('#notePageSearch');local.value='测试笔记正文';local.dispatchEvent(new w.Event('input'));
+ const local=w.document.querySelector('#notePageSearch');assert.match(local.placeholder,/筛选本页笔记/);assert.match(local.getAttribute('aria-label'),/当前笔记/);assert.equal(w.document.querySelector('.section-right .muted'),null,'the visible note total is not duplicated beside the create action');local.value='测试笔记正文';local.dispatchEvent(new w.Event('input'));
  assert.equal(w.document.querySelectorAll('.note-list .note-card').length,1);
  w.document.querySelector('.note-card-open').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
  assert.ok(w.document.querySelector('#docRead'));w.document.querySelector('#backDoc').click();
