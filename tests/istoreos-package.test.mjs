@@ -89,6 +89,9 @@ test('native OpenWrt package installs LuCI manager files for both package manage
   assert.match(makefile, /QIDIAN_FEED_DIR:=\$\(realpath/);
   assert.match(makefile, /PKGARCH:=all/);
   assert.match(makefile, /DEPENDS:=\+luci-base \+jsonfilter/);
+  assert.match(makefile, /mkdir -p \$\(PKG_BUILD_DIR\)\/root[\s\S]*?\$\(QIDIAN_PKG_DIR\)\/root\/\. \$\(PKG_BUILD_DIR\)\/root\//);
+  assert.match(makefile, /Package\/luci-app-qidian\/install[\s\S]*?\$\(CP\) \$\(PKG_BUILD_DIR\)\/root\/\. \$\(1\)\//);
+  assert.doesNotMatch(makefile, /\$\(CP\) \$\(PKG_BUILD_DIR\)\/\. \$\(1\)\//, 'package staging must not copy its output directory into itself');
   assert.match(makefile, /Package\/luci-app-qidian\/conffiles[\s\S]*?\/etc\/config\/qidian/);
   assert.match(makefile, /\/opt\/qidian/);
   assert.match(makefile, /CONFIG_USE_APK\),apk,opkg/);

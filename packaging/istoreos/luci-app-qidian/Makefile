@@ -35,15 +35,15 @@ define Package/luci-app-qidian/conffiles
 endef
 
 define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) $(QIDIAN_PKG_DIR)/root/. $(PKG_BUILD_DIR)/
+	mkdir -p $(PKG_BUILD_DIR)/root
+	$(CP) $(QIDIAN_PKG_DIR)/root/. $(PKG_BUILD_DIR)/root/
 endef
 
 define Build/Compile
 endef
 
 define Package/luci-app-qidian/install
-	$(CP) $(PKG_BUILD_DIR)/. $(1)/
+	$(CP) $(PKG_BUILD_DIR)/root/. $(1)/
 	$(INSTALL_DIR) $(1)/opt/qidian
 	$(INSTALL_DATA) $(QIDIAN_FEED_DIR)/compose.yaml $(1)/opt/qidian/compose.yaml
 	$(INSTALL_DATA) $(QIDIAN_FEED_DIR)/.env.example $(1)/opt/qidian/.env.example
