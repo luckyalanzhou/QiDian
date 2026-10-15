@@ -31,6 +31,7 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /test -n "\$DOCKERHUB_TOKEN"/);
   assert.match(workflow, /test -n "\$RELEASE_PUBLISH_TOKEN"/);
   assert.match(workflow, /Select or resume release version/);
+  assert.match(workflow, /Prepare OpenWrt package feed[\s\S]*?mkdir -p artifacts\/openwrt-ipk artifacts\/openwrt-apk artifacts\/istoreos/);
   assert.equal((workflow.match(/BUILD_LOG: 1/g) ?? []).length, 2, 'both SDK builds retain detailed logs');
   assert.equal((workflow.match(/V: s/g) ?? []).length, 2, 'both SDK builds use verbose output');
   assert.match(workflow, /Upload OpenWrt SDK logs after failed package build[\s\S]*?if: failure\(\)[\s\S]*?actions\/upload-artifact@v4[\s\S]*?retention-days: 3/);

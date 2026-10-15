@@ -71,7 +71,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          mkdir -p artifacts/openwrt-ipk artifacts/openwrt-apk
+          mkdir -p artifacts/openwrt-ipk artifacts/openwrt-apk artifacts/istoreos
           printf '%s\n' "$VERSION" > packaging/istoreos/VERSION
       - name: Build native OpenWrt IPK package
         uses: openwrt/gh-action-sdk@main
