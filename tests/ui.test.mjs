@@ -10,7 +10,7 @@ import { createBookmarkView } from '../src/bookmarks.js';
 import { createRecycleBinView } from '../src/recycle-bin.js';
 import { createTrashEntry, pruneExpiredTrash, restoreTrashEntry, TRASH_RETENTION_MS } from '../src/trash-data.js';
 import { renderReleaseNotes } from '../src/release-notes.js';
-import { classifyClipboard, plainTextToDocument, sanitizeMarkdownDocument } from '../src/paste.js';
+import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from '../src/paste.js';
 import { qidianSchema } from '../src/markdown.js';
 const loadMarkdownTools = async () => import('../src/markdown.js');
 const empty = { categories: ['开发'], noteTypes:[{id:'note',name:'普通笔记'},{id:'clip',name:'网页收藏'},{id:'command',name:'命令速查'},{id:'issue',name:'故障排查'}], notes: [], theme:'light', pasteMode:'rich' };
@@ -79,8 +79,8 @@ async function mount(vault=empty, initialOptions={}) {
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
   assert.ok(start >= 0 && end > start, 'workspace entrypoint should remain available to DOM tests');
-  const runWorkspace = w.Function('initial', 'createQidianEditor', 'flush', 'classifyClipboard', 'plainTextToDocument', 'sanitizeMarkdownDocument', 'loadMarkdownTools', 'createRecycleBinView', 'createTrashEntry', 'APP_VERSION', 'renderReleaseNotes', appSource.slice(start, end + '\n})();'.length));
-  runWorkspace(w.initial, editorFactory, w.flush, classifyClipboard, plainTextToDocument, sanitizeMarkdownDocument, loadMarkdownTools, createRecycleBinView, createTrashEntry, initialOptions.appVersion || '0.1.5', renderReleaseNotes);
+  const runWorkspace = w.Function('initial', 'createQidianEditor', 'flush', 'classifyClipboard', 'looksLikeMarkdown', 'plainTextToDocument', 'sanitizeMarkdownDocument', 'loadMarkdownTools', 'createRecycleBinView', 'createTrashEntry', 'APP_VERSION', 'renderReleaseNotes', appSource.slice(start, end + '\n})();'.length));
+  runWorkspace(w.initial, editorFactory, w.flush, classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument, loadMarkdownTools, createRecycleBinView, createTrashEntry, initialOptions.appVersion || '0.1.5', renderReleaseNotes);
   await new Promise(resolve=>setTimeout(resolve,0));
   return { dom, w, saves, initialOptions };
 }
@@ -168,7 +168,8 @@ test('topbar version badge shows release details and the unified action refreshe
   assert.equal(w.document.querySelector('#installVersion'),null);
   assert.equal(progress.parentElement.classList.contains('version-dialog-foot'),true);
   assert.ok(progress.compareDocumentPosition(actions)&w.Node.DOCUMENT_POSITION_FOLLOWING,'progress and live log sit above the Release and update actions');
-  assert.equal(w.document.querySelector('#updateProgressTrack').nextElementSibling.id,'updateProgressLog','the live log sits directly below the progress bar');
+  assert.equal(w.document.querySelector('#updateProgressTrack').nextElementSibling.className,'update-progress-log-panel','the live log panel sits directly below the progress bar');
+  assert.equal(w.document.querySelector('#updateProgressTrack').nextElementSibling.querySelector('pre').id,'updateProgressLog');
   button.click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(versionChecks,2,'the combined action fetches fresh release metadata when clicked');
@@ -214,8 +215,9 @@ test('the unified update action remains available when current and reports a com
 test('mobile version details stay in a compact centered panel', async () => {
   const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
   assert.match(styles, /@media\(max-width:560px\)\{#versionInfoOverlay\{align-items:center;/);
-  assert.match(styles, /\.release-notes\{min-height:42px;max-height:160px;font-size:13\.5px/);
-  assert.match(styles, /\.update-progress-log\{min-height:36px;max-height:min\(15svh,105px\)/);
+  assert.match(styles, /\.release-notes\{min-height:42px;font-size:13\.5px/);
+  assert.match(styles, /\.update-progress-log\{min-height:34px;max-height:min\(12svh,88px\)/);
+  assert.doesNotMatch(styles, /\.release-notes\{[^}]*max-height/,'release notes use the dialog body scroll instead of a nested scrollbar');
 });
 test('release notes use readable Markdown blocks, suppress generated release commit noise, and treat embedded HTML as text', () => {
   const dom=new JSDOM('<div id="notes"></div>',{url:'https://qidian.example/'}),container=dom.window.document.querySelector('#notes');
@@ -343,6 +345,9 @@ test('web update refreshes the live log every second and follows new output unti
   w.document.querySelector('#checkAndUpdateVersion').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.ok(log.textContent.endsWith('开始下载安装包'));
+  assert.equal(w.document.querySelector('#updateProgressState').textContent,'正在下载安装包与校验文件');
+  assert.equal(w.document.querySelector('#versionState').hidden,true,'the active update stage replaces the duplicate summary above the release notes');
+  assert.equal(w.document.querySelector('#updateProgressTrack').hasAttribute('aria-valuenow'),false,'indeterminate progress does not claim a percentage');
   assert.equal(log.scrollTop,80,'the log follows its tail when the user has not scrolled away');
   const firePoll=async()=>{const entry=[...timers.entries()].find(([,timer])=>timer.delay===1000);assert.ok(entry,'a one-second live log refresh is scheduled');timers.delete(entry[0]);entry[1].callback(...entry[1].args);await new Promise(resolve=>setTimeout(resolve,0));await new Promise(resolve=>setTimeout(resolve,0))};
   scrollHeight=120;
@@ -355,6 +360,15 @@ test('web update refreshes the live log every second and follows new output unti
   status={state:'running',version:'0.1.6',updatedAt:null,log:'开始下载安装包\n正在下载：已接收 128 KB'};
   await firePoll();
   assert.match(log.textContent,/128 KB/);
+  status={state:'running',version:'0.1.6',updatedAt:null,log:'开始下载安装包\n正在下载：已接收 128 KB\n管理文件已更新；等待 10 秒后拉取成品镜像并重启栖点服务以应用新版本…'};
+  await firePoll();
+  assert.equal(w.document.querySelector('#updateProgressState').textContent,'准备拉取新版本镜像');
+  status={state:'running',version:'0.1.6',updatedAt:null,log:`${status.log}\n正在拉取适合当前设备架构的成品镜像并重启 Docker 容器…\nlatest: Pulling from luckyalanzhou/qidian`};
+  await firePoll();
+  assert.equal(w.document.querySelector('#updateProgressState').textContent,'正在拉取新版本镜像');
+  status={state:'running',version:'0.1.6',updatedAt:null,log:`${status.log}\n正在确认容器已启动…`};
+  await firePoll();
+  assert.equal(w.document.querySelector('#updateProgressState').textContent,'正在确认服务启动状态');
   assert.equal(log.scrollTop,0,'manual inspection of earlier log lines is preserved');
   dom.window.close();
 });
@@ -671,6 +685,27 @@ test('the reader presents article metadata and keeps a section outline available
   assert.equal(w.document.querySelector('.mobile-toc a[href="#sec-0"]').textContent, '部署前准备');
   assert.equal(w.document.querySelector('#main .about-note'),null,'the reader has no service footer');
   assert.equal(w.document.querySelector('.right-rail .outline a[href="#sec-1"]').textContent, '确认版本');
+  dom.window.close();
+});
+test('legacy Markdown notes render as formatted content and the outline contains headings only', async()=>{
+  const note={id:'markdown-note',title:'Markdown 使用笔记',type:'note',category:'开发',tags:['Markdown'],body:'<p># Markdown 使用笔记</p><p><br></p><p>## 安装</p><p><br></p><p>1. 从 [GitHub Releases](https://github.com/example/releases) 下载最新版。</p><p><br></p><p>2. 在 iStoreOS 上传并安装 **安装包**。</p><p><br></p><p>```sh</p><p>cat /tmp/qidian-install.log</p><p>```</p><p><br></p><p>普通说明文本。</p>',source:'',created:1,updated:2,pinned:false};
+  const {dom,w}=await mount({...structuredClone(empty),notes:[note]});
+  const preview=w.document.querySelector('.note-card p').textContent;
+  assert.match(preview,/安装/);assert.match(preview,/GitHub Releases/);
+  assert.doesNotMatch(preview,/[#*`]|\[GitHub Releases\]/,'the note card preview hides Markdown syntax');
+  w.document.querySelector('[data-open="markdown-note"]').click();
+  const body=w.document.querySelector('#docRead');
+  assert.deepEqual([...body.querySelectorAll('h1,h2,h3,h4,h5,h6')].map(heading=>[heading.tagName,heading.textContent]),[['H2','安装']],'the duplicated document title is omitted and the first section is promoted to the correct level');
+  assert.equal(body.querySelectorAll('ol > li').length,2,'numbered steps separated by blank lines stay a single ordered list');
+  assert.equal(body.querySelector('a[href="https://github.com/example/releases"]')?.textContent,'GitHub Releases');
+  assert.equal(body.querySelector('pre code')?.textContent,'cat /tmp/qidian-install.log');
+  assert.deepEqual([...w.document.querySelectorAll('.right-rail .outline a')].map(link=>link.textContent),['安装'],'the desktop outline includes only semantic headings, not list items or code');
+  assert.equal(w.document.querySelector('.right-rail .outline a').classList.contains('sub'),false,'the first section is not indented as a subsection');
+  assert.deepEqual([...w.document.querySelectorAll('.mobile-toc .outline a')].map(link=>link.textContent),['安装'],'the mobile outline mirrors the same headings');
+  const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
+  assert.match(styles,/\.note-list\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,'desktop notes use two columns');
+  assert.match(styles,/@media\(max-width:1000px\)\{\.note-list\{grid-template-columns:minmax\(0,1fr\)\}\}/,'narrow layouts return to one column');
+  assert.match(styles,/\.reader-shell \.doc-title::before\{content:none;display:none\}/,'the decorative English overline is removed');
   dom.window.close();
 });
 test('a remote update refreshes the active editor and account preferences without losing editing state', async()=>{

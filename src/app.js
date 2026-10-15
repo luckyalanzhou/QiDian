@@ -7,7 +7,7 @@ import { createTrashEntry } from './trash-data.js';
 import { renderReleaseNotes } from './release-notes.js';
 import { bootstrap, getAuthConfig, loginAccount, reauthenticateAccount, registerAccount, logoutAccount, getAccountProfile, getAccountAvatar, saveAccountAvatar, removeAccountAvatar, changeAccountPassword, getSystemVersion, requestSystemUpdate, getSystemUpdateStatus, queueSave, flush, onStatus, onAuthenticationRequired, onRemoteUpdate, refreshCloud, getSyncConflict, exportSyncConflict, setOwner, upload, exportBackup, exportHTML, readBackup, listBackups, getBackup, download, hasUnsaved, reloadCloud, restoreIgnoredDraft, retrySync } from './cloud.js';
 import { DEFAULT_NOTE_TYPES, validateVault } from '../server/validation.js';
-import { classifyClipboard, plainTextToDocument, sanitizeMarkdownDocument } from './paste.js';
+import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from './paste.js';
 const loadMarkdownTools = () => import('./markdown.js');
 const APP_VERSION = appPackage.version;
 let initial;
@@ -98,7 +98,7 @@ function launchWorkspace(initial) {
  (()=>{'use strict';
 const icons=name=>`<span class="ico"><svg aria-hidden="true"><use href="#i-${name}"/></svg></span>`;
 const $=sel=>document.querySelector(sel);const main=$('#main');const displayTypeName=type=>type.id==='clip'&&type.name==='网页收藏'?'网页摘录':type.name;const typeLabel=id=>{const type=data.noteTypes.find(x=>x.id===id);return type?displayTypeName(type):'其他类型'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const tinyText=s=>{let box=document.createElement('div');box.innerHTML=s;return (box.textContent||'').replace(/\s+/g,' ').trim()};
+const tinyText=s=>{let box=document.createElement('div');box.innerHTML=s;box.querySelectorAll('br').forEach(node=>node.replaceWith(' '));box.querySelectorAll('p,div,li,blockquote,pre,h1,h2,h3,h4,h5,h6,tr').forEach(node=>node.append(' '));return (box.textContent||'').replace(/\s+/g,' ').trim()};
 let data = { ...initial.data, noteTypes: initial.data.noteTypes || structuredClone(DEFAULT_NOTE_TYPES), trash: initial.data.trash || [] }; setOwner(initial.owner);
 let lastRenderedPage='',noteReturn=null,noteQuery='',page='dashboard',active='all',typeFilter='all',noteId=null,edit=false,previewing=false,publishing=false,pendingPublishCandidate=null,editingDraft=null,editorBaseline=null,editorFactory=window.__qidianTestEditorFactory||null,editorLoading=null,richEditor=null,richEditorDraftId=null,autoTimer=null,toastTimer=null,typeDialogMode='create',typeDialogId=null,accountProfile=null,avatarObjectUrl='',conflictBackupReady=false,versionPollTimer=null,versionInfo=null,versionInfoCheckedAt=0,versionCheckPromise=null,updateLogFollowing=true,updateActionRunning=false,updateProgressMessages=[];
 let updateTargetVersion='',updateVerificationTimer=null,updateReloadTimer=null,updateVersionCheckRunning=false,updateReloadScheduled=false,updateLogRelevant=false;
@@ -207,12 +207,12 @@ function cleanHTML(html,keepStyles=true){
  for(const child of input.body.childNodes)copy(child,output);
  return DOMPurify.sanitize(output.innerHTML);
 }
-function plainTextToStructuredHTML(value){
+function plainTextToStructuredHTML(value,{inferHeadings=true,headingOffset=1}={}){
  const lines=String(value||'').replace(/\r\n?/g,'\n').split('\n'),out=[];let i=0;
  const isBlank=line=>!String(line||'').trim();
- const inline=value=>esc(value).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`([^`\n]+)`/g,'<code>$1</code>').replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,(_,label,url)=>safeUrl(url)?`<a href="${esc(url)}" rel="noopener noreferrer" target="_blank">${label}</a>`:label);
+  const inline=value=>{let text=esc(value).replace(/`([^`\n]+)`/g,'<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_\n]+)__/g,'<strong>$1</strong>').replace(/~~([^~\n]+)~~/g,'<del>$1</del>');text=text.replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,!?:;])/g,'$1<em>$2</em>').replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,!?:;])/g,'$1<em>$2</em>');return text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,(_,label,url)=>safeUrl(url)?`<a href="${esc(url)}" rel="noopener noreferrer" target="_blank">${label}</a>`:label)};
  const heading=line=>{
-  const markdown=line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);if(markdown)return { level:Math.min(markdown[1].length+1,6),text:markdown[2] };
+   const markdown=line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);if(markdown)return { level:Math.min(markdown[1].length+headingOffset,6),text:markdown[2] };
   const section=line.match(/^\s*(\d{1,2})\.\s+(.{1,36})\s*$/);if(section&&!/[。！？；：]$/.test(section[2]))return {level:2,text:section[2]};
   if(line.length<=42&&!/[：:。！？；]/.test(line)&&!/^\s*(?:[-+*•]|\d+[.)]|>)/.test(line)&&!isShellCommand(line)&&!/^https?:\/\//i.test(line))return {level:3,text:line.trim()};
   return null;
@@ -227,7 +227,7 @@ function plainTextToStructuredHTML(value){
  while(i<lines.length){
   const line=lines[i],trim=line.trim();if(isBlank(line)){i++;continue}
   const fence=trim.match(/^```([\w+-]*)\s*$/);
-  if(fence){const code=[];i++;while(i<lines.length&&!/^\s*```\s*$/.test(lines[i]))code.push(lines[i++]);if(i<lines.length)i++;out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`);continue}
+   if(fence){const code=[];i++;while(i<lines.length&&!/^\s*```\s*$/.test(lines[i]))code.push(lines[i++]);if(i<lines.length)i++;out.push(`<pre><code>${esc(code.join('\n').replace(/^\n+|\n+$/g,''))}</code></pre>`);continue}
   const alert=trim.match(/^>?\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
   if(alert){const kind=alert[1].toUpperCase(),title=alert[2].trim(),body=[];i++;while(i<lines.length&&!isBlank(lines[i]))body.push(lines[i++].replace(/^>\s?/,''));const cls=/^(WARNING|CAUTION)$/.test(kind)?' warn':kind==='TIP'?' good':'';out.push(`<div class="callout${cls}">${title?`<p><strong>${inline(title)}</strong></p>`:''}${body.map(text=>`<p>${inline(text)}</p>`).join('')}</div>`);continue}
   if(/^(?:⸻+|[-*_](?:\s*[-*_]){2,})$/.test(trim)){out.push('<hr>');i++;continue}
@@ -239,18 +239,42 @@ function plainTextToStructuredHTML(value){
    else {while(i<lines.length&&lines[i].includes('\t'))rows.push(lines[i++].split('\t').map(cell=>cell.trim()));}
    const width=Math.max(...rows.map(row=>row.length));if(width>=2){const [header,...body]=rows;out.push(`<table><tbody><tr>${Array.from({length:width},(_,j)=>`<th>${inline(header[j]||'')}</th>`).join('')}</tr>${body.map(row=>`<tr>${Array.from({length:width},(_,j)=>`<td>${inline(row[j]||'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`);continue}
   }
-  const numberedHeading=heading(trim);if(numberedHeading&&/^\s*\d{1,2}\.\s+/.test(trim)&&(!i||isBlank(lines[i-1]))&&(i+1>=lines.length||isBlank(lines[i+1]))){out.push(`<h${numberedHeading.level}>${inline(numberedHeading.text)}</h${numberedHeading.level}>`);i++;continue}
+   const numberedHeading=heading(trim);if(inferHeadings&&numberedHeading&&/^\s*\d{1,2}\.\s+/.test(trim)&&(!i||isBlank(lines[i-1]))&&(i+1>=lines.length||isBlank(lines[i+1]))){out.push(`<h${numberedHeading.level}>${inline(numberedHeading.text)}</h${numberedHeading.level}>`);i++;continue}
   const markdownHeading=trim.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
-  if(markdownHeading){const level=Math.min(trim.match(/^\s*(#+)/)[1].length+1,6);out.push(`<h${level}>${inline(markdownHeading[1])}</h${level}>`);i++;continue}
+   if(markdownHeading){const level=Math.min(trim.match(/^\s*(#+)/)[1].length+headingOffset,6);out.push(`<h${level}>${inline(markdownHeading[1])}</h${level}>`);i++;continue}
   if(isShellCommand(trim)){const command=[trim];i++;while(i<lines.length&&command.at(-1).endsWith('\\'))command.push(lines[i++]);out.push(`<pre><code>${esc(command.join('\n'))}</code></pre>`);continue}
   if(/^>\s?/.test(trim)){const quote=[];while(i<lines.length&&/^\s*>/.test(lines[i]))quote.push(lines[i++].replace(/^\s*>\s?/,'').trim());out.push(`<blockquote><p>${quote.map(inline).join('<br>')}</p></blockquote>`);continue}
   const bullet=trim.match(/^([-+*•])\s+(.+)$/),ordered=trim.match(/^(?:\d+[.)]|[①-⑳])\s+(.+)$/);
-  if(bullet||ordered){const list=[];const orderedList=Boolean(ordered);while(i<lines.length){const match=lines[i].trim().match(orderedList?/^(?:\d+[.)]|[①-⑳])\s+(.+)$/:/^[-+*•]\s+(.+)$/);if(!match)break;list.push(`<li>${inline(match[1])}</li>`);i++}out.push(`<${orderedList?'ol':'ul'}>${list.join('')}</${orderedList?'ol':'ul'}>`);continue}
-  const possibleHeading=heading(trim);if(possibleHeading&&lines.length>1&&trim.length<=42&&(i+1<lines.length&&isBlank(lines[i+1]))&&(!i||isBlank(lines[i-1]))){out.push(`<h${possibleHeading.level}>${inline(possibleHeading.text)}</h${possibleHeading.level}>`);i++;continue}
+   if(bullet||ordered){const list=[];const orderedList=Boolean(ordered);while(i<lines.length){const match=lines[i].trim().match(orderedList?/^(?:\d+[.)]|[①-⑳])\s+(.+)$/:/^[-+*•]\s+(.+)$/);if(match){list.push(`<li>${inline(match[1])}</li>`);i++;continue}if(!inferHeadings&&isBlank(lines[i])){let next=i;while(next<lines.length&&isBlank(lines[next]))next++;const nextMatch=lines[next]?.trim().match(orderedList?/^(?:\d+[.)]|[①-⑳])\s+(.+)$/:/^[-+*•]\s+(.+)$/);if(nextMatch){i=next;continue}}break}out.push(`<${orderedList?'ol':'ul'}>${list.join('')}</${orderedList?'ol':'ul'}>`);continue}
+   const possibleHeading=heading(trim);if(inferHeadings&&possibleHeading&&lines.length>1&&trim.length<=42&&(i+1<lines.length&&isBlank(lines[i+1]))&&(!i||isBlank(lines[i-1]))){out.push(`<h${possibleHeading.level}>${inline(possibleHeading.text)}</h${possibleHeading.level}>`);i++;continue}
   const paragraph=[trim];i++;while(i<lines.length&&!isBlank(lines[i])&&!/^\s*(?:#{1,6}\s|>\s?|[-+*•]\s|\d+[.)]\s)/.test(lines[i])&&!isShellCommand(lines[i])&&!lines[i].includes('\t')&&!/^(?:⸻{2,}|[-*_](?:\s*[-*_]){2,})$/.test(lines[i].trim()))paragraph.push(lines[i++].trim());out.push(`<p>${paragraph.map(inline).join('<br>')}</p>`);
  }
  return out.join('');
 }
+function textWithBlockBreaks(root){
+ const blocks=new Set('P DIV LI BLOCKQUOTE PRE H1 H2 H3 H4 H5 H6 TR'.split(' '));
+ const visit=node=>{
+  if(node.nodeType===3)return node.nodeValue||'';
+  if(node.nodeType!==1)return [...(node.childNodes||[])].map(visit).join('');
+  const tag=node.tagName.toUpperCase();if(tag==='BR')return '\n';
+  const content=[...node.childNodes].map(visit).join('');if(tag==='P')return `${content}\n`;return blocks.has(tag)?`\n${content}\n`:content;
+ };
+ return visit(root).replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n').replace(/[ \t]+\n/g,'\n').replace(/\n[ \t]+/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+function readableNoteBody(body,title=''){
+ const safe=cleanHTML(body,true),holder=document.createElement('div');holder.innerHTML=safe;
+ const richContent=holder.querySelector('h1,h2,h3,h4,h5,h6,a[href],b,strong,i,em,u,s,del,mark,blockquote,pre,code,ul,ol,li,table,img,figure,details,hr,.callout');
+ const markdown=textWithBlockBreaks(holder);
+ if(richContent||!looksLikeMarkdown(markdown))return {html:safe,markdown:false};
+ const firstLine=markdown.split('\n').find(line=>line.trim())||'',firstHeading=firstLine.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+ const normalize=value=>String(value||'').replace(/[*_~`]/g,'').replace(/\s+/g,' ').trim().toLocaleLowerCase();
+ const duplicateTitle=!!firstHeading&&normalize(firstHeading[1])===normalize(title),parsed=document.createElement('div');parsed.innerHTML=cleanHTML(plainTextToStructuredHTML(markdown,{inferHeadings:false,headingOffset:duplicateTitle?0:1}),true);
+ const firstContent=[...parsed.childNodes].find(node=>node.nodeType===1||node.textContent?.trim());
+ const duplicateHeading=firstContent?.nodeType===1&&/^H[1-6]$/.test(firstContent.tagName)?firstContent:null;
+ if(duplicateTitle&&duplicateHeading&&normalize(duplicateHeading.textContent)===normalize(title))duplicateHeading.remove();
+ return {html:parsed.innerHTML,markdown:true};
+}
+function noteBodyText(body,title=''){return tinyText(readableNoteBody(body,title).html)}
 function extractPastedTitle(html,plain){
  const normalize=value=>String(value||'').replace(/\u00a0/g,' ').replace(/\s+/g,' ').trim().replace(/^\s{0,3}#{1,6}\s+/,'').replace(/\*\*(.+?)\*\*/g,'$1').replace(/`([^`]+)`/g,'$1').replace(/^(?:[-+*•]|\d{1,2}[.)])\s+/,'').trim();
  if(html){const parsed=new DOMParser().parseFromString(String(html),'text/html'),heading=parsed.querySelector('h1,h2,h3,h4,h5,h6');if(heading){const title=normalize(heading.textContent);if(title)return title.slice(0,100)}}
@@ -292,9 +316,9 @@ function openHome(cat='all'){if(edit)saveDraft(true);clearTimeout(autoTimer);edi
 function openDashboard(){if(edit)saveDraft(true);clearTimeout(autoTimer);edit=false;previewing=false;editingDraft=null;noteId=null;active='all';typeFilter='all';closeMenu();setPage('dashboard')}
 function openNote(id,forceEdit=false){if(page==='home')noteReturn={active,typeFilter,query:noteQuery,scroll:window.scrollY};else if(page!=='note')noteReturn=null;if(edit)saveDraft(true);let found=data.notes.find(n=>n.id===id);if(!found)return;noteId=id;edit=forceEdit;previewing=active==='drafts'||isDraft(found);editingDraft=null;page='note';closeMenu();render();window.scrollTo({top:0})}
 function iconCard(kind){return {note:'note',clip:'clip',command:'code',issue:'search'}[kind]||'note'}
-function noteCard(n){let desc=tinyText(cleanHTML(n.body,false));return `<article class="note-card"><div class="note-card-open" data-open="${esc(n.id)}" role="button" tabindex="0" aria-label="打开笔记：${esc(n.title||'无标题笔记')}"><div class="note-kicker"><span class="type-dot ${esc(n.type)}"></span>${esc(typeLabel(n.type))} <span>·</span> ${esc(n.category)}</div>${n.pinned?'<span class="pin-top" title="已收藏">★</span>':''}<h3>${esc(n.title||'无标题笔记')}</h3><p>${esc(desc||'空白笔记，点击开始编辑。')}</p><div class="note-foot">${(n.tags||[]).slice(0,2).map(x=>`<span class="tag">#${esc(x)}</span>`).join('')}<span class="date">${nowString(n.updated)}</span></div></div><details class="item-menu note-item-menu"><summary aria-label="更多：${esc(n.title||'无标题笔记')}">···</summary><div class="item-menu-panel"><button data-note-edit="${esc(n.id)}">编辑</button><button class="danger-btn" data-note-delete="${esc(n.id)}">删除</button></div></details></article>`}
+function noteCard(n){let desc=noteBodyText(n.body,n.title);return `<article class="note-card"><div class="note-card-open" data-open="${esc(n.id)}" role="button" tabindex="0" aria-label="打开笔记：${esc(n.title||'无标题笔记')}"><div class="note-kicker"><span class="type-dot ${esc(n.type)}"></span>${esc(typeLabel(n.type))} <span>·</span> ${esc(n.category)}</div>${n.pinned?'<span class="pin-top" title="已收藏">★</span>':''}<h3>${esc(n.title||'无标题笔记')}</h3><p>${esc(desc||'空白笔记，点击开始编辑。')}</p><div class="note-foot">${(n.tags||[]).slice(0,2).map(x=>`<span class="tag">#${esc(x)}</span>`).join('')}<span class="date">${nowString(n.updated)}</span></div></div><details class="item-menu note-item-menu"><summary aria-label="更多：${esc(n.title||'无标题笔记')}">···</summary><div class="item-menu-panel"><button data-note-edit="${esc(n.id)}">编辑</button><button class="danger-btn" data-note-delete="${esc(n.id)}">删除</button></div></details></article>`}
 
-function listNotes(q=''){const drafts=active==='drafts';let arr=data.notes.filter(n=>drafts?needsPublish(n):!isDraft(n)).map(n=>drafts?n:publishedView(n));if(!drafts){if(active==='pinned')arr=arr.filter(n=>n.pinned);else if(!['all','recent'].includes(active))arr=arr.filter(n=>n.category===active)}if(typeFilter!=='all')arr=arr.filter(n=>n.type===typeFilter);if(q){let search=q.trim().toLowerCase();arr=arr.filter(n=>[n.title,n.category,n.source,...(n.tags||[]),tinyText(n.body)].join(' ').toLowerCase().includes(search))}return arr.sort((a,b)=>active==='recent'?b.updated-a.updated:Number(b.pinned)-Number(a.pinned)||b.updated-a.updated)}
+function listNotes(q=''){const drafts=active==='drafts';let arr=data.notes.filter(n=>drafts?needsPublish(n):!isDraft(n)).map(n=>drafts?n:publishedView(n));if(!drafts){if(active==='pinned')arr=arr.filter(n=>n.pinned);else if(!['all','recent'].includes(active))arr=arr.filter(n=>n.category===active)}if(typeFilter!=='all')arr=arr.filter(n=>n.type===typeFilter);if(q){let search=q.trim().toLowerCase();arr=arr.filter(n=>[n.title,n.category,n.source,...(n.tags||[]),noteBodyText(n.body,n.title)].join(' ').toLowerCase().includes(search))}return arr.sort((a,b)=>active==='recent'?b.updated-a.updated:Number(b.pinned)-Number(a.pinned)||b.updated-a.updated)}
 function moveNoteToTrash(id){const index=data.notes.findIndex(note=>note.id===id);if(index<0)return false;try{const candidate=structuredClone(data),note=candidate.notes[index];candidate.trash.push(createTrashEntry('note',note,{index,previousId:candidate.notes[index-1]?.id||'',nextId:candidate.notes[index+1]?.id||''}));candidate.notes.splice(index,1);const validated=validateVault(candidate);data.notes=validated.notes;data.trash=validated.trash;persist();return true}catch(error){toast(error.message||'移入回收站失败');return false}}
 function destroyRichEditor(){if(!richEditor)return;if(edit&&editingDraft&&richEditorDraftId===editingDraft.id)updateDraftFromDOM();richEditor.destroy();richEditor=null;richEditorDraftId=null}
 function bookmarkLinkCount(entries=[]){return entries.reduce((total,item)=>total+(item.kind==='link'?1:bookmarkLinkCount(item.children||[])),0)}
@@ -340,10 +364,10 @@ function renderHome() {
   destroyRichEditor();
   setBreadcrumb(active === 'all' ? (typeFilter === 'all' ? '全部笔记' : typeLabel(typeFilter)) : active === 'recent' ? '最近编辑' : active === 'pinned' ? '重要收藏' : active === 'drafts' ? '草稿箱' : active);
   const filtered = listNotes(noteQuery),heading=typeFilter!=='all'?typeLabel(typeFilter):active==='all'?'全部笔记':active==='recent'?'最近编辑':active==='pinned'?'重要收藏':active==='drafts'?'草稿箱':active;
-  main.innerHTML=`<div class="section-head workspace-page-head"><div><h1>${esc(heading)}</h1><p class="muted">${filtered.length} 篇笔记</p></div><div class="section-right"><button class="secondary-btn" data-new="note">${icons('plus')} 新建笔记</button></div></div>
-    <label class="workspace-search note-page-search">${icons('search')}<input id="notePageSearch" type="search" aria-label="筛选当前笔记标题、正文、分类和标签" placeholder="筛选本页笔记标题、正文、分类和标签" value="${esc(noteQuery)}"></label><div class="filter-tabs home-type-tabs"><button data-type="all" class="${typeFilter==='all'?'selected':''}">全部类型</button>${data.noteTypes.map(type=>`<button data-type="${esc(type.id)}" class="${typeFilter===type.id?'selected':''}">${esc(displayTypeName(type))}</button>`).join('')}</div>
-    <div class="notes note-list">${filtered.map(noteCard).join('')}</div>${!filtered.length?`<div class="empty">${active==='drafts'?'暂无草稿。可以创建一条笔记。':'还没有笔记，先写下第一条。'}</div>`:''}
-    `;
+   main.innerHTML=`<div class="note-page-layout"><div class="section-head workspace-page-head"><div><h1>${esc(heading)}</h1><p class="muted">${filtered.length} 篇笔记</p></div><div class="section-right"><button class="secondary-btn" data-new="note">${icons('plus')} 新建笔记</button></div></div>
+     <label class="workspace-search note-page-search">${icons('search')}<input id="notePageSearch" type="search" aria-label="筛选当前笔记标题、正文、分类和标签" placeholder="筛选本页笔记标题、正文、分类和标签" value="${esc(noteQuery)}"></label><div class="filter-tabs home-type-tabs"><button data-type="all" class="${typeFilter==='all'?'selected':''}">全部类型</button>${data.noteTypes.map(type=>`<button data-type="${esc(type.id)}" class="${typeFilter===type.id?'selected':''}">${esc(displayTypeName(type))}</button>`).join('')}</div>
+     <div class="notes note-list">${filtered.map(noteCard).join('')}</div>${!filtered.length?`<div class="empty">${active==='drafts'?'暂无草稿。可以创建一条笔记。':'还没有笔记，先写下第一条。'}</div>`:''}</div>
+     `;
   $('#notePageSearch').oninput=event=>{noteQuery=event.target.value;const arr=listNotes(noteQuery);main.querySelector('.note-list').innerHTML=arr.map(noteCard).join('')||'<div class="empty">没有找到匹配的笔记</div>';main.querySelector('.workspace-page-head .muted').textContent=arr.length+' 篇笔记';};
 }
 async function copyTextToClipboard(text){
@@ -367,21 +391,21 @@ function renderReader(){
   if(!stored){openHome();return}
   const working=previewing||isDraft(stored),n=working?stored:publishedView(stored);
   setBreadcrumb(n.title);
-  const temp=document.createElement('div');temp.innerHTML=cleanHTML(n.body,true);
+   const bodyView=readableNoteBody(n.body,n.title),temp=document.createElement('div');temp.innerHTML=bodyView.html;
   const outline=[];
-  temp.querySelectorAll('h1,h2,h3').forEach((h,i)=>{h.id=`sec-${i}`;outline.push({name:h.textContent,id:h.id,sub:h.tagName==='H3'})});
+   temp.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach((h,i)=>{const name=(h.textContent||'').replace(/\s+/g,' ').trim();if(!name)return;h.id=`sec-${i}`;outline.push({name,id:h.id,level:Number(h.tagName.slice(1))})});
   const plainText=(temp.textContent||'').replace(/\s+/g,' ').trim();
   const cjkCount=(plainText.match(/[\u3400-\u9fff]/g)||[]).length;
   const latinWordCount=(plainText.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)||[]).length;
   const readingMinutes=Math.max(1,Math.ceil((cjkCount+latinWordCount*5)/350));
-  const toc=outline.map(x=>`<a href="#${esc(x.id)}" class="${x.sub?'sub':''}">${esc(x.name)}</a>`).join('');
+   const toc=outline.map(x=>`<a href="#${esc(x.id)}" class="${x.level>2?'sub ':''}toc-level-${x.level}">${esc(x.name)}</a>`).join('');
   const hasDraft=needsPublish(stored);
   const primary=hasDraft&&working?`<button class="primary-btn" id="publishDoc">${icons('check')} ${isDraft(stored)?'发布笔记':'保存笔记'}</button><button class="secondary-btn" id="editDoc">${icons('edit')} 编辑笔记</button>`:`<button class="primary-btn" id="editDoc">${icons('edit')} ${previewing?'继续编辑':'编辑笔记'}</button>`;
   const workingBadge='';
   main.innerHTML=`<div class="note-shell reader-shell"><section><div class="doc-head"><button class="doc-back" id="backDoc">${icons('back')} 返回笔记列表</button><div class="doc-meta">${workingBadge}<span class="pill">${esc(typeLabel(n.type))}</span><span class="pill">${esc(n.category)}</span><span class="doc-date">更新于 ${fullDate(n.updated)} · 阅读约 ${readingMinutes} 分钟</span></div><h1 class="doc-title">${esc(n.title)}</h1><div class="doc-desc">${(n.tags||[]).map(t=>`<span class="tag">#${esc(t)}</span>`).join(' ')} ${n.source?`<span class="reader-source">来源：<a href="${safeUrl(n.source)?esc(n.source):'#'}" target="_blank" rel="noopener noreferrer">原始网页 ↗</a></span>`:''}</div><div class="doc-action-row">${primary}${!working&&stored.publishedSnapshot?'<button class="secondary-btn" id="showDraftView">查看待发布修改</button>':''}<button class="secondary-btn" id="pinDoc">${icons('heart')} ${n.pinned?'取消收藏':'收藏'}</button><button class="secondary-btn" id="duplicateDoc">${icons('clip')} 创建副本</button><button class="secondary-btn danger-btn" id="deleteDoc">${icons('trash')} 删除</button></div></div>${outline.length?`<details class="mobile-toc"><summary>本文目录 <span>${outline.length} 个章节</span></summary><nav class="outline">${toc}</nav></details>`:''}<article class="read-paper"><div class="doc-content" id="docRead">${temp.innerHTML||'<p class="hint">这里还没有内容。点击“编辑笔记”开始。</p>'}</div></article></section><aside class="right-rail"><h3>本文目录</h3><nav class="outline">${toc||'<span class="hint">暂无标题</span>'}</nav><div class="rail-rule"></div><h3>笔记信息</h3><div class="rail-source">创建：${fullDate(n.created)}<br>类型：${esc(typeLabel(n.type))}<br>来源：${n.source?`<a href="${safeUrl(n.source)?esc(n.source):'#'}" target="_blank" rel="noopener noreferrer">${esc(n.source)}</a>`:'自己记录'}</div></aside></div>`;
   organizeDocumentActions();
   addCodeCopies($('#docRead'));
-  const readerHeadings=[...main.querySelectorAll('#docRead h1, #docRead h2, #docRead h3')];
+   const readerHeadings=[...main.querySelectorAll('#docRead h1, #docRead h2, #docRead h3, #docRead h4, #docRead h5, #docRead h6')];
   const outlineLinks=[...main.querySelectorAll('.reader-shell .outline a')];
   const setCurrentSection=id=>outlineLinks.forEach(link=>{const current=link.hash===`#${id}`;link.classList.toggle('current',current);if(current)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current')});
   if(readerHeadings.length&&outlineLinks.length){
@@ -572,7 +596,7 @@ async function refreshAccountProfile(){if(initial.local){accountProfile={usernam
 async function openProfileSettings(){closeAccountMenu();$('#profileSettingsOverlay').classList.add('open');const message=$('#profileSettingsMessage'),passwordMessage=$('#passwordChangeMessage');message.textContent='';message.className='account-settings-message';passwordMessage.textContent='';passwordMessage.className='account-settings-message';$('#profileUsername').textContent=initial.local?'本地开发预览':initial.username||'正在读取账号…';for(const control of [$('#chooseAvatar'),$('#removeAvatar'),$('#changePasswordButton')])control.disabled=initial.local;$('#accountAvatarFile').disabled=initial.local;if(initial.local){message.textContent='当前是本地界面预览；请登录部署后的栖点管理头像和密码。';message.classList.add('error');return}try{await refreshAccountProfile()}catch{}}
 function ensureVersionInfoUI(){
  if(!$('#versionInfoOverlay')){
-  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="versionInfoOverlay"><section class="dialog version-dialog" role="dialog" aria-modal="true" aria-labelledby="versionInfoTitle"><div class="dialog-head"><div><h2 id="versionInfoTitle">版本信息</h2><p class="account-dialog-subtitle">查看版本变化与本次更新进度。</p></div><button class="round-btn" data-close="versionInfoOverlay" aria-label="关闭"><span class="ico"><svg><use href="#i-close"/></svg></span></button></div><div class="dialog-body version-dialog-body"><div class="version-pair"><div class="version-current"><span>当前版本</span><strong id="installedVersion">—</strong></div><span class="version-transition" aria-hidden="true">→</span><div class="version-latest" id="latestVersionCard"><span id="latestVersionLabel">最新版本</span><strong id="latestVersion">尚未检查</strong></div></div><p class="version-state" id="versionState" role="status" aria-live="polite">正在检查版本…</p><section class="version-notes-section"><div class="version-section-heading"><h3>版本说明</h3><span id="releasePublishedAt" hidden></span></div><div id="releaseNotes" class="release-notes">读取中…</div></section></div><div class="dialog-foot version-dialog-foot"><section id="updateProgress" class="update-progress" hidden aria-label="更新进度与实时日志"><div class="update-progress-head"><strong id="updateProgressTitle">本次更新</strong><div class="update-progress-meta"><span id="updateProgressTime"></span><span id="updateProgressState">等待设备响应</span></div></div><div id="updateProgressTrack" class="update-progress-track" data-mode="idle" role="progressbar" aria-label="更新进度" aria-valuemin="0" aria-valuemax="100" aria-valuetext="尚未开始"><span id="updateProgressBar"></span></div><pre id="updateProgressLog" class="update-progress-log" aria-label="更新实时日志" aria-live="polite"></pre></section><div class="version-dialog-actions"><a id="releaseLink" class="secondary-btn" href="https://github.com/luckyalanzhou/qidian/releases" target="_blank" rel="noopener noreferrer">Release</a><button class="primary-btn" id="checkAndUpdateVersion" type="button" disabled>检查中…</button></div></div></section></div>`);
+  document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="versionInfoOverlay"><section class="dialog version-dialog" role="dialog" aria-modal="true" aria-labelledby="versionInfoTitle"><div class="dialog-head"><div><h2 id="versionInfoTitle">版本信息</h2><p class="account-dialog-subtitle">查看版本变化与本次更新进度。</p></div><button class="round-btn" data-close="versionInfoOverlay" aria-label="关闭"><span class="ico"><svg><use href="#i-close"/></svg></span></button></div><div class="dialog-body version-dialog-body"><div class="version-pair"><div class="version-current"><span>当前版本</span><strong id="installedVersion">—</strong></div><span class="version-transition" aria-hidden="true">→</span><div class="version-latest" id="latestVersionCard"><span id="latestVersionLabel">最新版本</span><strong id="latestVersion">尚未检查</strong></div></div><p class="version-state" id="versionState" role="status" aria-live="polite">正在检查版本…</p><section class="version-notes-section"><div class="version-section-heading"><h3>版本说明</h3><span id="releasePublishedAt" hidden></span></div><div id="releaseNotes" class="release-notes">读取中…</div></section></div><div class="dialog-foot version-dialog-foot"><section id="updateProgress" class="update-progress" data-mode="idle" hidden aria-label="更新进度与实时日志"><div class="update-progress-head"><div class="update-progress-title-row"><strong id="updateProgressTitle">本次更新</strong><span id="updateProgressTime" class="update-progress-time"></span></div><div class="update-progress-stage" role="status" aria-live="polite"><span class="update-progress-stage-mark" aria-hidden="true"></span><span id="updateProgressState">等待设备响应</span></div></div><div id="updateProgressTrack" class="update-progress-track" data-mode="idle" role="progressbar" aria-label="更新进度" aria-valuemin="0" aria-valuemax="100" aria-valuetext="尚未开始"><span id="updateProgressBar"></span></div><div class="update-progress-log-panel"><div class="update-progress-log-heading">实时日志</div><pre id="updateProgressLog" class="update-progress-log" aria-label="更新实时日志" aria-live="polite" tabindex="0"></pre></div></section><div class="version-dialog-actions"><a id="releaseLink" class="secondary-btn" href="https://github.com/luckyalanzhou/qidian/releases" target="_blank" rel="noopener noreferrer">Release</a><button class="primary-btn" id="checkAndUpdateVersion" type="button" disabled>检查中…</button></div></div></section></div>`);
   $('#versionInfoOverlay').addEventListener('click',event=>{if(event.target.id==='versionInfoOverlay')closeAccountSettings()});
   $('#updateProgressLog').addEventListener('scroll',()=>{const log=$('#updateProgressLog');updateLogFollowing=log.scrollHeight-log.scrollTop-log.clientHeight<24})
  }
@@ -595,10 +619,29 @@ function setVersionAction(info){
  button.disabled=false;button.textContent='检查并更新';
 }
 function setUpdateProgressMode(mode,message){
- const track=$('#updateProgressTrack'),bar=$('#updateProgressBar');track.dataset.mode=mode;
- if(mode==='complete'||mode==='blocked'){track.setAttribute('aria-valuenow','100');track.setAttribute('aria-valuetext',message||'已完成')}
- else if(mode==='error'){track.removeAttribute('aria-valuenow');track.setAttribute('aria-valuetext',message||'未完成')}
- else{track.removeAttribute('aria-valuenow');track.setAttribute('aria-valuetext',message||'正在处理')}
+ const progress=$('#updateProgress'),track=$('#updateProgressTrack');progress.dataset.mode=mode;track.dataset.mode=mode;
+ if(mode==='complete'){track.setAttribute('aria-valuenow','100');track.setAttribute('aria-valuetext',message||'已完成')}
+ else{track.removeAttribute('aria-valuenow');track.setAttribute('aria-valuetext',message||'正在处理，暂不提供百分比')}
+}
+function updateProgressStage(status,waitingForRestart=false){
+ if(status.state==='failed')return '更新失败 · 查看日志了解原因';
+ if(status.state==='queued')return '更新任务已提交 · 等待设备执行';
+ if(waitingForRestart)return '设备服务正在重启 · 等待恢复';
+ if(status.state==='success')return updateTargetVersion?'服务已启动 · 正在确认目标版本':'更新完成 · 服务已重启';
+ const lines=String(status.log||'').split(/\r?\n/).reverse();
+ const stages=[
+  [/正在确认容器已启动|容器.{0,20}(?:运行状态|已启动)|health.{0,20}(?:check|healthy)/i,'正在确认服务启动状态'],
+  [/正在拉取适合|Pulling from|Pulling fs layer|Pull complete|Already exists|Download complete|Verifying Checksum|Extracting/i,'正在拉取新版本镜像'],
+  [/等待.{0,50}(?:拉取|镜像)/i,'准备拉取新版本镜像'],
+  [/管理文件已更新/i,'设备管理文件已更新 · 准备重启服务'],
+  [/正在更新设备管理文件|校验通过，正在更新设备管理文件/i,'正在更新设备管理文件'],
+  [/正在校验 SHA-256|sha256sum -c/i,'正在校验安装包'],
+  [/开始下载|正在下载：已接收/i,'正在下载安装包与校验文件'],
+  [/正在连接公开版本源|正在读取最新 Release/i,'正在检查最新版本'],
+  [/正在检查 Docker 与数据目录/i,'正在检查设备与数据目录']
+ ];
+ for(const line of lines){for(const [pattern,label] of stages)if(pattern.test(line))return label}
+ return status.state==='running'?'设备正在执行更新…':'等待设备响应';
 }
 function renderUpdateLog(serverLog=''){
  const log=$('#updateProgressLog'),parts=[...updateProgressMessages,serverLog].filter(Boolean);log.textContent=parts.join('\n');if(updateLogFollowing)log.scrollTop=log.scrollHeight;
@@ -609,11 +652,12 @@ function appendUpdateProgressMessage(message){
 function startUpdateCheck(){
  updateTerminalBaseline=['success','failed'].includes(lastUpdateStatus?.state)?updateStatusFingerprint(lastUpdateStatus):'';lastUpdateStatus=null;
  updateActionRunning=true;updateProgressMessages=[];updateLogFollowing=true;updateLogRelevant=false;
+ $('#versionState').hidden=true;
  const progress=$('#updateProgress');progress.hidden=false;$('#updateProgressTitle').textContent='检查并更新';$('#updateProgressTime').textContent='';$('#updateProgressState').textContent='正在检查最新版本…';
  setUpdateProgressMode('checking','正在检查最新版本');appendUpdateProgressMessage('正在连接版本源，检查最新版本…');setVersionState('正在检查最新版本…');setVersionAction(versionInfo);
 }
 function finishUpdateCheck(message,{mode='complete',kind='current',log=message}={}){
- updateActionRunning=false;$('#updateProgressTitle').textContent='版本检查';$('#updateProgressState').textContent=message;setUpdateProgressMode(mode,message);if(log)appendUpdateProgressMessage(log);setVersionState(message,kind);setVersionAction(versionInfo);
+ updateActionRunning=false;$('#versionState').hidden=false;$('#updateProgressTitle').textContent='版本检查';$('#updateProgressState').textContent=message;setUpdateProgressMode(mode,message);if(log)appendUpdateProgressMessage(log);setVersionState(message,kind);setVersionAction(versionInfo);
 }
 function clearPendingDeviceUpdate(){updateTargetVersion='';try{sessionStorage.removeItem('qidian.pendingDeviceUpdate')}catch{}}
 function updateStatusFingerprint(status){return JSON.stringify([status?.state,status?.version,status?.updatedAt])}
@@ -621,6 +665,7 @@ function countDownUpdateRefresh(targetVersion){
  if(updateTargetVersion!==targetVersion||!updateReloadScheduled)return;
  const remaining=Math.max(0,Math.ceil((updateRefreshDeadline-Date.now())/1000));
  setVersionState(`栖点 ${targetVersion} 已部署，服务已启动；${remaining} 秒后自动刷新页面。`,'success');
+ $('#versionState').hidden=true;
  $('#updateProgressState').textContent=`部署完成 · ${remaining} 秒后刷新`;
  setUpdateProgressMode('complete',`部署完成，${remaining} 秒后刷新`);$('#checkAndUpdateVersion').disabled=true;$('#checkAndUpdateVersion').textContent=`${remaining} 秒后刷新`;
  if(remaining>0){updateReloadTimer=setTimeout(()=>countDownUpdateRefresh(targetVersion),1000);return}
@@ -633,6 +678,7 @@ async function refreshAfterDeployment(targetVersion){
   clearPendingDeviceUpdate();window.location.reload();
  }catch{
   setVersionState('倒计时已结束，正在等待新版本服务恢复后自动刷新…');
+  $('#versionState').hidden=true;$('#updateProgressState').textContent='倒计时结束 · 等待新版本服务恢复';setUpdateProgressMode('verifying','倒计时结束，等待新版本服务恢复');
   $('#checkAndUpdateVersion').textContent='等待服务启动…';
   updateReloadTimer=setTimeout(()=>void refreshAfterDeployment(targetVersion),2000);
  }
@@ -649,6 +695,7 @@ async function verifyUpdatedVersion(targetVersion){
   updateRefreshDeadline=Date.now()+updateRefreshDelay;countDownUpdateRefresh(targetVersion);
  }catch{
   setVersionState('更新已完成，正在等待新版本服务就绪…');
+  $('#versionState').hidden=true;$('#updateProgressState').textContent='更新任务完成 · 等待新版本服务就绪';
    $('#checkAndUpdateVersion').disabled=true;$('#checkAndUpdateVersion').textContent='等待服务启动…';
   clearTimeout(updateVerificationTimer);updateVerificationTimer=setTimeout(()=>void verifyUpdatedVersion(targetVersion),2000);
  }finally{updateVersionCheckRunning=false}
@@ -664,10 +711,11 @@ function renderUpdateStatus(status){
  const active=['queued','running'].includes(status.state),waitingForRestart=!!updateTargetVersion&&['idle','unavailable'].includes(status.state);
  if(active||waitingForRestart)updateLogRelevant=true;
  if(!updateLogRelevant&&!active&&!waitingForRestart&&['success','failed','unavailable'].includes(status.state))status={state:'idle',version:'',updatedAt:null,log:''};
+ $('#versionState').hidden=!!updateTargetVersion&&status.state!=='failed';
  progress.hidden=!updateLogRelevant||status.state==='idle'&&!updateTargetVersion;
  title.textContent=updateTargetVersion?`本次更新 · v${updateTargetVersion}`:status.version?`上次更新 · v${status.version}`:'本次更新';
- const updatedAt=status.updatedAt?new Date(status.updatedAt):null;$('#updateProgressTime').textContent=updatedAt&&Number.isFinite(updatedAt.getTime())?`日志更新于 ${updatedAt.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`:'';
- label.textContent=status.state==='unavailable'&&updateTargetVersion?'服务正在重启，等待新版本恢复…':({queued:'等待设备执行',running:'正在更新；完成校验后将重启服务',success:updateTargetVersion?'服务已重启，正在确认新版本':'更新完成，服务已重启',failed:'更新失败',idle:'',unavailable:'服务暂时无法连接'})[status.state]||'等待设备响应';
+ const logUpdatedAt=status.logUpdatedAt==null?null:new Date(status.logUpdatedAt);$('#updateProgressTime').textContent=logUpdatedAt&&Number.isFinite(logUpdatedAt.getTime())?`最近日志 · ${logUpdatedAt.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}`:'';
+ label.textContent=updateProgressStage(status,waitingForRestart);
   renderUpdateLog(status.log||'');
   if(status.state==='failed')setUpdateProgressMode('error','更新失败');else if(updateReloadScheduled)setUpdateProgressMode('complete','新版本已启动，等待刷新');else if(active||waitingForRestart||updateTargetVersion)setUpdateProgressMode('updating',label.textContent);else if(status.state==='success')setUpdateProgressMode('complete','更新完成');
   if(active||waitingForRestart||updateTargetVersion){button.disabled=true;button.textContent=updateReloadScheduled?'即将刷新':'更新进行中…'}else setVersionAction(versionInfo);
@@ -712,6 +760,7 @@ function openAppSettings(){closeAccountMenu();ensureVersionInfoUI();$('#appSetti
    $('#updateProgressState').textContent='正在提交设备更新任务…';appendUpdateProgressMessage('当前数据已保存，正在提交设备更新任务…');
    const accepted=await requestSystemUpdate();updateTargetVersion=accepted?.version||info.latestVersion;updateLogRelevant=true;updateActionRunning=false;updateReloadScheduled=false;
    try{sessionStorage.setItem('qidian.pendingDeviceUpdate',updateTargetVersion)}catch{}
+   $('#versionState').hidden=true;
    setVersionState(`已提交 v${updateTargetVersion} 更新；安装与服务重启完成后，将倒计时 5 秒自动刷新。`);await refreshUpdateStatus();
   }catch(error){updateLogRelevant=false;finishUpdateCheck(error.message||'无法检查或提交更新，请稍后重试。',{mode:'error',kind:'error',log:`操作失败：${error.message||'未知错误'}`})}
   finally{updateActionRunning=false;if(!updateTargetVersion&&!updateReloadScheduled)setVersionAction(versionInfo)}

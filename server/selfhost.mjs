@@ -113,15 +113,17 @@ export async function readQidianUpdateStatus(statusDir, requestDir) {
   } catch {}
   if (!ready && (!hasSavedState || state === 'idle') && state !== 'queued') state = 'unavailable';
   let log = '';
+  let logUpdatedAt = null;
   let logHandle;
   try {
     logHandle = await open(join(statusDir, 'update.log'), 'r');
     const info = await logHandle.stat(), length = Math.min(info.size, 65536);
+    logUpdatedAt = info.mtimeMs;
     const content = Buffer.alloc(length);
     const { bytesRead } = await logHandle.read(content, 0, length, Math.max(0, info.size - length));
     log = content.subarray(0, bytesRead).toString('utf8');
   } catch {} finally { await logHandle?.close().catch(() => {}); }
-  return { state, version, updatedAt, log:pendingRequest ? '' : log };
+  return { state, version, updatedAt, logUpdatedAt:pendingRequest ? null : logUpdatedAt, log:pendingRequest ? '' : log };
 }
 
 function safeStaticPath(root, pathname) {

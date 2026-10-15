@@ -121,7 +121,7 @@ test('self-hosted update bridge exposes bounded logs and accepts only one queued
   assert.equal(await qidianUpdaterReady(outbox), false);
   assert.equal(await queueQidianUpdate(inbox), true);
   assert.equal(await queueQidianUpdate(inbox), false, 'an existing update request cannot be overwritten');
-  assert.deepEqual(await readQidianUpdateStatus(outbox,inbox), { state:'queued', version:'', updatedAt:null, log:'' });
+  assert.deepEqual(await readQidianUpdateStatus(outbox,inbox), { state:'queued', version:'', updatedAt:null, logUpdatedAt:null, log:'' });
   await writeFile(join(outbox,'update-agent-ready'),'ready');
   await writeFile(join(outbox,'update-status'),'running\t0.1.6\t1791763200\n');
   await writeFile(join(outbox,'update.log'),'x'.repeat(70000));
@@ -129,6 +129,7 @@ test('self-hosted update bridge exposes bounded logs and accepts only one queued
   assert.equal(status.state,'running');
   assert.equal(status.version,'0.1.6');
   assert.equal(status.log.length,65536);
+  assert.ok(Number.isFinite(status.logUpdatedAt),'log timestamp reflects the log file modification time');
   assert.equal(await qidianUpdaterReady(outbox),true);
   await rm(join(outbox,'update-agent-ready'));
   assert.equal((await readQidianUpdateStatus(outbox,inbox)).state,'running','the persisted update state survives a brief updater-agent restart');
@@ -145,7 +146,7 @@ test('a new pending update does not display the previous failed job or its stale
   await writeFile(join(outbox,'update-status'),'failed\t0.1.14\t1791763200\n');
   await writeFile(join(outbox,'update.log'),'old task failure');
   await writeFile(join(inbox,'update-request'),'update\n');
-  assert.deepEqual(await readQidianUpdateStatus(outbox,inbox),{state:'queued',version:'',updatedAt:null,log:''});
+  assert.deepEqual(await readQidianUpdateStatus(outbox,inbox),{state:'queued',version:'',updatedAt:null,logUpdatedAt:null,log:''});
   await rm(join(inbox,'update-request'));
   const previous=await readQidianUpdateStatus(outbox,inbox);
   assert.equal(previous.state,'failed');
