@@ -30,9 +30,10 @@ iStoreOS 24.10 与 25.12 都可通过 iStore“手动安装”使用 `.run`。�
 
 ### 准备
 
-1. 在 iStoreOS 中安装并启动 Docker。
-2. 确认设备可以访问 GitHub Release 和 Docker Hub。
-3. 确认用于 Docker Root Dir 的磁盘有足够空间。
+1. 在 iStoreOS 中安装并启动 Docker，并确保 Docker Compose 可用（支持 `docker compose` 或 `docker-compose`）。
+2. `.run` 安装器要求系统提供 UCI 和 LuCI CBI；标准 iStoreOS 通常已具备这些组件。
+3. 确认设备可以访问 GitHub Release 和 Docker Hub。
+4. 确认 Docker Root Dir 所在磁盘有足够空间。
 
 ### 安装步骤
 
@@ -149,7 +150,7 @@ docker exec -it qidian node server/reset-password.mjs
 
 ### LuCI Web 在线更新
 
-版本序号已从旧版 `0.1.x` 重置为 `0.0.0`。现有旧版设备首次迁移时，请先从 Release 手动下载并安装新版 `.run`，再到 LuCI 点击一次 **安装 / 更新**；完成后即可使用 Web 在线更新。
+版本序号已从旧版 `0.1.x` 重置为 `0.0.0`。如果设备当前通过旧版 `.run` 安装了 iStoreOS 管理界面，请先从 Release 手动安装新版 `.run`，再到 LuCI 点击一次 **安装 / 更新**；完成后即可使用 Web 在线更新。原生 `.ipk` / `.apk` 安装的设备应继续使用对应的原生包更新管理界面。
 
 1. 登录栖点，点击顶栏版本号。
 2. 确认当前版本、最新版本和 Release 说明。
@@ -213,8 +214,9 @@ curl http://127.0.0.1:9908/healthz
 
 ## 卸载
 
-卸载应用前先导出 ZIP并复制数据目录。
+卸载前建议先导出 ZIP 并复制数据目录。
 
-- 删除容器或卸载 `.run` 不应自动删除知识库数据。
-- 只有用户明确删除 iStoreOS 数据目录或 `qidian-data` 卷时，数据才会被移除。
-- 重新安装时应确认 LuCI 显示的数据路径与原知识库一致。
+- LuCI 的 **卸载容器** 只移除 Docker 容器，不会卸载管理界面，也会保留 Docker 数据目录中的知识库数据。
+- `.run` 安装器目前没有配套的卸载命令；不要把卸载容器当成卸载 `.run` 管理文件。
+- 原生 `.ipk` / `.apk` 管理包应通过 LuCI 软件包页面或对应的软件包管理器卸载。卸载管理包不会自动删除 Docker 数据目录或 `qidian-data` 卷。
+- 删除 Docker 数据目录或 `qidian-data` 卷会删除其中的知识库数据。重新安装时应确认 LuCI 显示的数据路径与原知识库一致。

@@ -44,7 +44,7 @@ GitHub Release 同时提供架构无关的 LuCI 管理包：OpenWrt 或 iStoreOS
 
 ## 维护者本地构建
 
-需要 Node.js 和 Bash：
+本地构建 `.run` 需要 Node.js 22 或更高版本、pnpm 11、Bash 和 `makeself`。发布工作流使用 Node.js 24、pnpm 11.25.0；本地可先确认 `node --version`、`pnpm --version` 可运行，并用 `command -v makeself` 检查打包工具。原生 `.ipk` / `.apk` 由 GitHub Actions 中的 OpenWrt SDK 构建，本节命令只生成 `.run`：
 
 ```sh
 pnpm install --frozen-lockfile
