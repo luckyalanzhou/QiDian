@@ -81,9 +81,10 @@ jobs:
           FEED_DIR: ${{ github.workspace }}/packaging/istoreos
           FEEDNAME: qidian
           PACKAGES: luci-app-qidian
-          BUILD_LOG: 0
+          BUILD_LOG: 1
           NO_REFRESH_CHECK: 1
           NO_SHFMT_CHECK: 1
+          V: s
       - name: Build native OpenWrt APK package
         uses: openwrt/gh-action-sdk@main
         env:
@@ -92,9 +93,20 @@ jobs:
           FEED_DIR: ${{ github.workspace }}/packaging/istoreos
           FEEDNAME: qidian
           PACKAGES: luci-app-qidian
-          BUILD_LOG: 0
+          BUILD_LOG: 1
           NO_REFRESH_CHECK: 1
           NO_SHFMT_CHECK: 1
+          V: s
+      - name: Upload OpenWrt SDK logs after failed package build
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-sdk-build-logs
+          path: |
+            artifacts/openwrt-ipk/logs/
+            artifacts/openwrt-apk/logs/
+          if-no-files-found: warn
+          retention-days: 3
       - name: Collect and checksum OpenWrt packages
         env:
           VERSION: ${{ steps.version.outputs.version }}
