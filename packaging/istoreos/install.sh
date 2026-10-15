@@ -41,6 +41,7 @@ chmod 755 /usr/libexec/istorec/qidian.sh
 chmod 755 /usr/libexec/istorec/qidian-updater.sh
 chmod 755 /etc/init.d/qidian-updater
 printf '%s\n' "$(cat "$SCRIPT_DIR/version")" > /etc/qidian-version
+printf 'run\n' > /etc/qidian-package-manager
 
 if [ "$HAD_CONFIG" = false ]; then
 	uci set qidian.main=qidian

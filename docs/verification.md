@@ -1,6 +1,6 @@
 # 验证说明
 
-本文记录当前仓库可以重复执行的验证范围。源码测试、浏览器测试、Docker 运行和 iStoreOS 实机属于不同层级，不能互相替代。
+本文记录当前仓库可以重复执行的验证范围。源码测试、浏览器测试、Docker 运行和路由器实机属于不同层级，不能互相替代。
 
 ## 自动化命令
 
@@ -10,15 +10,15 @@ pnpm test
 pnpm build
 ```
 
-2026-10-13 文档与文件清理后验证结果：
+2026-10-15 OpenWrt 原生包支持与编辑器资源拆分后的验证结果：
 
 | 项目 | 结果 | 覆盖范围 |
 |---|---|---|
-| `pnpm check` | 通过 | 前端、API、自托管服务和迁移脚本语法 |
-| `pnpm test` | 150/150 通过 | SQLite、账号、保存、编辑器、书签、更新代理、LuCI 包结构 |
-| `pnpm build` | 通过 | Vite 生产资源构建 |
+| Node.js 语法检查 | 通过 | 前端、API、自托管服务和迁移脚本 |
+| `node --test tests/*.test.mjs` | 179/179 通过 | SQLite、账号、保存、编辑器、书签、更新代理、IPK/APK 发布配置与 LuCI 包结构 |
+| `node node_modules/vite/bin/vite.js build` | 通过 | Vite 生产资源构建，最大编辑器块 461 kB |
 
-完整测试中的本机 HTTP 与 Bash 子进程用例需要在允许本地端口和子进程的环境运行；受限沙箱会返回 `EACCES` 或 Windows 子进程初始化错误。本次已在获准的非沙箱测试环境复跑并全部通过。
+在 Windows 沙箱中，`pnpm` 尝试创建外部项目链接时会遇到 `EPERM`，直接运行等价 Node.js 命令完成检查和构建。完整测试中的本机 HTTP 与 Git Bash 子进程用例在获准的测试环境运行并全部通过。
 
 Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动态导入，不影响构建结果；后续只有在真实加载性能测量显示需要时，再拆分 Tiptap 扩展，避免为了消除提示增加运行复杂度。
 
@@ -59,10 +59,11 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 - 主题、粘贴方式、侧栏笔记类型展开、首页书签排列与分组展开、书签页目录与树形分组展开均写入当前账号，并可从服务端数据恢复。
 - 当前页面、搜索文字、滚动位置、临时菜单、选择项和整理模式不写入账号偏好。
 
-### Docker 与 iStoreOS
+### Docker 与 LuCI 部署
 
 - 通用 Compose 使用本机命名卷，容器没有宿主更新权限。
-- `.run` 只包含 LuCI、Compose 和管理脚本，不包含应用构建产物。
+- `.run`、IPK 和 APK 只包含 LuCI、Compose 和管理脚本，不包含应用构建产物。
+- 发布工作流配置为使用 OpenWrt 24.10.7 SDK 构建 IPK、25.12.5 SDK 构建 APK，并要求 Release 包含两种包和校验文件；工作流尚未运行，实际包尚未生成。
 - 重装保留 `.env`、LuCI 配置和知识库目录。
 - LuCI 自动读取 Docker Root Dir，默认 HTTP 9908。
 - 更新代理只接受固定任务，校验 Release SHA-256，不挂载 Docker Socket。
@@ -73,7 +74,8 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 
 以下项目不能由当前 Node/JSDOM 测试证明：
 
-- iStoreOS 不同版本、磁盘挂载方式和 Docker Root Dir 的实际表现。
+- OpenWrt / iStoreOS 不同版本、磁盘挂载方式和 Docker Root Dir 的实际表现。
+- OpenWrt 24.10 上 IPK 与 25.12 上 APK 的设备安装、卸载和 Web 在线更新；当前只验证了构建配置与来源代码，尚未连接 OpenWrt 设备。
 - x86-64 与 ARM64 设备实际拉取 Docker Hub 清单并启动。
 - LuCI 主题、窗口尺寸、日志弹窗和安装按钮的真实显示。
 - iPhone Safari 与 Android Chrome 的输入法、剪贴板、文件选择和下载。
@@ -87,8 +89,8 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 2. `package.json` 是发布版本的唯一来源，基准为 `0.0.0`；版本采用无固定上限的 `Major.Minor.Patch` 整数格式，不使用前导零。发布工作流默认递增 Patch，也可按兼容性影响选择 Minor 或 Major。
 3. `pnpm check`、`pnpm test`、`pnpm build` 全部通过。
 4. 手动发布工作流成功推送版本镜像和 `latest`。
-5. GitHub Release 只包含 `栖点-<版本>.run` 与 `栖点-<版本>.run.sha256`，且 SHA-256 校验通过。
-6. 在至少一台目标 iStoreOS 设备完成安装、登录、保存、更新和重启验收。
+5. GitHub Release 包含 `.run`、`.ipk`、`.apk` 及各自的 SHA-256 校验文件，发布工作流须逐个校验。
+6. 在至少一台目标 iStoreOS 或 OpenWrt 设备完成安装、登录、保存、更新和重启验收。
 
 ## 验收记录原则
 

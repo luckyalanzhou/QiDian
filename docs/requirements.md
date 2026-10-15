@@ -90,12 +90,13 @@
 ## 部署与更新
 
 - 正式镜像发布到 `docker.io/luckyalanzhou/qidian`，同时提供 `linux/amd64` 与 `linux/arm64`。
-- iStoreOS `.run` 只安装 LuCI、Compose 和宿主管理脚本，不在设备上编译前端。
-- iStoreOS 必须实时读取当前设备 Docker Root Dir，再创建 `volumes/qidian/data`，不得写死任何设备路径。
+- iStoreOS `.run` 和 OpenWrt 原生包只安装 LuCI、Compose 和宿主管理脚本，不在设备上编译前端。
+- OpenWrt 24.10（opkg）发布架构无关 `.ipk`；25.12（apk）发布架构无关 `.apk`。
+- 所有 LuCI 部署都必须实时读取当前设备 Docker Root Dir，再创建 `volumes/qidian/data`，不得写死任何设备路径。
 - 通用 Docker 使用当前 Docker Root Dir 管理的 `qidian-data` 命名卷。
 - Web 只从固定 GitHub Release API读取版本信息，不上传知识库数据。
 - 只有首个账号可发起设备更新；更新请求通过受限目录交给宿主代理，容器不得挂载 Docker Socket。
-- 更新代理下载带版本号的 `.run` 和 SHA-256，校验后才执行。
+- 更新代理按本机安装来源下载带版本号的 `.run`、`.ipk` 或 `.apk` 和 SHA-256，校验后才执行。
 - 更新管理文件后等待 10 秒再拉取镜像和重建服务；新版本服务可用后，网页等待 5 秒并自动刷新。
 - 更新失败必须保留实时日志和重试入口，数据目录不得改变。
 
@@ -116,5 +117,5 @@
 ## 验收原则
 
 - 数据兼容和不丢失优先于界面更新。
-- SQLite、DOM、构建与安装包测试通过后，仍须分别进行桌面浏览器、手机实机和 iStoreOS 设备验收。
+- SQLite、DOM、构建与安装包测试通过后，仍须分别进行桌面浏览器、手机实机和目标 OpenWrt / iStoreOS 设备验收。
 - 源码、Git、CI、Docker Hub 和设备运行状态必须分开报告，不能用构建成功代替设备验证。

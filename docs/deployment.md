@@ -1,12 +1,14 @@
 # 部署指南
 
-栖点是本地 Docker 服务，默认监听 HTTP 9908。iStoreOS 使用 `.run` 和 LuCI 管理；其他 Linux、NAS 和服务器使用标准 Docker Compose。
+栖点是本地 Docker 服务，默认监听 HTTP 9908。iStoreOS 使用 `.run`，OpenWrt 使用原生 IPK / APK，均通过 LuCI 管理；其他 Linux、NAS 和服务器使用标准 Docker Compose。
 
 ## 部署方式
 
 | 环境 | 应用来源 | 数据位置 | 更新方式 |
 |---|---|---|---|
 | iStoreOS | GitHub Release 的 `.run` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 LuCI 安装/更新 |
+| OpenWrt 24.10（opkg） | GitHub Release 的 `.ipk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 `opkg` 安装包 |
+| OpenWrt 25.12（apk） | GitHub Release 的 `.apk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 `apk` 安装包 |
 | 通用 Docker | Docker Hub 镜像 | `qidian-data` 命名卷 | Compose 拉取并重建 |
 
 镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择当前设备架构。设备无需安装 Node.js、pnpm，也不会在设备上构建前端。
@@ -30,6 +32,26 @@
 7. 管理员名称默认填入 `admin`，可自行修改；密码必须现场设置，系统没有默认密码。
 
 LuCI 每次部署都会读取当前设备的 Docker Root Dir。若已有 `.env` 指向另一数据目录，脚本会停止并提示，避免误启动一个空知识库。
+
+## 原生 OpenWrt 安装
+
+先在设备安装并启动 Docker、Docker Compose 和 LuCI，再按系统自带的包管理器选择 Release 中的文件。无需按 CPU 架构挑选；管理包只包含 Lua、Shell 和配置文件。Docker 镜像仍由设备按自身架构拉取。
+
+OpenWrt 24.10 使用 opkg：下载 `luci-app-qidian_<版本>_all.ipk` 和同名 `.sha256`，校验后安装：
+
+```sh
+sha256sum -c luci-app-qidian_<版本>_all.ipk.sha256
+opkg install ./luci-app-qidian_<版本>_all.ipk
+```
+
+OpenWrt 25.12 使用 apk：下载 `luci-app-qidian-<版本>.apk` 和同名 `.sha256`，校验后安装：
+
+```sh
+sha256sum -c luci-app-qidian-<版本>.apk.sha256
+apk add --allow-untrusted ./luci-app-qidian-<版本>.apk
+```
+
+安装后在 LuCI **服务 → 栖点知识库**部署 Docker 服务。之后 Web 在线更新会根据安装来源调用 opkg、apk 或原有 `.run` 安装流程。卸载 LuCI 包不会主动删除 Docker 容器或知识库数据；如需卸载容器，请先在 LuCI 服务页操作。
 
 ## 通用 Docker 安装
 
@@ -104,7 +126,7 @@ docker exec -it qidian node server/reset-password.mjs
 
 ## 更新
 
-### iStoreOS Web 在线更新
+### LuCI Web 在线更新
 
 版本序号已从旧版 `0.1.x` 重置为 `0.0.0`。现有旧版设备首次迁移时，请先从 Release 手动下载并安装新版 `.run`，再到 LuCI 点击一次 **安装 / 更新**；完成后即可使用 Web 在线更新。
 
@@ -112,11 +134,11 @@ docker exec -it qidian node server/reset-password.mjs
 2. 确认当前版本、最新版本和 Release 说明。
 3. 点击 **检查并更新**。
 4. Web 先确认当前编辑已经写入 SQLite，再提交更新任务。
-5. 宿主代理下载 `.run` 和 SHA-256，校验后更新管理文件。
+5. 宿主代理按安装来源下载 `.run`、`.ipk` 或 `.apk` 及 SHA-256，校验后更新管理文件。
 6. 设备等待 10 秒，然后拉取镜像并重建容器。
 7. Web 持续显示实时日志；目标版本健康后倒计时 5 秒并自动刷新。
 
-更新期间不要重复点击，也不要关闭设备电源。失败时保留日志和重试按钮；也可回到 LuCI 手动安装新版 `.run`。
+更新期间不要重复点击，也不要关闭设备电源。失败时保留日志和重试按钮；也可回到 LuCI 或设备软件包管理器手动安装对应版本。
 
 ### 通用 Docker 更新
 

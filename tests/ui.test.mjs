@@ -921,6 +921,7 @@ test('rich paste parses Markdown when the clipboard HTML only wraps the raw Mark
   const paste = new w.Event('paste', { bubbles:true, cancelable:true });
   Object.defineProperty(paste, 'clipboardData', { value:{ files:[], getData(type){ return type === 'text/html' ? html : type === 'text/plain' ? source : ''; } } });
   w.currentEditor.view.someProp('handlePaste', handler => handler(w.currentEditor.view, paste, null));
+  await new Promise(resolve => setTimeout(resolve, 0));
   const result = w.currentEditor.getHTML();
   assert.match(result, /<h1>sub-store 使用笔记<\/h1>/);
   assert.match(result, /<h2>安装<\/h2>/);
@@ -990,6 +991,7 @@ test('desktop rich paste and standard mobile Markdown paste produce the same not
     const event=new w.Event('paste',{bubbles:true,cancelable:true});
     Object.defineProperty(event,'clipboardData',{value:{files:[],getData(type){return clipboard[type]||'';}}});
     w.currentEditor.view.someProp('handlePaste',handler=>handler(w.currentEditor.view,event,null));
+    await new Promise(resolve=>setTimeout(resolve,0));
     const editor=w.currentEditor.view.dom;
     const structure={
       headings:[...editor.querySelectorAll('h2,h3')].map(node=>node.textContent),
@@ -1021,6 +1023,7 @@ test('Markdown paste preserves nested lists, GFM tables, languages, callouts and
   const paste=new w.Event('paste',{bubbles:true,cancelable:true});
   Object.defineProperty(paste,'clipboardData',{value:{files:[],getData(type){return type==='text/plain'?source:'';}}});
   w.currentEditor.view.someProp('handlePaste',handler=>handler(w.currentEditor.view,paste,null));
+  await new Promise(resolve=>setTimeout(resolve,0));
   let html=w.currentEditor.getHTML();
   assert.match(html,/<h2>保真验收<\/h2>/);
   assert.match(html,/<li><p>主项<\/p><ul><li><p>子项<\/p><\/li><\/ul><\/li>/);
@@ -1099,6 +1102,7 @@ test('a pasted Markdown document can be undone and redone as one editor action',
   const paste=new w.Event('paste',{bubbles:true,cancelable:true});
   Object.defineProperty(paste,'clipboardData',{value:{files:[],getData(type){return type==='text/plain'?'## 新标题\n\n正文内容':'';}}});
   w.currentEditor.view.someProp('handlePaste',handler=>handler(w.currentEditor.view,paste,null));
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(w.currentEditor.getHTML(),/<h2>新标题<\/h2>/);
   assert.equal(w.currentEditor.commands.undo(),true);
   assert.doesNotMatch(w.currentEditor.getHTML(),/新标题|正文内容/);

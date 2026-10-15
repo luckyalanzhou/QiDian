@@ -9,5 +9,6 @@ test-results/
 .local/
 *.log
 /artifacts/
+/packaging/istoreos/VERSION
 *.sqlite
 *.sqlite-*

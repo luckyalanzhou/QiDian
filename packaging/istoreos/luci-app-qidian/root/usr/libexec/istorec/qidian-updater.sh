@@ -16,6 +16,14 @@ write_state() {
 
 append_log() { printf '%s\n' "$*" >> "$LOG_FILE"; }
 
+release_asset_url() {
+	asset_name=$1
+	asset_label=${2:-$asset_name}
+	asset_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$asset_name'].browser_download_url" 2>/dev/null || true)
+	[ -n "$asset_url" ] || asset_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.label='$asset_label'].browser_download_url" 2>/dev/null || true)
+	case "$asset_url" in "$asset_prefix"*) printf '%s' "$asset_url" ;; *) return 1 ;; esac
+}
+
 download() {
 	url=$1
 	destination=$2
@@ -101,22 +109,46 @@ run_update() {
 		exit 1
 	fi
 	if ! command -v jsonfilter >/dev/null 2>&1; then
-		append_log '缺少 jsonfilter，请在 iStoreOS 安装包管理器中更新栖点管理组件。'
+		append_log '缺少 jsonfilter，请在 OpenWrt 软件包管理器中更新栖点管理组件。'
 		exit 1
 	fi
 	tag=$(jsonfilter -i "$work_dir/release.json" -e '@.tag_name' 2>/dev/null || true)
 	case "$tag" in v[0-9]*) version=${tag#v} ;; *) append_log 'Release 版本号无效。'; exit 1 ;; esac
 	printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || { append_log 'Release 版本号格式无效，已停止更新。'; exit 1; }
 	write_state running "$version"
-	archive="栖点-$version.run"
-	checksum="$archive.sha256"
 	asset_prefix="https://github.com/$REPOSITORY/releases/download/$tag/"
-	installer_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$archive'].browser_download_url" 2>/dev/null || true)
-	[ -n "$installer_url" ] || installer_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.label='$archive'].browser_download_url" 2>/dev/null || true)
-	checksum_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$checksum'].browser_download_url" 2>/dev/null || true)
-	[ -n "$checksum_url" ] || checksum_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.label='$checksum'].browser_download_url" 2>/dev/null || true)
-	case "$installer_url" in "$asset_prefix"*) ;; *) append_log 'Release 安装包链接无效。'; exit 1 ;; esac
-	case "$checksum_url" in "$asset_prefix"*) ;; *) append_log 'Release 校验文件链接无效。'; exit 1 ;; esac
+	package_manager=$(cat /etc/qidian-package-manager 2>/dev/null || true)
+	case "$package_manager" in
+		opkg)
+		update_format=ipk
+		archive="luci-app-qidian_${version}_all.ipk"
+		checksum="$archive.sha256"
+		asset_name=$archive
+		checksum_asset_name=$checksum
+		asset_label=$archive
+		checksum_label=$checksum
+		;;
+		apk)
+		update_format=apk
+		archive="luci-app-qidian-${version}.apk"
+		checksum="$archive.sha256"
+		asset_name=$archive
+		checksum_asset_name=$checksum
+		asset_label=$archive
+		checksum_label=$checksum
+		;;
+		*)
+		update_format=run
+		archive="栖点-$version.run"
+		checksum="$archive.sha256"
+		asset_name="qidian-$version.run"
+		checksum_asset_name="qidian-$version.run.release.sha256"
+		asset_label=$archive
+		checksum_label=$checksum
+		;;
+	esac
+	installer_url=$(release_asset_url "$asset_name" "$asset_label") || { append_log 'Release 安装包链接无效。'; exit 1; }
+	checksum_url=$(release_asset_url "$checksum_asset_name" "$checksum_label") || { append_log 'Release 校验文件链接无效。'; exit 1; }
 	append_log "发现栖点 $version，正在下载安装包和校验文件…"
 	if ! download "$installer_url" "$work_dir/$archive" || ! download "$checksum_url" "$work_dir/$checksum"; then
 		append_log '安装包下载失败；请检查设备是否能访问 GitHub Release。'
@@ -128,12 +160,29 @@ run_update() {
 		exit 1
 	fi
 	append_log '校验通过，正在更新设备管理文件…'
-	chmod 755 "$work_dir/$archive"
-	export QIDIAN_UPDATE_WORKER=1
-	if ! (cd "$work_dir" && "./$archive"); then
-		append_log '管理包安装失败，已停止更新。'
-		exit 1
-	fi
+	case "$update_format" in
+		run)
+			chmod 755 "$work_dir/$archive"
+			if ! (cd "$work_dir" && QIDIAN_UPDATE_WORKER=1 "./$archive"); then
+				append_log '管理包安装失败，已停止更新。'
+				exit 1
+			fi
+			;;
+		ipk)
+			command -v opkg >/dev/null 2>&1 || { append_log '当前设备记录为 IPK 安装，但未找到 opkg。'; exit 1; }
+			if ! opkg install "$work_dir/$archive"; then
+				append_log 'IPK 管理包安装失败，已停止更新。'
+				exit 1
+			fi
+			;;
+		apk)
+			command -v apk >/dev/null 2>&1 || { append_log '当前设备记录为 APK 安装，但未找到 apk。'; exit 1; }
+			if ! apk add --allow-untrusted "$work_dir/$archive"; then
+				append_log 'APK 管理包安装失败，已停止更新。'
+				exit 1
+			fi
+			;;
+	esac
 	installed=$(cat /etc/qidian-version 2>/dev/null || true)
 	[ "$installed" = "$version" ] || { append_log "安装包版本不匹配：预期 $version，设备记录为 $installed。"; exit 1; }
 	append_log '管理文件已更新；等待 10 秒后拉取成品镜像并重启栖点服务以应用新版本…'

@@ -43,7 +43,7 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /platforms: linux\/amd64,linux\/arm64/);
   assert.match(workflow, /cache: pnpm/);
   assert.match(workflow, /cache-dependency-path: pnpm-lock\.yaml/);
-  assert.match(workflow, /timeout-minutes: 30/);
+  assert.match(workflow, /timeout-minutes: 60/);
   assert.match(workflow, /DOCKER_BUILD_RECORD_UPLOAD: false/);
   assert.match(workflow, /setup-qemu-action@v3[\s\S]*?platforms: arm64/);
   assert.match(workflow, /pnpm install --frozen-lockfile --prefer-offline/);
@@ -69,7 +69,30 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /qidian-\$\{version\}\.run#栖点-\$\{version\}\.run/);
   assert.match(workflow, /for expected in "栖点-\$\{version\}\.run" "栖点-\$\{version\}\.run\.sha256"/);
   assert.match(workflow, /git add package\.json/);
-  assert.doesNotMatch(workflow, /luci-app-qidian\/Makefile|PKG_VERSION/);
+  assert.match(workflow, /uses: openwrt\/gh-action-sdk@main[\s\S]*?ARCH: x86_64-24\.10\.7[\s\S]*?PACKAGES: luci-app-qidian/);
+  assert.match(workflow, /uses: openwrt\/gh-action-sdk@main[\s\S]*?ARCH: x86_64-25\.12\.5[\s\S]*?PACKAGES: luci-app-qidian/);
+  assert.match(workflow, /luci-app-qidian_\$\{version\}_all\.ipk/);
+  assert.match(workflow, /luci-app-qidian-\$\{version\}\.apk/);
+  assert.match(workflow, /sha256sum --check "luci-app-qidian_\$\{VERSION\}_all\.ipk\.sha256"/);
+  assert.match(workflow, /sha256sum --check "luci-app-qidian-\$\{VERSION\}\.apk\.sha256"/);
+});
+
+test('native OpenWrt package installs LuCI manager files for both package managers', async () => {
+  const makefile = await read('../packaging/istoreos/luci-app-qidian/Makefile');
+  const installer = await read('../packaging/istoreos/install.sh');
+
+  assert.match(makefile, /PKG_NAME:=luci-app-qidian/);
+  assert.match(makefile, /QIDIAN_PKG_DIR:=\$\(realpath/);
+  assert.match(makefile, /QIDIAN_FEED_DIR:=\$\(realpath/);
+  assert.match(makefile, /PKGARCH:=all/);
+  assert.match(makefile, /DEPENDS:=\+luci-base \+jsonfilter/);
+  assert.match(makefile, /Package\/luci-app-qidian\/conffiles[\s\S]*?\/etc\/config\/qidian/);
+  assert.match(makefile, /\/opt\/qidian/);
+  assert.match(makefile, /CONFIG_USE_APK\),apk,opkg/);
+  assert.match(installer, /qidian-package-manager/);
+  assert.match(makefile, /IPKG_INSTROOT/);
+  assert.match(makefile, /qidian-updater enable/);
+  assert.doesNotMatch(makefile, /docker (?:pull|run|build)|docker\.sock|rm -rf/);
 });
 
 test('reinstall preserves LuCI config and never starts or removes note data', async () => {
@@ -95,11 +118,14 @@ test('web updates use a limited host agent, verify the public release checksum, 
   const dockerfile = await read('../Dockerfile');
 
   assert.match(updater, /api\.github\.com\/repos\/\$REPOSITORY\/releases\/latest/);
-  assert.match(updater, /@\.assets\[@\.label='\$archive'\]/);
-  assert.match(updater, /@\.assets\[@\.label='\$checksum'\]/);
+  assert.match(updater, /@\.assets\[@\.label='\$asset_label'\]/);
+  assert.match(updater, /@\.assets\[@\.name='\$asset_name'\]/);
   assert.match(updater, /sha256sum -c/);
   assert.match(updater, /栖点-\$version\.run/);
   assert.match(updater, /browser_download_url/);
+  assert.match(updater, /update_format=ipk[\s\S]*opkg install/);
+  assert.match(updater, /update_format=apk[\s\S]*apk add --allow-untrusted/);
+  assert.match(updater, /update_format=run[\s\S]*QIDIAN_UPDATE_WORKER=1/);
   assert.ok(updater.includes("grep -Eq '^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$'"), 'updater validates canonical SemVer integers without fixed limits');
   assert.match(updater, /mkdir "\$OPERATION_LOCK"/);
   assert.match(updater, /rmdir "\$OPERATION_LOCK"/);

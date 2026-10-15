@@ -474,7 +474,14 @@ function doInsert(kind){if(kind==='image'){$('#imageFile').click();return}if(kin
 function clipboardText(html,plain){if(plain)return String(plain);if(!html)return '';const parsed=new DOMParser().parseFromString(DOMPurify.sanitize(String(html)), 'text/html');parsed.querySelectorAll('img').forEach(node=>node.replaceWith(parsed.createTextNode(node.getAttribute('alt')||'')));parsed.querySelectorAll('br').forEach(node=>node.replaceWith(parsed.createTextNode('\n')));parsed.querySelectorAll('p,div,li,pre,h1,h2,h3,h4,h5,h6,tr,blockquote').forEach(node=>node.append(parsed.createTextNode('\n')));return parsed.body.textContent||''}
 function isCodeSelection(editor){return editor.isActive('codeBlock')||editor.isActive('code')}
 function insertPlainDocument(editor,text){const value=String(text||'');if(isCodeSelection(editor)){if(value)editor.commands.insertContent({type:'text',text:value});return}editor.commands.insertContent(plainTextToDocument(value))}
-function insertMarkdownDocument(editor,text){if(!editor.markdown?.parse)throw new Error('Markdown 解析器尚未就绪');const parsed=editor.markdown.parse(text),safe=sanitizeMarkdownDocument(parsed,editor.schema,safeUrl);if(!editor.commands.insertContent(safe))throw new Error('编辑器拒绝了转换后的内容');return safe}
+async function insertMarkdownDocument(editor,text,bookmark){
+ const {parseQidianMarkdown}=await loadMarkdownTools();
+ if(editor.isDestroyed)return null;
+ const parsed=parseQidianMarkdown(text),safe=sanitizeMarkdownDocument(parsed,editor.schema,safeUrl);
+ try{editor.view.dispatch(editor.state.tr.setSelection(bookmark.resolve(editor.state.doc)))}catch(error){}
+ if(!editor.commands.insertContent(safe))throw new Error('编辑器拒绝了转换后的内容');
+ return safe;
+}
 function plainDocumentHTML(documentJSON){if(documentJSON?.type!=='doc'||!Array.isArray(documentJSON.content))throw new TypeError('纯文本转换结构无效');return documentJSON.content.map(block=>{if(block.type!=='paragraph')throw new TypeError('纯文本段落类型不受支持');return `<p>${(block.content||[]).map(node=>node.type==='hardBreak'?'<br>':node.type==='text'?esc(node.text):'').join('')}</p>`}).join('')||'<p></p>'}
 function hasRemoteImage(node){if(node?.type==='image'&&/^https?:\/\//i.test(String(node.attrs?.src||'')))return true;return(node?.content||[]).some(hasRemoteImage)}
 function preferredPasteMode(){return ['rich','match','markdown','plain'].includes(data.pasteMode)?data.pasteMode:'rich'}
@@ -495,8 +502,9 @@ function handleEditorPaste({event,editor}){
   return true;
  }
  if(kind==='markdown'){
-  try{const safe=insertMarkdownDocument(editor,text);if(hasRemoteImage(safe))toast('已粘贴远程图片链接；原站可能限制访问，建议上传到私人空间保存')}
-  catch(error){insertPlainDocument(editor,text);toast('Markdown 解析失败，已按纯文本插入，原内容未丢失')}
+  const bookmark=editor.state.selection.getBookmark();
+  void insertMarkdownDocument(editor,text,bookmark).then(safe=>{if(safe&&hasRemoteImage(safe))toast('已粘贴远程图片链接；原站可能限制访问，建议上传到私人空间保存')})
+   .catch(error=>{if(editor.isDestroyed)return;try{editor.view.dispatch(editor.state.tr.setSelection(bookmark.resolve(editor.state.doc)))}catch(restoreError){}insertPlainDocument(editor,text);toast('Markdown 解析失败，已按纯文本插入，原内容未丢失')});
   return true;
  }
  if(kind==='legacy'){

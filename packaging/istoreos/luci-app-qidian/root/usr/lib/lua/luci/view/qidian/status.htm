@@ -60,7 +60,7 @@
 	<section id="qidian-account-tools" class="cbi-section qidian-account-tools" <% if state ~= "running" or account_status ~= "ready" then %>hidden<% end %>>
 		<h3><%:管理员账号维护%></h3>
 		<div class="cbi-section-descr"><%:仅在需要重置密码时使用；密码不会保存在 LuCI。%></div>
-		<p><%:在 iStoreOS 终端执行命令，按提示输入账号；输入 Y 确认重置，输入 N 取消，然后输入两次新密码。%></p>
+		<p><%:在 OpenWrt 终端执行命令，按提示输入账号；输入 Y 确认重置，输入 N 取消，然后输入两次新密码。%></p>
 		<div class="cbi-value"><div class="cbi-value-title"><%:重置密码命令%></div><div class="cbi-value-field qidian-command-row"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code><button type="button" id="qidian-copy-reset"><%:复制命令%></button></div></div>
 		<p id="qidian-copy-message" class="qidian-copy-message" role="status" aria-live="polite"></p>
 	</section>

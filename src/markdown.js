@@ -1,7 +1,7 @@
 import { getSchema } from '@tiptap/core';
 import { MarkdownManager } from '@tiptap/markdown';
 import { DOMSerializer } from '@tiptap/pm/model';
-import { qidianEditorExtensions } from './editor.js';
+import { qidianEditorExtensions } from './editor-extensions.js';
 
 export const qidianSchema = getSchema(qidianEditorExtensions);
 const markdown = new MarkdownManager({ extensions: qidianEditorExtensions, markedOptions: { gfm: true } });

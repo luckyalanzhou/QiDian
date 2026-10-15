@@ -30,7 +30,7 @@ s.description = translate("使用 Docker Hub 成品镜像部署服务，并配�
 local environment = s:option(DummyValue, "environment_display", translate("设备环境"))
 if not docker_ready then
 	environment.default = translate("Docker 未启动")
-	environment.description = translate("请先在 iStoreOS 安装并启动 Docker，再返回本页部署。")
+	environment.description = translate("请先在 OpenWrt 安装并启动 Docker，再返回本页部署。")
 elseif not compose_ready then
 	environment.default = translate("Docker 已启动 · Compose 未安装")
 	environment.description = translate("请先安装 Docker Compose 插件，再返回本页部署。")

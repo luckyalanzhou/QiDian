@@ -1,6 +1,6 @@
 # 栖点 iStoreOS 安装包
 
-本目录用于生成适配 iStoreOS 软件商店手动安装的自解压 `.run`。安装包不包含应用镜像，也不在路由器上编译 Node.js 项目。
+本目录包含 iStoreOS `.run` 安装器和 OpenWrt 原生 `luci-app-qidian` 软件包定义。安装包不包含应用镜像，也不在路由器上编译 Node.js 项目。
 
 ## 安装包内容
 
@@ -31,6 +31,12 @@
 5. 等待实时日志显示容器健康，再打开 Web 创建管理员。
 
 默认端口是 HTTP 9908。首次管理员名称预填 `admin`，没有默认密码。
+
+## OpenWrt 原生包
+
+GitHub Release 同时提供架构无关的 LuCI 管理包：OpenWrt 24.10（opkg）使用 `.ipk`，25.12（apk）使用 `.apk`。发布工作流分别使用 24.10.7 和 25.12.5 SDK 构建。两种格式都只安装 LuCI 页面、管理脚本、Compose 配置和 `/etc/config/qidian`；Docker 容器与知识库数据由 LuCI 部署时创建。
+
+校验并安装示例见 [`docs/deployment.md`](../../docs/deployment.md#原生-openwrt-安装)。安装来源会记录在 `/etc/qidian-package-manager`，Web 在线更新据此使用正确的本机包管理器。
 
 完整使用说明见 [`docs/deployment.md`](../../docs/deployment.md)。
 
@@ -63,8 +69,8 @@ GitHub Actions 工作流 `iStoreOS Docker release` 只能手动触发。流程�
 2. 以 `package.json` 为唯一版本来源；基准为 `0.0.0`，首次发布为 `0.0.1`。版本采用无固定上限的 `Major.Minor.Patch` 整数格式，不使用前导零。
 3. 构建容器并进行健康检查。
 4. 构建并推送 `linux/amd64`、`linux/arm64` Docker Hub 镜像，同时更新版本标签和 `latest`。
-5. 构建 `.run` 与 SHA-256 校验文件，Release 内仅发布 `栖点-<版本>.run` 和 `栖点-<版本>.run.sha256`。
-6. 把版本更新提交到 `main`。
+5. 构建 `.run`，并使用 OpenWrt 24.10.7、25.12.5 SDK 分别构建 IPK 与 APK。
+6. 为三种安装包生成 SHA-256 校验文件，把版本更新提交到 `main`。
 7. 创建草稿 Release，校验安装包和校验文件齐全后发布；失败重跑会恢复同一版本。Release 按编号生成本版优化说明。
 
 工作流需要仓库 Secrets `DOCKERHUB_TOKEN` 和 `RELEASE_PUBLISH_TOKEN`。Docker Hub 用户名已固定为 `luckyalanzhou`，无需另设用户名 Secret。
@@ -74,7 +80,7 @@ GitHub Actions 工作流 `iStoreOS Docker release` 只能手动触发。流程�
 
 ## 更新机制
 
-Web 在线更新只向请求目录写入固定任务文件。宿主代理从固定仓库下载版本化 `.run` 和 `.sha256`，校验后执行安装包，再等待 10 秒拉取 Docker Hub 镜像并重启服务。容器不挂载 Docker Socket。
+Web 在线更新只向请求目录写入固定任务文件。宿主代理根据 `/etc/qidian-package-manager`，从固定仓库下载版本化 `.run`、`.ipk` 或 `.apk` 及 SHA-256 校验文件，校验后调用对应安装方式，再等待 10 秒拉取 Docker Hub 镜像并重启服务。容器不挂载 Docker Socket。
 
 LuCI 手动安装/更新与 Web 在线更新共用操作锁，避免同时重建容器。日志和状态位于该设备数据目录下的 `.qidian-update-control`，不会写入开发者路径。
 

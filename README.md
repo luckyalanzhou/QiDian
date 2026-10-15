@@ -12,7 +12,7 @@
 - 主题、粘贴方式、侧栏和书签布局及分组展开状态按账号保存，并在设备间同步。
 - 书签保留浏览器目录层级，支持 HTML 导入导出、搜索、整理、批量移动和删除；首页分组可切换单列或双列。
 - 图片、附件、正文历史和完整 ZIP 备份都按账号隔离。
-- Web 可检查 GitHub Release；iStoreOS 安装更新代理后，可在线更新 Docker 服务并查看实时日志。
+- Web 可检查 GitHub Release；OpenWrt / iStoreOS LuCI 安装更新代理后，可在线更新 Docker 服务并查看实时日志。
 
 ## 下载与部署
 
@@ -27,6 +27,10 @@ docker.io/luckyalanzhou/qidian:latest
 ```
 
 LuCI 会读取当前设备的 Docker Root Dir，并把数据保存在该设备的 `volumes/qidian/data` 下，不使用开发者设备或旧设备的路径。
+
+### 原生 OpenWrt
+
+OpenWrt 24.10 使用 `.ipk`，25.12 使用 `.apk`。在设备安装并启动 Docker、Docker Compose 和 LuCI 后，从 Release 下载对应格式及 SHA-256 文件，校验后通过 `opkg` 或 `apk` 安装。操作步骤见[部署指南](docs/deployment.md#原生-openwrt-安装)。
 
 ### 通用 Docker
 
@@ -55,11 +59,11 @@ docker exec -it qidian node server/reset-password.mjs
 
 ## 数据与更新
 
-- iStoreOS：数据位于 LuCI 显示的 Docker Root Dir 下 `volumes/qidian/data`。
+- OpenWrt / iStoreOS：数据位于 LuCI 显示的 Docker Root Dir 下 `volumes/qidian/data`。
 - 通用 Docker：数据位于 Docker 管理的 `qidian-data` 卷。
 - 容器重建和应用更新不会删除数据卷。
 - 删除数据目录或 Docker 卷会永久删除知识库，操作前应先导出完整 ZIP 并备份挂载目录。
-- iStoreOS Web 在线更新会下载并校验新版 `.run`，更新管理文件，等待 10 秒后重启 Docker；新版本服务可用后，网页再倒计时 5 秒自动刷新。
+- OpenWrt / iStoreOS Web 在线更新会按安装来源下载并校验 `.run`、`.ipk` 或 `.apk`，更新管理文件，等待 10 秒后重启 Docker；新版本服务可用后，网页再倒计时 5 秒自动刷新。
 
 栖点默认使用 HTTP。请在可信局域网使用；公网访问应由可信反向代理提供 HTTPS，并阻止外部直接访问后端端口。
 
@@ -89,7 +93,7 @@ pnpm test
 pnpm build
 ```
 
-自动化测试覆盖 SQLite API、账号隔离、保存冲突、书签、编辑器、更新代理和 iStoreOS 安装包结构。LuCI、端口转发、桌面浏览器和手机实机仍需在目标设备上验收。
+自动化测试覆盖 SQLite API、账号隔离、保存冲突、书签、编辑器、更新代理和 LuCI 安装包结构。LuCI、端口转发、桌面浏览器和手机实机仍需在目标设备上验收。
 
 ## 文档
 
@@ -97,9 +101,9 @@ pnpm build
 |---|---|
 | [需求与边界](docs/requirements.md) | 产品功能、非目标和验收要求 |
 | [架构说明](docs/architecture.md) | 前后端、鉴权、数据保存和更新机制 |
-| [部署指南](docs/deployment.md) | iStoreOS、通用 Docker、迁移、更新和诊断 |
+| [部署指南](docs/deployment.md) | OpenWrt、iStoreOS、通用 Docker、迁移、更新和诊断 |
 | [验证说明](docs/verification.md) | 自动化范围与设备验收清单 |
 | [Docker Hub 说明](docs/dockerhub-overview.md) | 镜像 Overview 文案与容器参数 |
-| [iStoreOS 打包说明](packaging/istoreos/README.md) | `.run` 内容、维护者构建和发布关系 |
+| [LuCI 安装包说明](packaging/istoreos/README.md) | `.run`、IPK、APK 的构建和发布关系 |
 
 原始设计基线保存在 `private_wiki_prototype.html`。正式入口是 `index.html`，实现代码位于 `src/` 和 `server/`。

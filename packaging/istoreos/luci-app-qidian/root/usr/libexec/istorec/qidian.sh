@@ -65,7 +65,7 @@ compose_setup() {
 	elif command -v docker-compose >/dev/null 2>&1; then
 		compose() { docker-compose "$@"; }
 	else
-		fail '未检测到 Docker Compose，请先在 iStoreOS 安装 Docker Compose。'
+		fail '未检测到 Docker Compose，请先在 OpenWrt 安装 Docker Compose。'
 	fi
 }
 
@@ -155,8 +155,8 @@ set_env() {
 }
 
 prepare() {
-	[ "$(id -u)" -eq 0 ] || fail '请使用 iStoreOS 管理员身份操作。'
-	[ -f "$COMPOSE_FILE" ] || fail '缺少 Compose 配置；请重新安装栖点 .run。'
+	[ "$(id -u)" -eq 0 ] || fail '请使用 OpenWrt 管理员身份操作。'
+	[ -f "$COMPOSE_FILE" ] || fail '缺少 Compose 配置；请重新安装栖点管理包。'
 	command -v docker >/dev/null 2>&1 || fail '未检测到 Docker。'
 	docker info >/dev/null 2>&1 || fail 'Docker 服务尚未启动。'
 
@@ -198,7 +198,7 @@ prepare() {
 		if [ -n "$(find "$data_dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
 			fail "数据目录已有文件但没有栖点标记，停止安装以避免覆盖：$data_dir"
 		fi
-		printf 'qidian data directory created by the iStoreOS installer\n' > "$data_dir/.qidian-storage"
+		printf 'qidian data directory created by the Qidian device manager\n' > "$data_dir/.qidian-storage"
 	fi
 
 	chown 1000:1000 "$data_dir"
@@ -226,7 +226,7 @@ prepare() {
 
 run_operation() {
 	action=$1
-	[ "$(id -u)" -eq 0 ] || fail '请使用 iStoreOS 管理员身份操作。'
+	[ "$(id -u)" -eq 0 ] || fail '请使用 OpenWrt 管理员身份操作。'
 	lock_owned=0
 	if [ "${QIDIAN_UPDATE_WORKER:-0}" = 1 ]; then
 		[ -d "$WEB_UPDATE_LOCK" ] && [ -d "$LOCK_DIR" ] || fail '网页更新锁已失效，已停止设备操作。'
@@ -276,7 +276,7 @@ run_operation() {
 			printf '\n栖点已安装并启动。\n'
 			printf '访问端口：%s（HTTP）\n' "$(uci -q get qidian.main.http_port)"
 			printf '数据目录：%s\n' "$(uci -q get qidian.main.data_path)"
-			printf '请允许 iStoreOS 网关 TCP %s 入站，并按需配置路由器端口转发。\n' "$(uci -q get qidian.main.http_port)"
+			printf '请允许 OpenWrt 网关 TCP %s 入站，并按需配置路由器端口转发。\n' "$(uci -q get qidian.main.http_port)"
 			;;
 		start)
 			prepare

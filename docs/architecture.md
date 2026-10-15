@@ -12,7 +12,7 @@ flowchart LR
   D --> V[Docker 持久化目录]
   F --> V
   A -->|只读取版本元数据| G[GitHub Release API]
-  A -->|受限请求文件| H[iStoreOS 宿主更新代理]
+  A -->|受限请求文件| H[OpenWrt / iStoreOS 宿主更新代理]
   H -->|拉取并重建| I[Docker Hub 镜像]
 ```
 
@@ -23,6 +23,8 @@ flowchart LR
 | 数据库 | Node 内置 SQLite，WAL 模式、同步事务和顺序迁移 |
 | 镜像 | `luckyalanzhou/qidian`，支持 `linux/amd64` 与 `linux/arm64` |
 | iStoreOS | `.run` 安装 LuCI、Compose、管理脚本和受限更新代理 |
+| OpenWrt opkg | 架构无关 `.ipk` 安装 LuCI、Compose 和管理脚本 |
+| OpenWrt apk | 架构无关 `.apk` 安装 LuCI、Compose 和管理脚本 |
 
 正式入口是 `index.html`。前端代码位于 `src/`，服务端位于 `server/`，数据库迁移位于 `migrations/`。`private_wiki_prototype.html` 只作为原始设计基线，不参与构建。
 
@@ -35,7 +37,7 @@ flowchart LR
 ├── qidian.sqlite
 ├── qidian.sqlite-wal / qidian.sqlite-shm   运行时文件
 ├── migration-backups/                      结构迁移前的数据库副本
-└── .qidian-update-control/                 iStoreOS 更新请求、状态和日志
+└── .qidian-update-control/                 OpenWrt / iStoreOS 更新请求、状态和日志
 ```
 
 iStoreOS 将当前设备 Docker Root Dir 下的 `volumes/qidian/data` 挂载到 `/data`。通用 Docker 将 `qidian-data` 命名卷挂载到 `/data`。路径由部署端决定，应用代码不写死宿主目录。
@@ -96,10 +98,10 @@ SQLite 触发器在数据更新前保存正文快照，每分钟最多一个，�
 - 容器可写请求目录，只能创建固定的 `update-request` 文件。
 - 容器只读状态目录，用来读取状态和最近 64 KiB 日志。
 
-iStoreOS 宿主代理由 procd 管理，处理步骤如下：
+OpenWrt / iStoreOS 宿主代理由 procd 管理，处理步骤如下：
 
 1. 从固定 GitHub 仓库读取最新 Release。
-2. 下载带版本号的 `.run` 和 `.sha256`。
+2. 按设备安装来源下载带版本号的 `.run`、`.ipk` 或 `.apk` 及 `.sha256`。
 3. 校验 SHA-256 与版本号。
 4. 更新 LuCI 和宿主管理文件。
 5. 等待 10 秒，拉取适合当前架构的 Docker Hub 镜像。
