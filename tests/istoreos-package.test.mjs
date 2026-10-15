@@ -257,6 +257,11 @@ test('LuCI separates service, deployment config, and operation logs in one page'
   assert.doesNotMatch(service, /\.qidian-operation-log\s*\{[^}]*background:#111/);
   assert.doesNotMatch(service, /\.qidian-install-section \.cbi-value\s*\{/);
   assert.doesNotMatch(service, /\.qidian-service-details\s*\{[^}]*display:grid/);
+  assert.match(service, /max-width:1560px; margin:0 auto/);
+  assert.match(service, /function syncArgonPalette\(\)/);
+  assert.match(service, /\.qidian-service-page\.is-argon-dark \{[^}]*--qidian-surface:#1e1e1e/);
+  assert.match(service, /@media\(min-width:701px\)[\s\S]*?\.qidian-service-page #qidian-panel-service > \.cbi-section \.cbi-value \{ display:grid;/);
+  assert.match(service, /@media\(min-width:1100px\)[\s\S]*?#qidian-panel-service:not\(\[hidden\]\) \{ display:grid; grid-template-columns/);
   assert.match(service, /id="qidian-copy-path"/);
   assert.match(service, /max-height:180px[^}]+white-space:pre-wrap/, 'the install log stays compact and wraps long lines on phones');
   assert.match(service, /max-height:min\(42vh,320px\)[^}]+-webkit-overflow-scrolling:touch/, 'the inline LuCI log panel stays bounded on phones');
