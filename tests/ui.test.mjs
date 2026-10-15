@@ -109,8 +109,13 @@ test('an unauthenticated session response supplies registration settings without
   dom.window.close();
 });
 
-test('topbar version badge shows the current version, marks updates, and opens release details', async () => {
-  const { dom, w, initialOptions } = await mount();
+test('topbar version badge shows release details and the unified action refreshes versions before automatically updating', async () => {
+  let versionChecks=0;
+  const versions=[
+    {currentVersion:'0.1.5',latestVersion:'0.1.5',updateAvailable:false,canUpdateDevice:true,installerAvailable:true,updaterAvailable:true,releaseUrl:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.5',notes:'当前版本说明\n<img src=x onerror=alert(1)>'},
+    {currentVersion:'0.1.5',latestVersion:'0.1.6',updateAvailable:true,canUpdateDevice:true,installerAvailable:true,updaterAvailable:true,releaseUrl:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6',notes:'修复问题\n<img src=x onerror=alert(1)>'}
+  ];
+  const { dom, w, initialOptions } = await mount(empty,{versionInfo:()=>{versionChecks++;return versions.shift()||versions.at(-1)}});
   const badge=w.document.querySelector('#versionButton');
   assert.equal(badge.previousElementSibling.id,'searchTop','the version badge sits beside the top-bar search');
   assert.equal(badge.nextElementSibling.id,'themeMenuRoot','the version badge remains beside the theme control in the utility action cluster');
@@ -121,37 +126,51 @@ test('topbar version badge shows the current version, marks updates, and opens r
   badge.click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(w.document.querySelector('#versionInfoOverlay').classList.contains('open'),true);
+  assert.equal(w.document.querySelector('#versionInfoTitle').textContent,'版本信息');
   assert.equal(w.document.querySelector('#installedVersion').textContent,'0.1.5');
-  assert.equal(w.document.querySelector('#latestVersion').textContent,'0.1.6');
-  assert.equal(badge.dataset.updateAvailable,'true');
-  assert.match(badge.getAttribute('aria-label'),/发现新版本 v0\.1\.6/);
+  assert.equal(w.document.querySelector('#latestVersion').textContent,'0.1.5');
+  assert.equal(badge.dataset.updateAvailable,'false');
+  assert.doesNotMatch(badge.getAttribute('aria-label'),/发现新版本/);
   assert.match(w.document.querySelector('#releaseNotes').textContent,/<img src=x/);
   assert.equal(w.document.querySelector('#releaseNotes img'),null,'release notes render as safe text, not HTML');
-  assert.equal(w.document.querySelector('#latestVersionLabel').textContent,'可更新版本');
-  assert.equal(w.document.querySelector('#installVersion').textContent,'更新到 v0.1.6');
-  assert.equal(w.document.querySelector('#releaseLink').textContent,'版本详情');
-  assert.equal(w.document.querySelector('#refreshVersion').textContent,'重新检查');
-  assert.equal(w.document.querySelector('#installVersion').disabled,false);
-  w.document.querySelector('#installVersion').click();
+  assert.equal(w.document.querySelector('#latestVersionLabel').textContent,'最新版本');
+  assert.equal(versionChecks,1);
+  const button=w.document.querySelector('#checkAndUpdateVersion'),progress=w.document.querySelector('#updateProgress'),actions=button.parentElement;
+  assert.equal(button.textContent,'检查并更新');assert.equal(button.disabled,false);
+  assert.equal(w.document.querySelector('#releaseLink').textContent,'Release');
+  assert.equal(w.document.querySelector('#refreshVersion'),null);
+  assert.equal(w.document.querySelector('#installVersion'),null);
+  assert.equal(progress.parentElement.classList.contains('version-dialog-foot'),true);
+  assert.ok(progress.compareDocumentPosition(actions)&w.Node.DOCUMENT_POSITION_FOLLOWING,'progress and live log sit above the Release and update actions');
+  assert.equal(w.document.querySelector('#updateProgressTrack').nextElementSibling.id,'updateProgressLog','the live log sits directly below the progress bar');
+  button.click();
   await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(versionChecks,2,'the combined action fetches fresh release metadata when clicked');
+  assert.equal(w.document.querySelector('#latestVersion').textContent,'0.1.6');
+  assert.equal(badge.dataset.updateAvailable,'true');
   assert.equal(initialOptions.updateRequests,1);
   assert.match(w.document.querySelector('#versionState').textContent,/已提交/);
+  assert.match(w.document.querySelector('#updateProgressLog').textContent,/发现新版本 v0\.1\.6/);
   dom.window.close();
 });
-test('latest-version state is shown as status instead of a disabled primary action', async () => {
+test('the unified update action remains available when current and reports a completed check without deploying', async () => {
   const { dom, w } = await mount(empty, { versionInfo:{currentVersion:'0.1.6',latestVersion:'0.1.6',updateAvailable:false,canUpdateDevice:true,installerAvailable:true,updaterAvailable:true,releaseUrl:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6',notes:'## 本版优化与新增\n\n1. 修复问题。'} });
   w.document.querySelector('#versionButton').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(w.document.querySelector('#versionState').textContent,/当前已是最新版本/);
-  assert.equal(w.document.querySelector('#installVersion').hidden,true);
-  assert.equal(w.document.querySelector('#refreshVersion').hidden,false);
+  const button=w.document.querySelector('#checkAndUpdateVersion');
+  assert.equal(button.textContent,'检查并更新');assert.equal(button.disabled,false);
+  button.click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(w.document.querySelector('#updateProgressTrack').dataset.mode,'complete');
+  assert.match(w.document.querySelector('#updateProgressLog').textContent,/当前已是最新版本 v0\.1\.6/);
+  assert.equal(w.document.querySelector('#updateProgressTrack').getAttribute('aria-valuenow'),'100');
   dom.window.close();
 });
 test('mobile version details stay in a compact centered panel', async () => {
   const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
   assert.match(styles, /@media\(max-width:560px\)\{#versionInfoOverlay\{align-items:center;/);
   assert.match(styles, /\.release-notes\{min-height:42px;max-height:160px;font-size:13\.5px/);
-  assert.match(styles, /\.update-progress-log\{min-height:44px;max-height:132px/);
+  assert.match(styles, /\.update-progress-log\{min-height:36px;max-height:min\(15svh,105px\)/);
 });
 test('release notes use readable Markdown blocks, suppress generated release commit noise, and treat embedded HTML as text', () => {
   const dom=new JSDOM('<div id="notes"></div>',{url:'https://qidian.example/'}),container=dom.window.document.querySelector('#notes');
@@ -174,18 +193,18 @@ test('historical updater logs from an older release stay out of the current upda
   assert.equal(w.document.querySelector('#updateProgress').hidden,true);
   assert.equal(w.document.querySelector('#updateProgressLog').textContent,'');
   assert.equal(w.document.querySelector('#releaseNotes h2')?.textContent,'本版优化与新增');
-  assert.equal(w.document.querySelector('#installVersion').textContent,'更新到 v0.1.26');
+  assert.equal(w.document.querySelector('#checkAndUpdateVersion').textContent,'检查并更新');
   dom.window.close();
 });
 test('web update waits when current edits have not reached the Docker service', async () => {
   const { dom, w, initialOptions } = await mount(empty,{ flushResult:false });
   w.document.querySelector('#versionButton').click();
   await new Promise(resolve=>setTimeout(resolve,0));
-  w.document.querySelector('#installVersion').click();
+  w.document.querySelector('#checkAndUpdateVersion').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(initialOptions.updateRequests,undefined);
   assert.match(w.document.querySelector('#versionState').textContent,/尚未写入/);
-  assert.equal(w.document.querySelector('#installVersion').disabled,false);
+  assert.equal(w.document.querySelector('#checkAndUpdateVersion').disabled,false);
   dom.window.close();
 });
 test('web update keeps tracking an updater restart and refreshes after the target version is online', async () => {
@@ -201,18 +220,17 @@ test('web update keeps tracking an updater restart and refreshes after the targe
   w.setTimeout=(callback,delay=0,...args)=>{if([1000,1200,2000].includes(delay)){const id=++nextTimer;timers.set(id,{callback,delay,args});return id}return nativeSetTimeout(callback,delay,...args)};
   w.clearTimeout=id=>{if(timers.delete(id))return;nativeClearTimeout(id)};
   const fireNext=async delay=>{const entry=[...timers.entries()].find(([,timer])=>timer.delay===delay);assert.ok(entry,`expected a ${delay}ms timer`);timers.delete(entry[0]);entry[1].callback(...entry[1].args);await new Promise(resolve=>setTimeout(resolve,0));await new Promise(resolve=>setTimeout(resolve,0))};
-  w.document.querySelector('#installVersion').click();
+  w.document.querySelector('#checkAndUpdateVersion').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(status.state,'queued');
   status=null;
-  w.document.querySelector('#refreshVersion').click();
-  await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(w.document.querySelector('#installVersion').textContent,'等待服务启动…');
-  assert.equal(w.document.querySelector('#installVersion').disabled,true);
+  await fireNext(1000);
+  assert.equal(w.document.querySelector('#checkAndUpdateVersion').textContent,'等待服务启动…');
+  assert.equal(w.document.querySelector('#checkAndUpdateVersion').disabled,true);
   status={state:'unavailable',version:'0.1.6',updatedAt:null,log:'管理服务正在重启'};
   await fireNext(2000);
   assert.match(w.document.querySelector('#updateProgressState').textContent,/服务正在重启/);
-  assert.ok(w.document.querySelector('#installVersion').disabled,'the update stays locked during the agent restart');
+  assert.ok(w.document.querySelector('#checkAndUpdateVersion').disabled,'the update stays locked during the agent restart');
   status={state:'success',version:'0.1.6',updatedAt:null,log:'更新完成'};currentVersion='0.1.6';
   await fireNext(1000);
   await new Promise(resolve=>setTimeout(resolve,0));
@@ -242,20 +260,25 @@ test('checking versions never reloads for a historical success and new updates i
   });
   w.document.querySelector('#versionButton').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(w.sessionStorage.getItem('qidian.pendingDeviceUpdate'),null);
-  assert.equal(w.document.querySelector('#installVersion').disabled,false);
-  w.document.querySelector('#installVersion').click();await new Promise(resolve=>setTimeout(resolve,0));
+  const nativeSetTimeout=w.setTimeout.bind(w),nativeClearTimeout=w.clearTimeout.bind(w),timers=new Map();let nextTimer=0;
+  w.setTimeout=(callback,delay=0,...args)=>{if(delay===1000){const id=++nextTimer;timers.set(id,{callback,delay,args});return id}return nativeSetTimeout(callback,delay,...args)};
+  w.clearTimeout=id=>{if(timers.delete(id))return;nativeClearTimeout(id)};
+  const firePoll=async()=>{const entry=[...timers.entries()].find(([,timer])=>timer.delay===1000);assert.ok(entry,'a one-second live status refresh is scheduled');timers.delete(entry[0]);entry[1].callback(...entry[1].args);await new Promise(resolve=>setTimeout(resolve,0));await new Promise(resolve=>setTimeout(resolve,0))};
+  assert.equal(w.document.querySelector('#checkAndUpdateVersion').disabled,false);
+  w.document.querySelector('#checkAndUpdateVersion').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(w.sessionStorage.getItem('qidian.pendingDeviceUpdate'),'0.1.6');
   assert.match(w.document.querySelector('#updateProgressState').textContent,/等待设备执行/);
-  assert.equal(w.document.querySelector('#updateProgressLog').textContent,'');
+  assert.match(w.document.querySelector('#updateProgressLog').textContent,/正在连接版本源/);
   status={state:'failed',version:'0.1.4',updatedAt:100,log:'旧失败'};
-  w.document.querySelector('#refreshVersion').click();await new Promise(resolve=>setTimeout(resolve,0));
+  await firePoll();
   assert.equal(w.sessionStorage.getItem('qidian.pendingDeviceUpdate'),'0.1.6');
   currentVersion='0.1.6';status={state:'running',version:'0.1.6',log:'正在部署，未完成'};
-  w.document.querySelector('#refreshVersion').click();await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(w.document.querySelector('#updateProgressLog').textContent,status.log);
+  await firePoll();
+  assert.ok(w.document.querySelector('#updateProgressLog').textContent.includes(status.log));
+  assert.doesNotMatch(w.document.querySelector('#updateProgressLog').textContent,/旧失败/);
   assert.doesNotMatch(w.document.querySelector('#versionState').textContent,/部署完成，服务已启动/);
   status={state:'failed',version:'0.1.6',log:'本次部署失败'};
-  w.document.querySelector('#refreshVersion').click();await new Promise(resolve=>setTimeout(resolve,0));
+  await firePoll();
   assert.match(w.document.querySelector('#versionState').textContent,/更新失败/);
   assert.equal(w.sessionStorage.getItem('qidian.pendingDeviceUpdate'),null);
   dom.window.close();
@@ -272,9 +295,9 @@ test('web update refreshes the live log every second and follows new output unti
   const log=w.document.querySelector('#updateProgressLog');let scrollHeight=80,scrollTop=40;
   Object.defineProperties(log,{clientHeight:{configurable:true,get:()=>40},scrollHeight:{configurable:true,get:()=>scrollHeight},scrollTop:{configurable:true,get:()=>scrollTop,set:value=>{scrollTop=value}}});
   status={state:'running',version:'0.1.6',updatedAt:null,log:'开始下载安装包'};
-  w.document.querySelector('#installVersion').click();
+  w.document.querySelector('#checkAndUpdateVersion').click();
   await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(log.textContent,'开始下载安装包');
+  assert.ok(log.textContent.endsWith('开始下载安装包'));
   assert.equal(log.scrollTop,80,'the log follows its tail when the user has not scrolled away');
   const firePoll=async()=>{const entry=[...timers.entries()].find(([,timer])=>timer.delay===1000);assert.ok(entry,'a one-second live log refresh is scheduled');timers.delete(entry[0]);entry[1].callback(...entry[1].args);await new Promise(resolve=>setTimeout(resolve,0));await new Promise(resolve=>setTimeout(resolve,0))};
   scrollHeight=120;
@@ -302,7 +325,7 @@ test('authenticated startup checks for updates and shows the red dot in the top 
   assert.ok(badge.querySelector('.version-alert-dot'));
   dom.window.close();
 });
-test('only the first account can start a device update', async () => {
+test('the unified action checks updates but only the first account can start deployment', async () => {
   const { dom, w, initialOptions } = await mount(empty,{ versionInfo:{
     currentVersion:'0.1.5', latestVersion:'0.1.6', updateAvailable:true, canUpdateDevice:false,
     installerAvailable:true, updaterAvailable:true,
@@ -310,12 +333,12 @@ test('only the first account can start a device update', async () => {
   } });
   w.document.querySelector('#versionButton').click();
   await new Promise(resolve=>setTimeout(resolve,0));
-  const button=w.document.querySelector('#installVersion');
-  assert.equal(button.disabled,true);
-  assert.match(button.textContent,/仅首个账号可更新/);
+  const button=w.document.querySelector('#checkAndUpdateVersion');
+  assert.equal(button.disabled,false);
   button.click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(initialOptions.updateRequests,undefined);
+  assert.match(w.document.querySelector('#versionState').textContent,/只有首个账号可以更新设备/);
   dom.window.close();
 });
 test('login reports its security and loading stages without repeating bootstrap requests', async () => {
@@ -360,6 +383,7 @@ test('dashboard presents notes and bookmarks as peer workspaces and keeps bookma
   vault.bookmarks=[{id:'folder-reading',kind:'folder',title:'阅读',children:[{id:'folder-reference',kind:'folder',title:'参考',children:[{id:'bookmark-mdn',kind:'link',title:'MDN',url:'https://developer.mozilla.org'}]}]}];
   const { dom, w } = await mount(vault);
   const main=w.document.querySelector('#main');
+  assert.equal(main.querySelector('.about-note'),null,'the dashboard has no Docker service footer');
   assert.match(main.textContent,/最近笔记/);
   assert.match(main.textContent,/书签/);
   assert.equal(main.querySelector('.dashboard-intro h1').textContent,'我的空间');
@@ -406,6 +430,7 @@ test('dashboard presents notes and bookmarks as peer workspaces and keeps bookma
   w.document.querySelector('#sideCore [data-nav="all"]').click();
   assert.match(w.document.querySelector('#breadcrumbTitle').textContent,/全部笔记/);
   assert.equal(w.document.querySelector('#main .dashboard-intro'),null);
+  assert.equal(main.querySelector('.about-note'),null,'note lists have no Docker service footer');
   dom.window.close();
 });
 test('mobile drawer exposes its state and every home entry closes it on the dashboard', async () => {
@@ -543,7 +568,7 @@ test('new notes stay in the private draft box until published', async () => {
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(saves.at(-1).notes[0].status, 'published');
   assert.equal(saves.at(-1).notes[0].publishedSnapshot, undefined);
-  assert.equal(w.document.querySelector('#main .about-note').textContent,'','routine publication status is not displayed');
+  assert.equal(w.document.querySelector('#main .about-note'),null,'routine publication status is not displayed');
   dom.window.close();
 });
 test('the reader presents article metadata and keeps a section outline available on mobile', async () => {
@@ -555,6 +580,7 @@ test('the reader presents article metadata and keeps a section outline available
   assert.match(w.document.querySelector('.reader-shell .doc-title').textContent, /一篇长文笔记/);
   assert.equal(w.document.querySelector('.mobile-toc summary').textContent.includes('本文目录'), true);
   assert.equal(w.document.querySelector('.mobile-toc a[href="#sec-0"]').textContent, '部署前准备');
+  assert.equal(w.document.querySelector('#main .about-note'),null,'the reader has no service footer');
   assert.equal(w.document.querySelector('.right-rail .outline a[href="#sec-1"]').textContent, '确认版本');
   dom.window.close();
 });
@@ -606,7 +632,7 @@ test('editing a published note updates its private draft and only changes the re
   w.document.querySelector('#publishDoc').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(w.document.querySelector('#main').textContent,/后台新标题/);
-  assert.equal(w.document.querySelector('#main .about-note').textContent,'');
+  assert.equal(w.document.querySelector('#main .about-note'),null);
   dom.window.close();
 });
 test('a safe pending draft is queued for cloud sync immediately after recovery', async () => {
@@ -672,6 +698,31 @@ test('editor preserves draft when navigating home before debounce finishes', asy
   assert.equal(saves.at(-1).notes[0].title,'不丢失的笔记'); assert.match(saves.at(-1).notes[0].body,/中文内容/);
   w.document.querySelector('[data-nav="drafts"]').click();
   assert.match(w.document.querySelector('#main').textContent,/不丢失的笔记/); dom.window.close();
+});
+test('leaving a changed editor asks to save and cancel keeps the editor open', async () => {
+  const { dom, w, saves } = await mount();
+  const prompts=[];let confirmResult=false;
+  w.confirm=message=>{prompts.push(message);return confirmResult};
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const title=w.document.querySelector('#editTitle');title.value='离开前询问保存';title.dispatchEvent(new w.Event('input',{bubbles:true}));
+  w.document.querySelector('[data-nav="all"]').click();
+  assert.equal(prompts.length,1);
+  assert.match(prompts[0],/是否保存后离开/);
+  assert.ok(w.document.querySelector('#editTitle'),'cancel keeps the user in the editor');
+  confirmResult=true;
+  w.document.querySelector('[data-nav="all"]').click();
+  assert.equal(prompts.length,2);
+  assert.equal(w.document.querySelector('#editTitle'),null);
+  assert.equal(saves.at(-1).notes[0].title,'离开前询问保存');
+  dom.window.close();
+});
+test('leaving an unchanged editor does not show a save prompt', async () => {
+  const { dom, w } = await mount();
+  w.confirm=()=>{throw new Error('clean editor should not prompt')};
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  w.document.querySelector('[data-nav="all"]').click();
+  assert.equal(w.document.querySelector('#editTitle'),null);
+  dom.window.close();
 });
 test('sidebar brand returns to the dashboard and saves the active draft first', async () => {
   const { dom, w, saves } = await mount();
@@ -1184,10 +1235,15 @@ test('account menu separates profile from app settings and removes settings from
   assert.equal(menu.hidden,true);
   assert.equal(w.document.querySelector('#profileSettingsOverlay').classList.contains('open'),true);
   assert.equal(w.document.querySelector('#appSettingsOverlay').classList.contains('open'),false);
-  assert.ok(w.document.querySelector('#profileSettingsOverlay').textContent.includes('更换头像'));
-  assert.ok(w.document.querySelector('#profileSettingsOverlay').textContent.includes('修改密码'));
-  assert.ok(w.document.querySelector('#profileSettingsOverlay').textContent.includes('退出登录'));
-  assert.equal(w.document.querySelector('#profileSettingsOverlay #backupHistory'),null);
+  const profile=w.document.querySelector('#profileSettingsOverlay');
+  assert.ok(profile.textContent.includes('更换头像'));
+  assert.ok(profile.textContent.includes('修改密码'));
+  assert.equal(profile.querySelector('.account-dialog-subtitle'),null,'profile dialog should not repeat its purpose under the title');
+  assert.equal(profile.querySelector('.profile-upload-actions>span'),null,'account type label is redundant');
+  assert.equal(profile.querySelector('#profileCreated'),null,'account creation date is not needed in the profile dialog');
+  assert.equal(profile.querySelector('.account-dialog-foot'),null,'header close button is the only profile dialog close action');
+  assert.equal(profile.querySelector('#backupHistory'),null);
+  assert.ok(menu.querySelector('#accountLogout'),'logout remains available in the account menu');
   w.document.querySelector('[data-close="profileSettingsOverlay"]').click();
   assert.equal(w.document.querySelector('#profileSettingsOverlay').classList.contains('open'),false);
   trigger.click();
@@ -1204,6 +1260,8 @@ test('account settings keep the footer visible while long dialog content scrolls
   assert.match(styles,/\.account-dialog>\.dialog-body\{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain\}/);
   assert.match(styles,/\.account-dialog>\.dialog-foot\{background:var\(--panel\)\}/);
   assert.match(styles,/\.account-password-section #changePasswordButton\{margin-bottom:5px\}/);
+  assert.match(styles,/\.account-settings-message:empty\{display:none\}/,'empty account status messages should not reserve vertical space');
+  assert.match(styles,/\.account-password-section\{border-top:1px solid var\(--line\);padding-top:12px;margin-top:12px\}/,'profile sections use compact spacing');
   assert.match(styles,/\.bookmark-page \.bookmark-card:focus-within>\.item-menu/);
   assert.match(styles,/@media\(hover:none\), \(max-width:720px\)\{\.bookmark-page \.bookmark-card>\.item-menu,.bookmark-page \.bookmark-section-heading>\.item-menu\{opacity:1\}\}/);
 });
@@ -1601,4 +1659,6 @@ test('editor groups secondary tools and metadata without losing code, table or f
  assert.ok(w.document.querySelector('.editor-properties #editCategory'));assert.ok(w.document.querySelector('.editor-extra-tools [data-insert="callout"]'));
  assert.ok(w.document.querySelector('.editor-extra-tools [data-fmt="strikeThrough"]'));assert.ok(w.document.querySelector('#editorToolbar>[data-insert="code"]'));
  assert.ok(w.document.querySelector('#editorToolbar>[data-insert="table"]'));assert.ok(w.document.querySelector('.document-more #exportHtml'));dom.window.close();
+ const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(styles,/\.editor-extra-panel\{width:min\(280px,calc\(100vw - 32px\)\);min-width:min\(280px,calc\(100vw - 32px\)\);max-width:calc\(100vw - 32px\)/,'the mobile More menu has a stable width and remains within the viewport');
 });
