@@ -7,11 +7,31 @@ import { createQidianEditor } from '../src/editor.js';
 import { TextSelection } from '@tiptap/pm/state';
 import { DEFAULT_NOTE_TYPES, validateVault } from '../server/validation.js';
 import { createBookmarkView } from '../src/bookmarks.js';
+import { createRecycleBinView } from '../src/recycle-bin.js';
+import { createTrashEntry, pruneExpiredTrash, restoreTrashEntry, TRASH_RETENTION_MS } from '../src/trash-data.js';
 import { renderReleaseNotes } from '../src/release-notes.js';
 import { classifyClipboard, plainTextToDocument, sanitizeMarkdownDocument } from '../src/paste.js';
 import { qidianSchema } from '../src/markdown.js';
 const loadMarkdownTools = async () => import('../src/markdown.js');
 const empty = { categories: ['开发'], noteTypes:[{id:'note',name:'普通笔记'},{id:'clip',name:'网页收藏'},{id:'command',name:'命令速查'},{id:'issue',name:'故障排查'}], notes: [], theme:'light', pasteMode:'rich' };
+test('vault validation defaults legacy data to an empty trash and validates stored items', () => {
+  const note={id:'old-note',title:'旧笔记',type:'note',category:'开发',tags:[],body:'<p>内容</p>',source:'',created:1,updated:2,pinned:false};
+  assert.deepEqual(validateVault(structuredClone(empty)).trash,[]);
+  const deleted={...createTrashEntry('note',note,{index:0}),deletedAt:100};
+  const validated=validateVault({...structuredClone(empty),trash:[deleted]});
+  assert.equal(validated.trash[0].item.title,'旧笔记');
+  assert.throws(()=>validateVault({...structuredClone(empty),trash:[{...deleted,deletedAt:-1}]}),/删除时间无效/);
+  assert.throws(()=>validateVault({...structuredClone(empty),notes:[note],trash:[deleted]}),/笔记编号无效或重复/);
+});
+test('trash expiration is exact at 30 days and restoring notes returns them to the vault', () => {
+  const note={id:'restore-note',title:'还原测试',type:'note',category:'开发',tags:[],body:'<p>保留内容</p>',source:'',created:1,updated:2,pinned:false};
+  const data={...structuredClone(empty),notes:[],trash:[createTrashEntry('note',note,{index:0}, {}, 100)]};
+  assert.equal(pruneExpiredTrash(data,100+TRASH_RETENTION_MS-1),0);
+  assert.equal(pruneExpiredTrash(data,100+TRASH_RETENTION_MS),1);
+  data.trash=[createTrashEntry('note',note,{index:0}, {}, 200)];
+  restoreTrashEntry(data,data.trash[0].id);
+  assert.equal(data.notes[0].body,note.body);assert.deepEqual(data.trash,[]);
+});
 test('product branding shows the name without repeated promotional taglines', async () => {
   const dom = new JSDOM(await readFile(new URL('../index.html',import.meta.url),'utf8'));
   const { document } = dom.window;
@@ -21,6 +41,9 @@ test('product branding shows the name without repeated promotional taglines', as
   assert.equal(document.querySelector('.auth-brand span'), null);
   assert.equal(document.querySelector('#brandHome .brand-copy span'), null);
   assert.equal(document.querySelector('.side-footer'), null);
+  const settingsIcon=document.querySelector('#i-settings');
+  assert.equal(settingsIcon.querySelector('path').hasAttribute('transform'),false,'the settings gear is centered directly in its viewBox');
+  assert.equal(document.querySelector('#openAppSettings use').getAttribute('href'),'#i-settings');
   dom.window.close();
 });
 async function mount(vault=empty, initialOptions={}) {
@@ -35,7 +58,10 @@ async function mount(vault=empty, initialOptions={}) {
   Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable:true, value:w.requestAnimationFrame.bind(w) });
   Object.defineProperty(globalThis, 'cancelAnimationFrame', { configurable:true, value:w.cancelAnimationFrame.bind(w) });
   w.DEFAULT_NOTE_TYPES = DEFAULT_NOTE_TYPES;
+  w.validateVault = validateVault;
   w.createBookmarkView = createBookmarkView;
+  w.createRecycleBinView = createRecycleBinView;
+  w.createTrashEntry = createTrashEntry;
   w.DOMPurify = createDOMPurify(w); w.initial = { data: structuredClone(vault), local:true, ...initialOptions };
   w.queueSave = data => saves.push(structuredClone(data)); w.flush = async () => { initialOptions.flushCalls=(initialOptions.flushCalls||0)+1; return initialOptions.flushResult??true; }; w.retrySync = () => { initialOptions.retryRequests = (initialOptions.retryRequests || 0) + 1; return true; }; w.onStatus = callback => { if (initialOptions.restoreConflict) callback('草稿与 Docker 服务端版本冲突；请导出后再载入服务端版本'); }; w.onAuthenticationRequired = callback => { initialOptions.authenticationRequired = callback; }; w.onRemoteUpdate = callback => { initialOptions.remoteUpdate = callback; }; w.getSyncConflict = () => initialOptions.syncConflict ? structuredClone(initialOptions.syncConflict) : null; w.exportSyncConflict = async () => { initialOptions.conflictExports = (initialOptions.conflictExports || 0) + 1; return true; }; w.refreshCloud = async () => false; w.reauthenticateAccount = async () => ({ data:structuredClone(vault), conflict:false, synced:true }); w.showAuthentication = (_config,recovery) => { initialOptions.reauthentication = recovery; return Promise.resolve(); }; w.setOwner = () => {};
   const editorFactory = options => { w.currentEditor = createQidianEditor(options); return w.currentEditor; };
@@ -53,8 +79,8 @@ async function mount(vault=empty, initialOptions={}) {
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
   assert.ok(start >= 0 && end > start, 'workspace entrypoint should remain available to DOM tests');
-  const runWorkspace = w.Function('initial', 'createQidianEditor', 'flush', 'classifyClipboard', 'plainTextToDocument', 'sanitizeMarkdownDocument', 'loadMarkdownTools', 'APP_VERSION', 'renderReleaseNotes', appSource.slice(start, end + '\n})();'.length));
-  runWorkspace(w.initial, editorFactory, w.flush, classifyClipboard, plainTextToDocument, sanitizeMarkdownDocument, loadMarkdownTools, initialOptions.appVersion || '0.1.5', renderReleaseNotes);
+  const runWorkspace = w.Function('initial', 'createQidianEditor', 'flush', 'classifyClipboard', 'plainTextToDocument', 'sanitizeMarkdownDocument', 'loadMarkdownTools', 'createRecycleBinView', 'createTrashEntry', 'APP_VERSION', 'renderReleaseNotes', appSource.slice(start, end + '\n})();'.length));
+  runWorkspace(w.initial, editorFactory, w.flush, classifyClipboard, plainTextToDocument, sanitizeMarkdownDocument, loadMarkdownTools, createRecycleBinView, createTrashEntry, initialOptions.appVersion || '0.1.5', renderReleaseNotes);
   await new Promise(resolve=>setTimeout(resolve,0));
   return { dom, w, saves, initialOptions };
 }
@@ -151,6 +177,25 @@ test('topbar version badge shows release details and the unified action refreshe
   assert.equal(initialOptions.updateRequests,1);
   assert.match(w.document.querySelector('#versionState').textContent,/已提交/);
   assert.match(w.document.querySelector('#updateProgressLog').textContent,/发现新版本 v0\.1\.6/);
+  dom.window.close();
+});
+test('version details reuse the startup release check and refresh cached information without blocking the dialog', async () => {
+  let resolveVersion,versionChecks=0;
+  const info={currentVersion:'0.1.5',latestVersion:'0.1.6',updateAvailable:true,canUpdateDevice:true,installerAvailable:true,updaterAvailable:true,releaseUrl:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6',notes:'## 新版本说明\n\n修复问题。'};
+  const {dom,w}=await mount(empty,{local:false,versionInfo:()=>{versionChecks++;return new Promise(resolve=>{resolveVersion=resolve})}});
+  assert.equal(versionChecks,1,'authenticated startup starts one release check');
+  const badge=w.document.querySelector('#versionButton');
+  badge.click();
+  assert.equal(w.document.querySelector('#versionInfoOverlay').classList.contains('open'),true,'the dialog opens before the release request finishes');
+  assert.equal(versionChecks,1,'opening the dialog reuses the in-flight startup request');
+  assert.equal(w.document.querySelector('#installedVersion').textContent,'0.1.5','the bundled version is shown while the first check is pending');
+  resolveVersion(info);
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(w.document.querySelector('#latestVersion').textContent,'0.1.6');
+  assert.match(w.document.querySelector('#releaseNotes').textContent,/修复问题/);
+  badge.click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(versionChecks,1,'reopening within the cache window does not request the same release again');
   dom.window.close();
 });
 test('the unified update action remains available when current and reports a completed check without deploying', async () => {
@@ -517,7 +562,7 @@ test('dashboard collapse survives an immediate refresh and reload with independe
   other.dom.window.close();
 });
 
-test('clear all bookmarks confirms and backs up before deleting only bookmarks', async () => {
+test('moving all bookmarks to trash is reversible and does not force a backup', async () => {
   const vault={...empty,bookmarks:[{id:'root',kind:'folder',title:'根分组',children:[{id:'site',kind:'link',title:'网站',url:'https://example.com'}]}]};
   const options={};const {dom,w,saves}=await mount(vault,options);
   w.document.querySelector('#openBookmarks').click();w.document.querySelector('[data-bm-organize]').click();
@@ -527,27 +572,38 @@ test('clear all bookmarks confirms and backs up before deleting only bookmarks',
   w.document.querySelector('[data-bm-clear]').click();
   w.document.querySelector('#bookmarkForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
   await new Promise(resolve=>setTimeout(resolve,0));
-  assert.deepEqual(options.exportedBeforeRestore.bookmarks,vault.bookmarks);
   assert.equal(saves.length,1);assert.deepEqual(saves[0].bookmarks,[]);
+  assert.equal(saves[0].trash[0].item.id,'root');
   assert.deepEqual(saves[0].notes,vault.notes);assert.deepEqual(saves[0].categories,vault.categories);
+  assert.equal(options.exportedBeforeRestore,undefined,'reversible deletion does not trigger backup');
   assert.equal(w.document.querySelector('[data-bm-clear]').disabled,true);
   assert.equal(w.document.querySelector('#openBookmarks .count').textContent,'0','sidebar totals follow bookmark mutations');
+  w.document.querySelector('[data-trash-nav]').click();
+  w.document.querySelector('[data-trash-restore]').click();
+  assert.equal(saves.at(-1).bookmarks[0].children[0].url,'https://example.com/');
+  assert.deepEqual(saves.at(-1).trash,[]);
   dom.window.close();
 });
 
-test('clear all refuses deletion on backup failure or changes during backup', async () => {
+test('moving all bookmarks to trash works without backup and rejects stale confirmation', async () => {
   const vault={...empty,bookmarks:[{id:'site',kind:'link',title:'网站',url:'https://example.com'}]};
   for(const changed of [false,true]){
     const options=changed?{}:{backupError:'备份失败'};
     const {dom,w,saves}=await mount(vault,options);
-    if(changed)options.onBackup=async()=>options.remoteUpdate({...structuredClone(vault),bookmarks:[...vault.bookmarks,{id:'new',kind:'link',title:'新网址',url:'https://example.org'}]});
     w.document.querySelector('#openBookmarks').click();w.document.querySelector('[data-bm-organize]').click();w.document.querySelector('[data-bm-clear]').click();
+    if(changed)options.remoteUpdate({...structuredClone(vault),bookmarks:[...vault.bookmarks,{id:'new',kind:'link',title:'新网址',url:'https://example.org'}]});
     w.document.querySelector('#bookmarkForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
     await new Promise(resolve=>setTimeout(resolve,0));
-    assert.equal(saves.length,0);
-    assert.equal(w.document.querySelector('#bookmarkOverlay').classList.contains('open'),true);
-    assert.match(w.document.querySelector('#bookmarkMessage').textContent,changed?/内容已变更/:/备份失败/);
-    assert.ok(w.document.querySelector('.bookmark-link'));dom.window.close();
+    if(changed){
+      assert.equal(saves.length,0);
+      assert.equal(w.document.querySelector('#bookmarkOverlay').classList.contains('open'),true);
+      assert.match(w.document.querySelector('#bookmarkMessage').textContent,/内容已变更/);
+      assert.equal(w.document.querySelectorAll('.bookmark-link').length,2);
+    }else{
+      assert.equal(saves.length,1,'an unavailable backup does not block a recoverable delete');
+      assert.equal(saves[0].bookmarks.length,0);assert.equal(saves[0].trash.length,1);
+    }
+    dom.window.close();
   }
 });
 
@@ -569,6 +625,39 @@ test('new notes stay in the private draft box until published', async () => {
   assert.equal(saves.at(-1).notes[0].status, 'published');
   assert.equal(saves.at(-1).notes[0].publishedSnapshot, undefined);
   assert.equal(w.document.querySelector('#main .about-note'),null,'routine publication status is not displayed');
+  dom.window.close();
+});
+test('deleted notes remain recoverable for 30 days and can be restored from the recycle bin', async () => {
+  const note={id:'trash-note',title:'待还原笔记',type:'note',category:'开发',tags:[],body:'<p>保留正文</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
+  const {dom,w,saves}=await mount({...structuredClone(empty),notes:[note]});
+  w.document.querySelector('#sideCore [data-nav="all"]').click();
+  w.document.querySelector('[data-note-delete="trash-note"]').click();
+  assert.deepEqual(saves.at(-1).notes,[]);
+  assert.equal(saves.at(-1).trash[0].item.id,'trash-note');
+  w.document.querySelector('[data-trash-nav]').click();
+  assert.match(w.document.querySelector('#main').textContent,/保留 30 天/);
+  assert.match(w.document.querySelector('#main').textContent,/待还原笔记/);
+  w.document.querySelector('[data-trash-restore]').click();
+  assert.equal(saves.at(-1).notes[0].id,'trash-note');
+  assert.deepEqual(saves.at(-1).trash,[]);
+  dom.window.close();
+});
+test('emptying the recycle bin requires confirmation but never requires or starts a backup', async () => {
+  const note={id:'clear-trash-note',title:'永久删除测试',type:'note',category:'开发',tags:[],body:'<p>内容</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
+  const trash=[createTrashEntry('note',note,{index:0})];
+  const options={};const {dom,w,saves}=await mount({...structuredClone(empty),trash},options);
+  w.document.querySelector('[data-trash-nav]').click();
+  w.document.querySelector('[data-trash-clear]').click();
+  assert.match(w.document.querySelector('#trashClearOverlay').textContent,/此操作无法撤销/);
+  assert.equal(options.exportedBeforeRestore,undefined);
+  w.document.querySelector('[data-trash-cancel]').click();
+  assert.equal(saves.length,0,'cancel keeps the trashed content');
+  w.document.querySelector('[data-trash-clear]').click();
+  w.document.querySelector('#trashClearOverlay form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.deepEqual(saves.at(-1).trash,[]);
+  assert.equal(options.exportedBeforeRestore,undefined,'permanent clear does not call the export flow');
+  assert.match(w.document.querySelector('#main').textContent,/回收站为空/);
   dom.window.close();
 });
 test('the reader presents article metadata and keeps a section outline available on mobile', async () => {
@@ -715,6 +804,18 @@ test('leaving a changed editor asks to save and cancel keeps the editor open', a
   assert.equal(prompts.length,2);
   assert.equal(w.document.querySelector('#editTitle'),null);
   assert.equal(saves.at(-1).notes[0].title,'离开前询问保存');
+  dom.window.close();
+});
+test('opening the recycle bin from a changed editor asks first and saves only when confirmed', async () => {
+  const {dom,w,saves}=await mount();let confirmResult=false;const prompts=[];
+  w.confirm=message=>{prompts.push(message);return confirmResult};
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const title=w.document.querySelector('#editTitle');title.value='回收站导航前保存';title.dispatchEvent(new w.Event('input',{bubbles:true}));
+  w.document.querySelector('[data-trash-nav]').click();
+  assert.equal(prompts.length,1);assert.match(prompts[0],/是否保存后离开/);assert.ok(w.document.querySelector('#editTitle'));
+  confirmResult=true;w.document.querySelector('[data-trash-nav]').click();
+  assert.equal(w.document.querySelector('#editTitle'),null);assert.match(w.document.querySelector('#main').textContent,/回收站/);
+  assert.equal(saves.at(-1).notes[0].title,'回收站导航前保存');assert.deepEqual(saves.at(-1).trash,[]);
   dom.window.close();
 });
 test('leaving an unchanged editor does not show a save prompt', async () => {
@@ -1491,9 +1592,15 @@ test('bookmark navigation edits nested groups and links, moves safely and preser
   w.document.querySelector('#bookmarkForm').dispatchEvent(new w.Event('submit', { bubbles:true, cancelable:true }));
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.deepEqual(saves.at(-1).bookmarks.map(x=>x.id), ['child','site']);
-  const search = w.document.querySelector('#bookmarkSearch'); search.value = 'mozilla'; search.dispatchEvent(new w.Event('input'));
-  assert.equal(w.document.querySelectorAll('.bookmark-card').length, 1);
-  assert.equal(w.document.querySelectorAll('#bookmarkTree [data-bm-delete="child"]').length, 0);
+  assert.equal(saves.at(-1).trash[0].item.id,'group');
+  assert.deepEqual(saves.at(-1).trash[0].releasedChildren,['child']);
+  w.document.querySelector('[data-trash-nav]').click();
+  w.document.querySelector('[data-trash-restore]').click();
+  assert.deepEqual(saves.at(-1).bookmarks,[
+    {id:'group',kind:'folder',title:'开发',children:[{id:'child',kind:'folder',title:'文档',children:[]}]},
+    {id:'site',kind:'link',title:'Web 文档',url:'https://developer.mozilla.org/'}
+  ]);
+  assert.deepEqual(saves.at(-1).trash,[]);
   dom.window.close();
 });
 
@@ -1595,7 +1702,7 @@ const designVault=()=>({...structuredClone(empty),notes:[{id:'design-note',title
 
 test('unified navigation exposes peer workspaces and creation choices without mutating content',async()=>{
  const {dom,w,saves}=await mount(designVault());
- assert.deepEqual([...w.document.querySelectorAll('#sideCore>.side-link')].map(n=>n.textContent.replace(/\d+/g,'').trim()),['首页','笔记','书签']);
+ assert.deepEqual([...w.document.querySelectorAll('#sideCore>.side-link')].map(n=>n.textContent.replace(/\d+/g,'').trim()),['首页','笔记','书签','回收站']);
  assert.equal(w.document.querySelector('#sideTypes').closest('.side-section').hidden,true);
  w.document.querySelector('#newSide').click();assert.equal(saves.length,0);
  assert.deepEqual([...w.document.querySelectorAll('[data-create-kind]')].map(n=>n.dataset.createKind),['note','bookmark','capture']);
@@ -1635,24 +1742,25 @@ test('bookmark bulk move selects only the current group and preserves nested fol
  assert.match(w.document.querySelector('#bookmarkSelection').textContent,/已选 0/);dom.window.close();
 });
 
-test('bookmark bulk delete backs up and removes only selected search results without deleting groups',async()=>{
+test('bookmark bulk delete moves only selected search results to trash without deleting groups',async()=>{
  const options={};const {dom,w,saves}=await mount(designVault(),options);w.document.querySelector('#openBookmarks').click();w.document.querySelector('[data-bm-organize]').click();
  const search=w.document.querySelector('#bookmarkSearch');search.value='文档';search.dispatchEvent(new w.Event('input'));
  w.document.querySelector('[data-bm-select-all]').click();assert.equal(w.document.querySelectorAll('[data-bm-select]:checked').length,1);
  assert.match(w.document.querySelector('#bookmarkSelection').textContent,/全选搜索结果/);w.document.querySelector('[data-bm-delete-selected]').click();
  assert.equal(saves.length,0);w.document.querySelector('#bookmarkForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,0));
- assert.equal(options.exportedBeforeRestore.bookmarks[0].children[1].children[0].id,'d-b');
- assert.equal(saves.length,1);assert.deepEqual(saves[0].bookmarks[0].children[1].children,[]);assert.equal(saves[0].bookmarks[0].children[0].id,'d-a');assert.equal(saves[0].bookmarks[1].children[0].id,'d-c');assert.deepEqual(saves[0].notes,designVault().notes);dom.window.close();
+ assert.equal(options.exportedBeforeRestore,undefined);
+ assert.equal(saves.length,1);assert.deepEqual(saves[0].bookmarks[0].children[1].children,[]);assert.equal(saves[0].bookmarks[0].children[0].id,'d-a');assert.equal(saves[0].bookmarks[1].children[0].id,'d-c');assert.equal(saves[0].trash[0].item.id,'d-b');assert.deepEqual(saves[0].notes,designVault().notes);dom.window.close();
 });
 
-test('bulk deletion refuses a failed backup and remote changes, and leaving clears selections',async()=>{
+test('bookmark bulk delete is reversible without backup and leaving clears selections',async()=>{
  for(const changed of [false,true]){
  const options=changed?{}:{backupError:'备份失败'};const {dom,w,saves}=await mount(designVault(),options);
- if(changed)options.onBackup=async()=>{const next=designVault();next.bookmarks[1].title='远端新分组';options.remoteUpdate(next)};
  w.document.querySelector('#openBookmarks').click();w.document.querySelector('[data-bm-organize]').click();w.document.querySelector('[data-bm-select-all]').click();w.document.querySelector('[data-bm-delete-selected]').click();
+ if(changed){const next=designVault();next.bookmarks[1].title='远端新分组';options.remoteUpdate(next)}
  w.document.querySelector('#bookmarkForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,0));
- assert.equal(saves.length,0);assert.match(w.document.querySelector('#bookmarkMessage').textContent,changed?/内容已变更/:/备份失败/);
- w.document.querySelector('[data-bm-close]').click();w.document.querySelector('#brandHome').click();w.document.querySelector('#openBookmarks').click();
+ if(changed){assert.equal(saves.length,0);assert.match(w.document.querySelector('#bookmarkMessage').textContent,/内容已变更/);w.document.querySelector('[data-bm-close]').click()}
+ else{assert.equal(saves.length,1);assert.equal(saves[0].trash.length,3,'all selected links moved into the bin');w.document.querySelector('[data-bm-close]').click()}
+ w.document.querySelector('#brandHome').click();w.document.querySelector('#openBookmarks').click();
  assert.equal(w.document.querySelector('[data-bm-organize]').getAttribute('aria-pressed'),'false');assert.equal(w.document.querySelector('#bookmarkSelection').textContent,'');dom.window.close();
  }
 });

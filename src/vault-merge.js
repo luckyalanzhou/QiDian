@@ -102,6 +102,7 @@ export function mergeVault(base, local, remote) {
       else if (key === 'noteTypes') merged.noteTypes = mergeRecords(base.noteTypes || [], local.noteTypes || [], remote.noteTypes || [], value => value.id, 'type');
       else if (key === 'categories') merged.categories = mergeRecords(base.categories || [], local.categories || [], remote.categories || [], value => value, 'category');
       else if (key === 'bookmarks') merged.bookmarks = mergeRecords(base.bookmarks || [], local.bookmarks || [], remote.bookmarks || [], value => value.id, 'bookmark');
+      else if (key === 'trash') merged.trash = mergeRecords(base.trash || [], local.trash || [], remote.trash || [], value => value.id, 'trash');
       else {
         const value = mergeRecord(base[key], local[key], remote[key], key);
         if (value !== undefined) merged[key] = value;

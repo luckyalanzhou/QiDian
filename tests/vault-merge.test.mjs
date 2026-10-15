@@ -67,6 +67,15 @@ test('separate new notes and categories are merged', () => {
   assert.deepEqual(new Set(merged.notes.map(item=>item.id)), new Set(['a','b']));
 });
 
+test('independent recycle-bin changes from two devices merge without losing either item', () => {
+  const base = { ...vault([]), trash:[] };
+  const local = structuredClone(base), remote = structuredClone(base);
+  local.trash.push({ id:'trash-a', kind:'note', deletedAt:1, item:note('a','本地删除') });
+  remote.trash.push({ id:'trash-b', kind:'note', deletedAt:2, item:note('b','另一设备删除') });
+  const merged = mergeVault(base, local, remote);
+  assert.deepEqual(new Set(merged.trash.map(item=>item.id)), new Set(['trash-a','trash-b']));
+});
+
 test('matching reorder operations keep independent additions from both devices', () => {
   const base = vault([note('a','A'), note('b','B'), note('c','C')]);
   const local = structuredClone(base), remote = structuredClone(base);

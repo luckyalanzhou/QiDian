@@ -479,6 +479,9 @@ body.booting > :not(#loginGate){display:none!important}
 
 :root{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}:root[data-theme=dark] .secondary-btn.danger-btn,:root[data-theme=dark] .item-menu-panel .danger-btn{color:#f29ca4}@media(max-width:720px){.editor-bar .tool-btn{min-width:36px;height:36px}.editor-bar .tool-select{min-height:36px}}
 
+.trash-page{max-width:980px;margin:0 auto}.trash-entry-list{display:grid;gap:10px}.trash-entry{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:12px}.trash-entry-copy{min-width:0}.trash-entry h2{margin:8px 0 4px;font-size:15px;overflow-wrap:anywhere}.trash-entry-detail{margin:0 0 4px;color:var(--sub);font-size:12px;overflow-wrap:anywhere}.trash-entry .hint{margin:8px 0 0;font-size:11px}.trash-entry>.secondary-btn{flex:0 0 auto}.trash-empty{display:grid;justify-items:center;gap:9px;background:var(--panel);border:1px solid var(--line)}.trash-empty>.ico{width:32px;height:32px;color:var(--sub)}.trash-empty strong{color:var(--text)}.trash-empty p{margin:0;color:var(--sub);font-size:12px}.trash-clear-dialog .dialog-head{align-items:flex-start}.trash-clear-dialog .dialog-head .hint{margin:4px 0 0;font-size:12px}.trash-clear-dialog .primary-btn.danger-btn{background:#c3545d;color:#fff}.trash-clear-dialog .danger-btn:disabled{opacity:.55;cursor:wait}
+@media(max-width:720px){.trash-entry{align-items:flex-start;padding:14px;gap:10px}.trash-entry h2{font-size:14px}.trash-entry>.secondary-btn{padding:8px 10px;white-space:nowrap}.trash-empty{padding:52px 16px}}
+
 @media(max-width:720px){.dashboard-bookmark-groups{max-height:none;overflow-y:visible;overscroll-behavior:auto;scrollbar-gutter:auto}}
 
 /* Keep account dialogs usable on short viewports and reduce noise in dense lists. */

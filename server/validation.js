@@ -38,7 +38,7 @@ function bookmarkFolderPreferences(value) {
 export function validateVault(input) {
   if (!input || !Array.isArray(input.notes) || !Array.isArray(input.categories)) throw new HttpError(400, '备份结构无效');
   if (input.notes.length > 10000 || input.categories.length > 300 || (input.noteTypes !== undefined && (!Array.isArray(input.noteTypes) || input.noteTypes.length < 1 || input.noteTypes.length > 50))) throw new HttpError(400, '笔记、分类或类型数量超限');
-  const ids = new Set();
+  const noteIds = new Set();
   const categories = [...new Set(input.categories.map(v => text(v, 30, '分类')))];
   const sourceTypes = input.noteTypes === undefined ? DEFAULT_NOTE_TYPES : input.noteTypes;
   const typeIds = new Set(), typeNames = new Set();
@@ -50,11 +50,11 @@ export function validateVault(input) {
     return { id, name };
   });
   if (!noteTypes.length) throw new HttpError(400, '至少保留一种笔记类型');
-  const notes = input.notes.map(n => {
+  const normalizeNote = n => {
     if (!n || !Array.isArray(n.tags) || n.tags.length > 30) throw new HttpError(400, '标签无效');
     const id = text(n.id, 100, '编号');
-    if (!/^[a-zA-Z0-9_-]+$/.test(id) || ids.has(id)) throw new HttpError(400, '笔记编号无效或重复');
-    ids.add(id);
+    if (!/^[a-zA-Z0-9_-]+$/.test(id) || noteIds.has(id)) throw new HttpError(400, '笔记编号无效或重复');
+    noteIds.add(id);
     if (!typeIds.has(n.type)) throw new HttpError(400, '笔记类型无效');
     if (![n.created, n.updated].every(v => Number.isSafeInteger(v) && v >= 0)) throw new HttpError(400, '笔记时间无效');
     const status = n.status === undefined ? 'published' : n.status;
@@ -80,10 +80,60 @@ export function validateVault(input) {
       note.publishedSnapshot = normalizeVersion(n.publishedSnapshot);
     }
     return note;
-  });
+  };
+  const notes = input.notes.map(normalizeNote);
   let bookmarks;
   try { bookmarks = validateBookmarks(input.bookmarks); } catch (error) { throw new HttpError(400, error.message); }
-  const data = { categories, noteTypes, notes, bookmarks, theme: ['system','light','dark'].includes(input.theme) ? input.theme : 'light',
+  const sourceTrash = input.trash === undefined ? [] : input.trash;
+  if (!Array.isArray(sourceTrash) || sourceTrash.length > 10000) throw new HttpError(400, '回收站项目数量超限');
+  const bookmarkIds = new Set();
+  const collectBookmarkIds = (items, result) => {
+    for (const item of items) {
+      result.add(item.id);
+      if (item.kind === 'folder') collectBookmarkIds(item.children, result);
+    }
+  };
+  collectBookmarkIds(bookmarks, bookmarkIds);
+  const trashIds = new Set(), trashedBookmarkIds = new Set();
+  const trash = sourceTrash.map(entry => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new HttpError(400, '回收站项目无效');
+    const id = text(entry.id, 100, '回收站编号');
+    if (!/^[a-zA-Z0-9_-]+$/.test(id) || trashIds.has(id)) throw new HttpError(400, '回收站编号无效或重复');
+    trashIds.add(id);
+    if (!Number.isSafeInteger(entry.deletedAt) || entry.deletedAt < 0) throw new HttpError(400, '删除时间无效');
+    if (!Number.isSafeInteger(entry.index) || entry.index < 0) throw new HttpError(400, '原始顺序无效');
+    const anchor = value => {
+      if (value === undefined || value === null || value === '') return '';
+      const normalized = text(value, 100, '原始位置');
+      if (!/^[a-zA-Z0-9_-]+$/.test(normalized)) throw new HttpError(400, '原始位置无效');
+      return normalized;
+    };
+    const parentId = anchor(entry.parentId);
+    let item;
+    if (entry.kind === 'note') item = normalizeNote(entry.item);
+    else if (entry.kind === 'bookmark') {
+      let normalized;
+      try { normalized = validateBookmarks([entry.item]); } catch (error) { throw new HttpError(400, error.message); }
+      item = normalized[0];
+      const ids = new Set(); collectBookmarkIds(normalized, ids);
+      for (const bookmarkId of ids) {
+        if (bookmarkIds.has(bookmarkId) || trashedBookmarkIds.has(bookmarkId)) throw new HttpError(400, '回收站书签编号重复');
+        trashedBookmarkIds.add(bookmarkId);
+      }
+    } else throw new HttpError(400, '回收站项目类型无效');
+    const result = { id, kind: entry.kind, deletedAt: entry.deletedAt, item, parentId,
+      index: entry.index, previousId: anchor(entry.previousId), nextId: anchor(entry.nextId) };
+    if (entry.releasedChildren !== undefined) {
+      if (entry.kind !== 'bookmark' || item.kind !== 'folder' || !Array.isArray(entry.releasedChildren) || entry.releasedChildren.length > 10000) throw new HttpError(400, '回收站分组恢复信息无效');
+      result.releasedChildren = [...new Set(entry.releasedChildren.map(value => {
+        const childId = text(value, 100, '分组内容编号');
+        if (!/^[a-zA-Z0-9_-]+$/.test(childId)) throw new HttpError(400, '分组内容编号无效');
+        return childId;
+      }))];
+    }
+    return result;
+  });
+  const data = { categories, noteTypes, notes, bookmarks, trash, theme: ['system','light','dark'].includes(input.theme) ? input.theme : 'light',
     pasteMode: ['rich','match','plain'].includes(input.pasteMode) ? input.pasteMode : 'rich',
     noteTypesExpanded: input.noteTypesExpanded !== false,
     dashboardBookmarkLayout: input.dashboardBookmarkLayout === 'double' ? 'double' : 'single',

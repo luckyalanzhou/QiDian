@@ -1,8 +1,9 @@
 import { bookmarkURL } from '../server/bookmarks.js';
 import { validateVault } from '../server/validation.js';
 import { bookmarkId, parseBookmarks, mergeBookmarks, bookmarksHTML } from './bookmark-data.js';
+import { createTrashEntry } from './trash-data.js';
 
-export function createBookmarkView({ main, getData, save, backup, download, notify }) {
+export function createBookmarkView({ main, getData, save, download, notify }) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = name => `<span class="ico"><svg aria-hidden="true"><use href="#i-${name}"/></svg></span>`;
   const closed = new Set(), selected = new Set(); let query = '', busy = false, organizing = false, selectedFolder = '', pinnedOnly = false, scrollPosition = 0, directoryOpen = true;
@@ -45,9 +46,9 @@ export function createBookmarkView({ main, getData, save, backup, download, noti
       finally { busy = false; button.disabled = false; }
     };
   }
-  function apply(items) {
-    const candidate = validateVault({ ...getData(), bookmarks: items });
-    getData().bookmarks = candidate.bookmarks; save();
+  function apply(items, trash = getData().trash || []) {
+    const candidate = validateVault({ ...getData(), bookmarks: items, trash });
+    getData().bookmarks = candidate.bookmarks; getData().trash = candidate.trash; save();
   }
   function editItem(kind, id = '', parent = '') {
     const found = id ? locate(id) : null, item = found?.item;
@@ -69,22 +70,30 @@ export function createBookmarkView({ main, getData, save, backup, download, noti
   function removeItem(id) {
     const found = locate(id); if (!found) return;
     const nonempty = found.item.kind === 'folder' && found.item.children.length;
-    dialog('删除' + (found.item.kind === 'folder' ? '分组' : '书签'), `<p>删除「${esc(found.item.title)}」？</p>${nonempty ? '<label class="form-label" for="bmDeleteMode">分组内容</label><select id="bmDeleteMode" class="form-text"><option value="keep">保留内容，移到上一级</option><option value="delete">连同所有子分组和书签一起删除</option></select>' : ''}`, () => {
+    dialog('移入回收站', `<p>将「${esc(found.item.title)}」移入回收站，可在 30 天内还原。</p>${nonempty ? '<label class="form-label" for="bmDeleteMode">分组内容</label><select id="bmDeleteMode" class="form-text"><option value="keep">保留内容，移到上一级</option><option value="delete">连同所有子分组和书签一起移入</option></select>' : ''}`, () => {
       const items = structuredClone(tree()), current = locate(id, items); if (!current) throw Error('内容已变更');
       const keep = overlay.querySelector('#bmDeleteMode')?.value === 'keep';
-      current.entries.splice(current.entries.indexOf(current.item), 1, ...(keep ? current.item.children : [])); apply(items);
-    }, '删除');
+      const index = current.entries.indexOf(current.item), location = { parentId: current.parent?.id || '', index,
+        previousId: current.entries[index - 1]?.id || '', nextId: current.entries[index + 1]?.id || '' };
+      const releasedChildren = keep && current.item.kind === 'folder' ? current.item.children.map(child => child.id) : null;
+      const trashedItem = releasedChildren ? { ...current.item, children: [] } : current.item;
+      const trash = [...(getData().trash || []), createTrashEntry('bookmark', trashedItem, location,
+        releasedChildren ? { releasedChildren } : {})];
+      current.entries.splice(index, 1, ...(keep ? current.item.children : [])); apply(items, trash);
+    }, '移入回收站');
   }
   function clearAll() {
     if (!tree().length) return;
     const snapshot = JSON.stringify(getData());
-    dialog('清空全部书签', `<p>将删除全部 ${linkCount(tree())} 个网址和 ${paths().length} 个分组。笔记不会删除。</p><p class="hint">确认后会先下载完整备份，备份成功才执行清空。</p>`, async () => {
+    const removed = structuredClone(tree()), deletedAt = Date.now();
+    dialog('将全部书签移入回收站', `<p>将 ${linkCount(removed)} 个网址和 ${paths(removed).length} 个分组移入回收站。笔记不会删除。</p><p class="hint">这些内容可在 30 天内分别还原。</p>`, () => {
       if (JSON.stringify(getData()) !== snapshot) throw Error('内容已变更，请关闭窗口后重新确认');
-      overlay.querySelector('#bookmarkMessage').textContent = '正在下载备份…';
-      await backup(structuredClone(getData()));
-      if (JSON.stringify(getData()) !== snapshot) throw Error('备份期间内容已变更，请重新确认');
-      closed.clear(); getData().bookmarkFolderStates = {}; apply([]); selectedFolder = ''; query = '';
-    }, '备份并清空');
+      const trash = [...(getData().trash || [])];
+      removed.forEach((item, index) => trash.push(createTrashEntry('bookmark', item, {
+        parentId: '', index, previousId: removed[index - 1]?.id || '', nextId: removed[index + 1]?.id || ''
+      }, {}, deletedAt)));
+      closed.clear(); getData().bookmarkFolderStates = {}; apply([], trash); selectedFolder = ''; query = '';
+    }, '移入回收站');
     overlay.querySelector('[type=submit]').classList.add('danger-btn');
   }
   function visibleLinks() {
@@ -108,18 +117,22 @@ export function createBookmarkView({ main, getData, save, backup, download, noti
   function bulkAction(deleting) {
     const ids = visibleLinks().filter(item=>selected.has(item.id)).map(item=>item.id); if (!ids.length) return;
     const snapshot = JSON.stringify(getData());
-    dialog(deleting ? '删除所选书签' : '移动所选书签', deleting ? `<p>将删除选中的 ${ids.length} 个网址，保留所有分组及未选书签。</p><p class="hint">先下载完整备份，再执行删除。</p>` : `<p>移动选中的 ${ids.length} 个网址。</p><label class="form-label" for="bmBulkParent">目标分组</label><select class="form-text" id="bmBulkParent">${parentOptions()}</select>`, async () => {
+    const original = structuredClone(tree());
+    const positions = new Map(ids.map(id => {
+      const found = locate(id, original), index = found?.entries.indexOf(found.item) ?? -1;
+      return [id, found ? { parentId: found.parent?.id || '', index,
+        previousId: found.entries[index - 1]?.id || '', nextId: found.entries[index + 1]?.id || '' } : null];
+    }));
+    dialog(deleting ? '将所选书签移入回收站' : '移动所选书签', deleting ? `<p>将选中的 ${ids.length} 个网址移入回收站，保留所有分组及未选书签。</p><p class="hint">可在 30 天内还原。</p>` : `<p>移动选中的 ${ids.length} 个网址。</p><label class="form-label" for="bmBulkParent">目标分组</label><select class="form-text" id="bmBulkParent">${parentOptions()}</select>`, async () => {
       if (JSON.stringify(getData()) !== snapshot) throw Error('内容已变更，请重新确认');
-      if (deleting) {
-        overlay.querySelector('#bookmarkMessage').textContent = '正在下载备份…';
-        await backup(structuredClone(getData()));
-        if (JSON.stringify(getData()) !== snapshot) throw Error('备份期间内容已变更，请重新确认');
-      }
-      const items = structuredClone(tree()), moving = [];
+      const items = structuredClone(tree()), moving = [], trash = [...(getData().trash || [])], deletedAt = Date.now();
       for (const id of ids) {
         const found = locate(id, items);
         if (!found || found.item.kind !== 'link') throw Error('所选书签已变更');
-        moving.push(found.item); found.entries.splice(found.entries.indexOf(found.item), 1);
+        const location = positions.get(id); if (!location) throw Error('所选书签位置已变更');
+        moving.push(found.item);
+        if (deleting) trash.push(createTrashEntry('bookmark', found.item, location, {}, deletedAt));
+        found.entries.splice(found.entries.indexOf(found.item), 1);
       }
       if (!deleting) {
         const target = overlay.querySelector('#bmBulkParent').value;
@@ -127,8 +140,8 @@ export function createBookmarkView({ main, getData, save, backup, download, noti
         if (target && destination?.kind !== 'folder') throw Error('目标分组已变更');
         (destination ? destination.children : items).push(...moving);
       }
-      apply(items); selected.clear();
-    }, deleting ? '备份并删除' : '移动');
+      apply(items, trash); selected.clear();
+    }, deleting ? '移入回收站' : '移动');
     if (deleting) overlay.querySelector('[type=submit]').classList.add('danger-btn');
   }
   function actions(item, entries) {
@@ -182,7 +195,7 @@ export function createBookmarkView({ main, getData, save, backup, download, noti
     const roots = tree().filter(item => item.kind === 'folder');
     const currentFolder = selectedFolder ? locate(selectedFolder)?.item : null;
     const selectedPath = paths().find(item => item.id === selectedFolder)?.path || '';
-    main.innerHTML = `<section class="bookmark-page ${organizing ? 'is-organizing' : ''}"><header class="section-head workspace-page-head"><div><h1>书签</h1><p class="muted">${linkCount(tree())} 个网址 · ${paths().length} 个分组</p></div><div class="workspace-page-actions"><button class="secondary-btn" data-bm-organize aria-pressed="${organizing}">${icon(organizing ? 'check' : 'edit')} ${organizing ? '完成整理' : '整理'}</button><button class="primary-btn" data-bm-new>${icon('plus')} 添加书签</button><details class="item-menu bookmark-tools"><summary aria-label="书签更多操作">···</summary><div class="item-menu-panel"><button data-bm-new-folder>新建分组</button><button data-bm-import>导入书签</button><button data-bm-export>导出书签</button><button class="danger-btn" data-bm-clear ${tree().length ? '' : 'disabled'}>清空全部</button></div></details></div></header><div class="workspace-filter-bar"><label class="workspace-search">${icon('search')}<input id="bookmarkSearch" type="search" placeholder="搜索名称、网址或分组" aria-label="搜索书签" value="${esc(query)}"></label><button class="secondary-btn" data-bm-pinned aria-pressed="${pinnedOnly}">${icon('heart')} 常用</button></div><div class="bookmark-browser"><details class="bookmark-directory" ${directoryOpen ? 'open' : ''}><summary>${icon('folder')}<span>分组</span><span class="bookmark-directory-path">${esc(selectedPath || '全部书签')}</span>${icon('chevron')}</summary><nav class="bookmark-folders" aria-label="书签分组"><button class="bookmark-folder-select ${!selectedFolder ? 'active' : ''}" data-bm-folder="" ${!selectedFolder ? 'aria-current="page"' : ''}>${icon('link')} 全部书签<small>${linkCount(tree())}</small></button><ul>${folderTree(tree())}</ul>${!roots.length ? '<p class="hint bookmark-empty">暂无分组</p>' : ''}</nav></details><div class="bookmark-results">${currentFolder ? `<div class="bookmark-subgroups"><span>${esc(selectedPath)}</span>${currentFolder.children.filter(item => item.kind === 'folder').map(item => `<button data-bm-folder="${esc(item.id)}">${icon('folder')}${esc(item.title)}<small>${linkCount(item.children)}</small></button>`).join('')}</div>` : ''}<div id="bookmarkSelection">${selectionBar()}</div><div id="bookmarkTree" class="bookmark-content">${content()}</div></div></div></section>`;
+    main.innerHTML = `<section class="bookmark-page ${organizing ? 'is-organizing' : ''}"><header class="section-head workspace-page-head"><div><h1>书签</h1><p class="muted">${linkCount(tree())} 个网址 · ${paths().length} 个分组</p></div><div class="workspace-page-actions"><button class="secondary-btn" data-bm-organize aria-pressed="${organizing}">${icon(organizing ? 'check' : 'edit')} ${organizing ? '完成整理' : '整理'}</button><button class="primary-btn" data-bm-new>${icon('plus')} 添加书签</button><details class="item-menu bookmark-tools"><summary aria-label="书签更多操作">···</summary><div class="item-menu-panel"><button data-bm-new-folder>新建分组</button><button data-bm-import>导入书签</button><button data-bm-export>导出书签</button><button class="danger-btn" data-bm-clear ${tree().length ? '' : 'disabled'}>移入回收站</button></div></details></div></header><div class="workspace-filter-bar"><label class="workspace-search">${icon('search')}<input id="bookmarkSearch" type="search" placeholder="搜索名称、网址或分组" aria-label="搜索书签" value="${esc(query)}"></label><button class="secondary-btn" data-bm-pinned aria-pressed="${pinnedOnly}">${icon('heart')} 常用</button></div><div class="bookmark-browser"><details class="bookmark-directory" ${directoryOpen ? 'open' : ''}><summary>${icon('folder')}<span>分组</span><span class="bookmark-directory-path">${esc(selectedPath || '全部书签')}</span>${icon('chevron')}</summary><nav class="bookmark-folders" aria-label="书签分组"><button class="bookmark-folder-select ${!selectedFolder ? 'active' : ''}" data-bm-folder="" ${!selectedFolder ? 'aria-current="page"' : ''}>${icon('link')} 全部书签<small>${linkCount(tree())}</small></button><ul>${folderTree(tree())}</ul>${!roots.length ? '<p class="hint bookmark-empty">暂无分组</p>' : ''}</nav></details><div class="bookmark-results">${currentFolder ? `<div class="bookmark-subgroups"><span>${esc(selectedPath)}</span>${currentFolder.children.filter(item => item.kind === 'folder').map(item => `<button data-bm-folder="${esc(item.id)}">${icon('folder')}${esc(item.title)}<small>${linkCount(item.children)}</small></button>`).join('')}</div>` : ''}<div id="bookmarkSelection">${selectionBar()}</div><div id="bookmarkTree" class="bookmark-content">${content()}</div></div></div></section>`;
     const directory = main.querySelector('.bookmark-directory');
     directory.ontoggle = event => { const next=event.target.open;if(directoryOpen===next)return;directoryOpen=next;savePreferences(); };
     main.querySelector('#bookmarkSearch').oninput = event => { query = event.target.value.trim().toLocaleLowerCase(); selected.clear(); updateResults(); };

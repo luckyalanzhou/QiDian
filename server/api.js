@@ -102,9 +102,12 @@ function sniffAvatarMime(bytes) {
 }
 
 function registerStatements(env, { accountId, username, salt, passwordHash, token, now }) {
+  const additionalRegistrationEnabled = env.REGISTRATION_ENABLED === 'true' ? 1 : 0;
   return [
-    env.DB.prepare('INSERT INTO accounts(id, username, username_normalized, password_salt, password_hash, password_iterations, created) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(accountId, username, username, salt, passwordHash, PASSWORD_ITERATIONS, now),
+    env.DB.prepare(`INSERT INTO accounts(id, username, username_normalized, password_salt, password_hash, password_iterations, created)
+      SELECT ?, ?, ?, ?, ?, ?, ?
+      WHERE ? = 1 OR NOT EXISTS (SELECT 1 FROM accounts)`)
+      .bind(accountId, username, username, salt, passwordHash, PASSWORD_ITERATIONS, now, additionalRegistrationEnabled),
     env.DB.prepare('UPDATE legacy_claim SET claimed_by = ? WHERE id = 1 AND claimed_by IS NULL AND EXISTS (SELECT 1 FROM accounts WHERE id = ?)').bind(accountId, accountId),
     env.DB.prepare(`INSERT INTO account_vaults(account_id, revision, data, updated)
       SELECT ?, revision, data, updated FROM vault WHERE id = 1 AND (SELECT claimed_by FROM legacy_claim WHERE id = 1) = ?`).bind(accountId, accountId),

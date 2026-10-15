@@ -16,24 +16,28 @@ const legacyVault = { categories:['遗留'], notes:[legacyNote], theme:'light', 
 function migrateStatements(sql) {
   return sql.match(/CREATE TRIGGER[\s\S]*?END;|(?:PRAGMA|CREATE TABLE|CREATE INDEX|INSERT INTO|UPDATE|ALTER TABLE|DROP TRIGGER)[\s\S]*?;/g) || [];
 }
-before(async () => {
-  env = { DB:sqliteAdapter(), LOCAL_DEV:'true', REGISTRATION_ENABLED:'true' };
-  for (const file of ['0001_initial.sql','0002_accounts.sql','0003_email_auth.sql','0004_account_profiles.sql','0005_snapshot_retention.sql','0006_username_only_login.sql','0007_session_idle_timeout.sql']) {
+const MIGRATION_FILES = ['0001_initial.sql','0002_accounts.sql','0003_email_auth.sql','0004_account_profiles.sql','0005_snapshot_retention.sql','0006_username_only_login.sql','0007_session_idle_timeout.sql'];
+async function migrateDatabase(DB) {
+  for (const file of MIGRATION_FILES) {
     const sql = await readFile(new URL(`../migrations/${file}`, import.meta.url),'utf8');
     if (file === '0006_username_only_login.sql') {
-      await env.DB.exec('PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE;');
+      await DB.exec('PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE;');
       try {
-        await env.DB.exec(sql);
-        assert.deepEqual(await env.DB.prepare('PRAGMA foreign_key_check').all(), { results:[] });
-        await env.DB.exec('COMMIT; PRAGMA foreign_keys=ON;');
+        await DB.exec(sql);
+        assert.deepEqual(await DB.prepare('PRAGMA foreign_key_check').all(), { results:[] });
+        await DB.exec('COMMIT; PRAGMA foreign_keys=ON;');
       } catch (error) {
-        await env.DB.exec('ROLLBACK; PRAGMA foreign_keys=ON;');
+        await DB.exec('ROLLBACK; PRAGMA foreign_keys=ON;');
         throw error;
       }
       continue;
     }
-    for (const statement of migrateStatements(sql)) await env.DB.prepare(statement).run();
+    for (const statement of migrateStatements(sql)) await DB.prepare(statement).run();
   }
+}
+before(async () => {
+  env = { DB:sqliteAdapter(), LOCAL_DEV:'true', REGISTRATION_ENABLED:'true' };
+  await migrateDatabase(env.DB);
   await env.DB.prepare('UPDATE vault SET revision = 3, data = ?, updated = ? WHERE id = 1').bind(JSON.stringify(legacyVault), 10).run();
   await env.DB.prepare('INSERT INTO snapshots(revision, data, created) VALUES (?, ?, ?)').bind(2, JSON.stringify(legacyVault), 9).run();
   await env.DB.prepare('INSERT INTO assets VALUES (?, ?, ?, ?, ?)').bind(legacyAssetId, 'legacy.txt', 'application/octet-stream', 4, 8).run();
@@ -221,6 +225,35 @@ test('version reset offers two-digit Patch releases to devices on the previous 0
 test('registration is controlled by deployment configuration', async () => {
   const disabled = await handle(request('/auth/register','POST',JSON.stringify({ username:'closed_user' })), { ...env, LOCAL_DEV:'true', REGISTRATION_ENABLED:'false' });
   assert.equal(disabled.status,403);
+});
+
+test('concurrent first-owner registration creates exactly one account', async () => {
+  const database = sqliteAdapter();
+  let batchQueue = Promise.resolve();
+  const DB = {
+    ...database,
+    batch(statements) {
+      const current = batchQueue.then(() => database.batch(statements));
+      batchQueue = current.catch(() => {});
+      return current;
+    }
+  };
+  try {
+    await migrateDatabase(DB);
+    const setupEnv = { DB, SELF_HOSTED:'true', REGISTRATION_ENABLED:'false' };
+    const credentials = await Promise.all([
+      makeRegistrationCredential('First owner phrase 7!'),
+      makeRegistrationCredential('Second owner phrase 8!')
+    ]);
+    const responses = await Promise.all(credentials.map((credential, index) => handle(
+      request('/auth/register','POST',JSON.stringify({ username:`bootstrap_owner_${index}`, ...credential })), setupEnv
+    )));
+    assert.deepEqual(responses.map(response => response.status).sort(), [201, 409]);
+    assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM accounts').first()).count, 1);
+    assert.equal((await DB.prepare('SELECT COUNT(*) AS count FROM sessions').first()).count, 1);
+  } finally {
+    database.close();
+  }
 });
 
 test('registration accepts account and password credentials', async () => {
@@ -419,11 +452,13 @@ test('nested bookmarks round-trip through authenticated vault and snapshots with
   await env.DB.prepare('DELETE FROM account_snapshots WHERE account_id = ?').bind(alice.data.id).run();
   const bobBefore = await (await call('/vault', 'GET', undefined, BOB.username, bob.cookie)).json();
   const bookmarks = [{ id:'bookmark-folder', title:'浏览器分组', kind:'folder', children:[{ id:'bookmark-site', title:'参考', kind:'link', url:'https://example.com/?page=1', pinned:true }] }];
-  const changed = { ...original.data, bookmarks };
+  const trash = [{ id:'trash-bookmark', kind:'bookmark', deletedAt:Date.now(), item:{ id:'deleted-site', kind:'link', title:'已删除网址', url:'https://deleted.example.com/' }, parentId:'bookmark-folder', index:0, previousId:'', nextId:'' }];
+  const changed = { ...original.data, bookmarks, trash };
   const response = await call('/vault', 'PUT', JSON.stringify({ revision:original.revision, data:changed }));
   assert.equal(response.status, 200);
   const current = await (await call('/vault')).json();
   assert.deepEqual(current.data.bookmarks, bookmarks);
+  assert.deepEqual(current.data.trash, trash);
   const session = await (await call('/auth/session')).json();
   assert.deepEqual(session.data.bookmarks, bookmarks);
   assert.deepEqual(await (await call('/vault', 'GET', undefined, BOB.username, bob.cookie)).json(), bobBefore);
@@ -432,6 +467,7 @@ test('nested bookmarks round-trip through authenticated vault and snapshots with
   assert.equal(restore.status, 200);
   const snapshot = await (await call(`/backups/${current.revision}`)).json();
   assert.deepEqual(snapshot.data.bookmarks, bookmarks);
+  assert.deepEqual(snapshot.data.trash, trash);
   const bad = await call('/vault', 'PUT', JSON.stringify({ revision:current.revision+1, data:{ ...changed, bookmarks:[{ id:'bad', kind:'link', title:'bad', url:'javascript:alert(1)' }] } }));
   assert.equal(bad.status, 400);
 });
