@@ -1,109 +1,85 @@
-# 栖点 · QiDian
+# 栖点 QiDian
 
-栖点是面向个人使用的 Docker 私人知识库，用来整理笔记、命令、网页摘录、图片、附件和网址书签。数据保存在自己的设备中。
+栖点是一款自托管的个人知识库，通过 Docker 在自己的设备上运行，用来保存和整理笔记、网页摘录、图片、附件与网址书签。数据保存在设备的 Docker 数据目录或命名卷中。
 
-## 主要功能
+## 功能
 
-- 笔记与书签是两个同级入口，桌面使用侧栏，手机使用底部导航。
-- 富文本编辑器基于 Tiptap 3，支持标题、列表、表格、代码块、图片、提示块和折叠内容。
-- 可粘贴网页富文本、标准 Markdown 或普通文字；空白笔记可从粘贴内容自动填充标题。
-- 草稿实时写入 Docker 服务端 SQLite；发布后进入个人阅读列表。
-- 多个已登录设备共享同一份数据，并对并发修改进行版本检查、合并和冲突保护。
-- 主题、粘贴方式、侧栏和书签布局及分组展开状态按账号保存，并在设备间同步。
-- 书签保留浏览器目录层级，支持 HTML 导入导出、搜索、整理、批量移动和删除；首页分组可切换单列或双列。
-- 图片、附件、正文历史和完整 ZIP 备份都按账号隔离。
-- Web 可检查 GitHub Release；OpenWrt / iStoreOS LuCI 安装更新代理后，可在线更新 Docker 服务并查看实时日志。
+- 富文本笔记，支持 Markdown、表格、代码块、图片、附件、提示块和折叠内容。
+- 网页摘录与网址书签，保留书签文件夹层级，支持 HTML 导入导出、搜索、整理和批量操作。
+- Docker 服务端使用 SQLite 持久化数据，支持正文历史、回收站、自动快照和完整 ZIP 备份。
+- 账号登录、多设备数据同步、并发修改检测及冲突保护。
+- 桌面与手机适配，支持浅色、深色和跟随系统主题；偏好设置按账号同步。
+- iStoreOS 与 OpenWrt 提供 LuCI 管理界面，可部署、更新 Docker 服务并查看操作日志。
 
-## 下载与部署
+## 安装
 
-### iStoreOS
+栖点应用运行在 Docker 容器中。选择与设备系统匹配的管理安装包；其他 Linux、NAS 和服务器可直接使用 Docker Compose。
 
-从[最新 GitHub Release](https://github.com/luckyalanzhou/qidian/releases/latest)下载 `栖点-<版本>.run` 和对应的 SHA-256 文件，在 iStore 软件商店中手动上传安装。随后进入 **服务 → 栖点知识库**，点击 **安装 / 更新**。
+| 设备环境 | 安装包 | 安装方式 |
+|---|---|---|
+| iStoreOS | [`栖点-<版本>.run`](https://github.com/luckyalanzhou/qidian/releases/latest) | 在 iStore 的“手动安装”中上传，再从 LuCI 部署服务 |
+| OpenWrt 24.10 | [`luci-app-qidian_<版本>_all.ipk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 使用 `opkg` 安装 |
+| OpenWrt 25.12 | [`luci-app-qidian-<版本>.apk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 使用 `apk` 安装 |
+| Linux、NAS、服务器 | Docker Compose | 使用下方命令启动 |
 
-安装包只提供 LuCI 页面、Compose 和设备管理脚本。应用本体来自 Docker Hub 多架构镜像：
+OpenWrt 和 iStoreOS 的设备端需要预先安装并启动 Docker、Docker Compose 和 LuCI。安装包只提供管理界面与设备脚本；Docker 会拉取适合设备架构的应用镜像。应用镜像支持 `amd64` 和 `arm64`。完整步骤、SHA-256 校验命令和数据迁移说明见[部署指南](docs/deployment.md)。
 
-```text
-docker.io/luckyalanzhou/qidian:latest
-```
+### Docker Compose 示例
 
-LuCI 会读取当前设备的 Docker Root Dir，并把数据保存在该设备的 `volumes/qidian/data` 下，不使用开发者设备或旧设备的路径。
-
-### 原生 OpenWrt
-
-OpenWrt 24.10 使用 `.ipk`，25.12 使用 `.apk`。在设备安装并启动 Docker、Docker Compose 和 LuCI 后，从 Release 下载对应格式及 SHA-256 文件，校验后通过 `opkg` 或 `apk` 安装。操作步骤见[部署指南](docs/deployment.md#原生-openwrt-安装)。
-
-### 通用 Docker
+需要 Docker Engine、Docker Compose 插件和 Git：
 
 ```sh
-git clone https://github.com/luckyalanzhou/qidian.git
+git clone --depth 1 https://github.com/luckyalanzhou/qidian.git
 cd qidian
 cp packaging/docker/env.example packaging/docker/.env
 docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml up -d
 ```
 
-默认访问地址是 `http://<设备地址>:9908`。通用 Docker 使用 `qidian-data` 命名卷保存数据库和附件。
+启动后访问 `http://<设备地址>:9908`。首次使用时创建管理员账号并自行设置密码；系统没有默认密码。通用 Docker 部署使用 `qidian-data` 命名卷保存数据。
 
-完整安装、迁移、更新与诊断步骤见[部署指南](docs/deployment.md)。
+## 数据与安全
 
-## 首次使用与账号
+- LuCI 部署会读取设备当前的 Docker Root Dir，并在其 `volumes/qidian/data` 下保存知识库数据。
+- 容器重建和应用更新会保留数据。可在账号设置中导出完整 ZIP 备份；删除 Docker 数据卷会永久删除其中内容。
+- 默认使用 HTTP，建议仅在可信局域网访问。需要从公网访问时，应配置 HTTPS 反向代理，并阻止外部直接访问应用端口。
 
-新设备第一次打开栖点时会进入管理员创建页，账号名称预填 `admin`，密码必须自行设置；系统没有默认密码。首个管理员创建后，注册入口默认关闭。
+## 版本与兼容性
 
-登录会话连续 3 天未使用会失效，最长 7 天必须重新登录。使用账号名和密码登录。需要由设备管理员重置密码时，在设备终端执行：
-
-```sh
-docker exec -it qidian node server/reset-password.mjs
-```
-
-按提示输入账号，再输入 `Y` 确认重置或 `N` 取消，然后输入两次新密码。重置密码会注销该账号的已有会话，不删除笔记、书签或附件。
-
-## 数据与更新
-
-- OpenWrt / iStoreOS：数据位于 LuCI 显示的 Docker Root Dir 下 `volumes/qidian/data`。
-- 通用 Docker：数据位于 Docker 管理的 `qidian-data` 卷。
-- 容器重建和应用更新不会删除数据卷。
-- 删除数据目录或 Docker 卷会永久删除知识库，操作前应先导出完整 ZIP 并备份挂载目录。
-- OpenWrt / iStoreOS Web 在线更新会按安装来源下载并校验 `.run`、`.ipk` 或 `.apk`，更新管理文件，等待 10 秒后重启 Docker；新版本服务可用后，网页再倒计时 5 秒自动刷新。
-
-栖点默认使用 HTTP。请在可信局域网使用；公网访问应由可信反向代理提供 HTTPS，并阻止外部直接访问后端端口。
+- Docker Hub 提供 [`luckyalanzhou/qidian`](https://hub.docker.com/r/luckyalanzhou/qidian) 镜像，支持 `linux/amd64` 和 `linux/arm64`。
+- iStoreOS 安装 `.run`；OpenWrt 24.10 使用 opkg 和 `.ipk`；OpenWrt 25.12 使用 apk 和 `.apk`。
+- 每次成功的手动发布会在同一 GitHub Release 提供以上三种安装包及各自的 SHA-256 校验文件，并发布对应版本和 `latest` 多架构镜像。普通推送到 `main` 不会触发发布。
+- 发布版本号以 `package.json` 为准；当前版本、历史版本、版本说明和下载文件见 [GitHub Releases](https://github.com/luckyalanzhou/qidian/releases)。Web 在线更新会按设备安装来源选择安装包。
 
 ## 本地开发
 
 需要 Node.js 24 和 pnpm 11：
 
-```powershell
+```sh
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-`pnpm dev` 使用浏览器本地开发数据。测试完整 SQLite 服务：
+运行测试、语法检查和生产构建：
 
-```powershell
-pnpm build
-pnpm preview:sqlite
-```
-
-然后访问 `http://127.0.0.1:8788`。预览数据库保存在 `.local/preview.sqlite`，不得提交真实笔记、数据库或环境配置。
-
-## 验证
-
-```powershell
-pnpm check
+```sh
 pnpm test
+pnpm check
 pnpm build
 ```
 
-自动化测试覆盖 SQLite API、账号隔离、保存冲突、书签、编辑器、更新代理和 LuCI 安装包结构。LuCI、端口转发、桌面浏览器和手机实机仍需在目标设备上验收。
+`pnpm dev` 使用浏览器本地开发数据。需要验证完整 SQLite 服务时，可运行 `pnpm build` 后执行 `pnpm preview:sqlite`。本地预览数据库位于 `.local/preview.sqlite`，不要提交真实笔记、数据库或环境配置。
 
 ## 文档
 
-| 文档 | 用途 |
+| 文档 | 内容 |
 |---|---|
-| [需求与边界](docs/requirements.md) | 产品功能、非目标和验收要求 |
-| [架构说明](docs/architecture.md) | 前后端、鉴权、数据保存和更新机制 |
-| [部署指南](docs/deployment.md) | OpenWrt、iStoreOS、通用 Docker、迁移、更新和诊断 |
-| [验证说明](docs/verification.md) | 自动化范围与设备验收清单 |
-| [Docker Hub 说明](docs/dockerhub-overview.md) | 镜像 Overview 文案与容器参数 |
-| [LuCI 安装包说明](packaging/istoreos/README.md) | `.run`、IPK、APK 的构建和发布关系 |
+| [部署指南](docs/deployment.md) | OpenWrt、iStoreOS、Docker 安装、迁移、更新和诊断 |
+| [架构说明](docs/architecture.md) | 前后端、鉴权、数据保存与更新机制 |
+| [需求与边界](docs/requirements.md) | 产品功能、隐私边界和验收要求 |
+| [验证说明](docs/verification.md) | 自动化验证范围与设备验收清单 |
+| [Docker Hub 镜像说明](docs/dockerhub-overview.md) | 镜像参数和容器配置 |
+| [LuCI 安装包说明](packaging/istoreos/README.md) | `.run`、IPK、APK 的构建与发布流程 |
 
-原始设计基线保存在 `private_wiki_prototype.html`。正式入口是 `index.html`，实现代码位于 `src/` 和 `server/`。
+## 许可证
+
+仓库当前未提供 `LICENSE` 文件，也未声明开源许可证。若需复用或再分发本项目，请先确认并取得相应授权。

@@ -11,6 +11,16 @@
 | OpenWrt 25.12（apk） | GitHub Release 的 `.apk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 `apk` 安装包 |
 | 通用 Docker | Docker Hub 镜像 | `qidian-data` 命名卷 | Compose 拉取并重建 |
 
+## 发布产物
+
+GitHub Actions 的 `iStoreOS Docker release` 工作流由人工手动触发。每次成功的发布会在同一版本的 GitHub Release 中提供三种安装包及各自的 SHA-256 校验文件：
+
+- iStoreOS：`栖点-<版本>.run`
+- OpenWrt 24.10（opkg）：`luci-app-qidian_<版本>_all.ipk`
+- OpenWrt 25.12（apk）：`luci-app-qidian-<版本>.apk`
+
+普通推送到 `main` 不会触发发布构建。该工作流还会构建并推送对应版本及 `latest` 的多架构 Docker 镜像；安装包本身不包含应用镜像。
+
 镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择当前设备架构。设备无需安装 Node.js、pnpm，也不会在设备上构建前端。
 
 ## iStoreOS 安装
