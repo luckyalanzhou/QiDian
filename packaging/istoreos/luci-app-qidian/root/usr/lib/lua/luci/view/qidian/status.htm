@@ -40,14 +40,14 @@
 		</div>
 		<div id="qidian-open-row" class="cbi-value qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>>
 			<div class="cbi-value-title"><%:网页入口%></div>
-			<div class="cbi-value-field"><a id="qidian-open" class="qidian-open-button" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><span id="qidian-open-label"><% if account_status == "setup_required" then %><%:打开栖点并创建管理员%><% else %><%:点击打开栖点%><% end %></span><span aria-hidden="true">↗</span></a></div>
+			<div class="cbi-value-field"><a id="qidian-open" class="cbi-button cbi-button-apply qidian-open-button" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><span id="qidian-open-label"><% if account_status == "setup_required" then %><%:打开栖点并创建管理员%><% else %><%:点击打开栖点%><% end %></span><span aria-hidden="true">↗</span></a></div>
 		</div>
 	</section>
 
 	<section class="cbi-section qidian-service-details">
 		<h3><%:服务信息%></h3>
 		<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%></div><div class="cbi-value-field"><strong><%=util.pcdata(port)%></strong></div></div>
-		<div class="cbi-value"><div class="cbi-value-title"><%:Docker 数据目录%></div><div class="cbi-value-field"><div class="qidian-path-value"><strong id="qidian-data-path"><%=util.pcdata(data_path)%></strong><button type="button" id="qidian-copy-path" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></div></div></div>
+		<div class="cbi-value"><div class="cbi-value-title"><%:Docker 数据目录%></div><div class="cbi-value-field"><div class="qidian-path-value"><strong id="qidian-data-path"><%=util.pcdata(data_path)%></strong><button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></div></div></div>
 		<div class="cbi-value"><div class="cbi-value-title"><%:账号状态%></div><div class="cbi-value-field"><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:等待创建管理员%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:服务启动后检测%><% end %></strong></div></div>
 	</section>
 
@@ -61,7 +61,7 @@
 		<h3><%:管理员账号维护%></h3>
 		<div class="cbi-section-descr"><%:仅在需要重置密码时使用；密码不会保存在 LuCI。%></div>
 		<p><%:在 OpenWrt 终端执行命令，按提示输入账号；输入 Y 确认重置，输入 N 取消，然后输入两次新密码。%></p>
-		<div class="cbi-value"><div class="cbi-value-title"><%:重置密码命令%></div><div class="cbi-value-field qidian-command-row"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code><button type="button" id="qidian-copy-reset"><%:复制命令%></button></div></div>
+		<div class="cbi-value"><div class="cbi-value-title"><%:重置密码命令%></div><div class="cbi-value-field qidian-command-row"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code><button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制命令%></button></div></div>
 		<p id="qidian-copy-message" class="qidian-copy-message" role="status" aria-live="polite"></p>
 	</section>
 	</div>
@@ -80,7 +80,7 @@
 				<div class="qidian-console-bar"><span><%:操作输出%></span><span id="qidian-panel-live" class="qidian-live-indicator" <% if not busy then %>hidden<% end %>><i></i><%:实时更新%></span></div>
 				<pre id="qidian-panel-log" class="qidian-operation-log"><% if log == "" then %><%:暂无操作日志。部署或更新栖点后，这里会显示完整过程。%><% else %><%=util.pcdata(log)%><% end %></pre>
 			</div>
-			<div class="qidian-log-card-foot"><span><%:最多显示最近 64 KB 输出。%></span><div><button id="qidian-log-bottom" type="button"><%:滚动到底部%></button><button id="qidian-log-refresh" type="button"><%:刷新日志%></button></div></div>
+			<div class="qidian-log-card-foot"><span><%:最多显示最近 64 KB 输出。%></span><div><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button><button id="qidian-log-refresh" class="cbi-button cbi-button-apply" type="button"><%:刷新日志%></button></div></div>
 		</div>
 	</section>
 
@@ -88,14 +88,14 @@
 		<div class="qidian-modal">
 			<div class="qidian-modal-head">
 				<div><h2 id="qidian-modal-title"><% if busy then %><%:正在部署栖点%><% else %><%:部署日志%><% end %></h2><span class="qidian-modal-kicker"><%:安装 / 更新过程%></span></div>
-				<button type="button" id="qidian-modal-close" class="qidian-modal-close" aria-label="<%:关闭日志窗口%>">×</button>
+				<button type="button" id="qidian-modal-close" class="cbi-button qidian-modal-close" aria-label="<%:关闭日志窗口%>">×</button>
 			</div>
 			<p id="qidian-modal-message" class="qidian-modal-message"><% if busy then %><%:正在拉取成品镜像并启动 Docker 服务，请保持页面打开。%><% else %><%:最近一次操作的实时输出。%><% end %></p>
 			<div class="qidian-console">
 				<div class="qidian-console-bar"><span><%:操作输出%></span><span id="qidian-live-indicator" class="qidian-live-indicator" <% if not busy then %>hidden<% end %>><i></i><%:实时更新%></span></div>
 				<pre id="qidian-modal-log" class="qidian-operation-log"><% if log == "" then %><%:正在等待安装日志…%><% else %><%=util.pcdata(log)%><% end %></pre>
 			</div>
-			<div class="qidian-modal-foot"><button type="button" id="qidian-modal-show-logs"><%:在当前页查看日志%></button><button type="button" id="qidian-modal-done" class="qidian-modal-done"><% if busy then %><%:收起窗口%><% else %><%:关闭%><% end %></button></div>
+			<div class="qidian-modal-foot"><button type="button" id="qidian-modal-show-logs" class="cbi-button"><%:在当前页查看日志%></button><button type="button" id="qidian-modal-done" class="cbi-button cbi-button-apply qidian-modal-done"><% if busy then %><%:收起窗口%><% else %><%:关闭%><% end %></button></div>
 		</div>
 	</div>
 </div>
@@ -107,38 +107,12 @@
 	var activeTab = "<%=initial_tab%>";
 	var accountStatus = "<%=util.pcdata(account_status)%>";
 	var endpoint = "<%=log_endpoint%>";
+	var servicePage = document.querySelector(".qidian-service-page");
 	var modal = document.getElementById("qidian-install-modal");
 	var log = document.getElementById("qidian-modal-log");
 	var previousLog = log.textContent;
 	var panelLog = document.getElementById("qidian-panel-log");
 	var previousPanelLog = panelLog.textContent;
-	var servicePage = document.querySelector(".qidian-service-page");
-	function syncArgonPalette() {
-		var backgroundNodes = [document.querySelector(".main-right"), document.body, document.documentElement];
-		var match = null;
-		backgroundNodes.some(function (node) {
-			if (!node) return false;
-			var background = window.getComputedStyle(node).backgroundColor;
-			var color = background.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/]\s*([\d.]+))?\s*\)/i);
-			if (!color || (color[4] && Number(color[4]) < 0.05)) return false;
-			match = color;
-			return true;
-		});
-		if (!match) return;
-		var luminance = (Number(match[1]) * 299 + Number(match[2]) * 587 + Number(match[3]) * 114) / 1000;
-		servicePage.classList.toggle("is-argon-dark", luminance < 128);
-	}
-	syncArgonPalette();
-	if (window.MutationObserver && document.head) {
-		var themeObserver = new MutationObserver(syncArgonPalette);
-		themeObserver.observe(document.head, { childList: true, subtree: true, attributes: true, attributeFilter: ["href", "media", "disabled"] });
-		themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
-	}
-	if (window.matchMedia) {
-		var systemScheme = window.matchMedia("(prefers-color-scheme: dark)");
-		if (systemScheme.addEventListener) systemScheme.addEventListener("change", syncArgonPalette);
-		else if (systemScheme.addListener) systemScheme.addListener(syncArgonPalette);
-	}
 	var servicePanel = document.getElementById("qidian-panel-service");
 	var configPanel = document.getElementById("qidian-panel-config");
 	var logsPanel = document.getElementById("qidian-panel-logs");
@@ -159,6 +133,20 @@
 	var modalFollowLog = true;
 	var panelFollowLog = true;
 	var panelBottomButton = document.getElementById("qidian-log-bottom");
+	function syncArgonPalette() {
+		if (!servicePage) return;
+		var argonDark = Array.prototype.some.call(document.querySelectorAll('link[rel~="stylesheet"][href]'), function (link) {
+			if (link.disabled || !/(?:^|\/)argon\/css\/dark\.css(?:[?#]|$)/i.test(link.href || "")) return false;
+			var media = (link.media || "").trim();
+			return !media || media === "all" || !window.matchMedia || window.matchMedia(media).matches;
+		});
+		servicePage.classList.toggle("is-argon-dark", argonDark);
+	}
+	syncArgonPalette();
+	if (window.MutationObserver && document.head) {
+		var themeObserver = new MutationObserver(syncArgonPalette);
+		themeObserver.observe(document.head, { childList: true, subtree: true, attributes: true, attributeFilter: ["href", "media", "disabled"] });
+	}
 	function moveInstallConfig() {
 		var installButton = document.querySelector('input[type="submit"][name$="._install"]');
 		installSection = installButton && installButton.closest(".cbi-section");
@@ -342,96 +330,116 @@
 </script>
 
 <style>
-.qidian-service-page { --qidian-ink:var(--text-color-high,var(--gray-dark,#303846)); --qidian-muted:var(--text-color-medium,var(--gray,#68778a)); --qidian-border:var(--border-color-medium,var(--lighter,#d9dce2)); --qidian-blue:var(--primary-color-high,var(--primary,#5b6fe8)); --qidian-surface:var(--background-color-high,#fff); --qidian-surface-soft:var(--background-color-low,#f5f6f8); width:100%; max-width:1560px; margin:0 auto; color:var(--qidian-ink); font-family:inherit; font-size:14px; }
-.qidian-service-page.is-argon-dark { --qidian-ink:#ccc; --qidian-muted:#adb5bd; --qidian-border:#3c3c3c; --qidian-blue:var(--dark-primary,#483d8b); --qidian-surface:#1e1e1e; --qidian-surface-soft:#333; }
-.qidian-tabs { display:flex; gap:0; margin:2px 0 14px; border-bottom:1px solid var(--qidian-border); }
-.qidian-tab { position:relative; display:inline-flex; align-items:center; gap:8px; min-height:42px; padding:0 17px; border:0; border-bottom:3px solid transparent; background:transparent; color:var(--qidian-muted); font:inherit; font-size:14px; cursor:pointer; }
+/* LuCI owns the palette; this page adds only layout and state semantics. */
+.qidian-service-page {
+	--qidian-ink: var(--text-color-high, var(--gray-dark, #303846));
+	--qidian-muted: var(--text-color-medium, var(--gray, #68778a));
+	--qidian-border: var(--border-color-medium, var(--lighter, #d9dce2));
+	--qidian-blue: var(--primary-color-high, var(--primary, #2876b8));
+	--qidian-surface: var(--background-color-high, #fff);
+	--qidian-surface-soft: var(--background-color-low, #f5f6f8);
+	--qidian-success: var(--success-color-high, #168653);
+	--qidian-warning: var(--warn-color-high, #a87913);
+	--qidian-danger: var(--error-color-high, #c3424d);
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 1320px;
+	margin: 0 auto;
+	color: var(--qidian-ink);
+	font-family: inherit;
+	font-size: 14px;
+}
+.qidian-service-page.is-argon-dark {
+	--qidian-ink: #ccc;
+	--qidian-muted: #adb5bd;
+	--qidian-border: #3c3c3c;
+	--qidian-blue: var(--dark-primary, #483d8b);
+	--qidian-surface: #1e1e1e;
+	--qidian-surface-soft: #333;
+}
+.qidian-tabs { display:flex; align-items:center; gap:4px; margin:0 0 16px; padding:0 8px; border-bottom:1px solid var(--qidian-border); }
+.qidian-tab { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-width:92px; min-height:42px; padding:0 15px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--qidian-muted); font:inherit; font-size:14px; cursor:pointer; }
 .qidian-tab:hover { color:var(--qidian-ink); }
 .qidian-tab.is-active { border-bottom-color:var(--qidian-blue); color:var(--qidian-blue); font-weight:600; }
-.qidian-tab > span { padding:2px 7px; border:1px solid var(--qidian-border); border-radius:10px; background:var(--qidian-surface-soft); color:var(--warn-color-high,#79580d); font-size:11px; }
-.qidian-tab > span[hidden] { display:none; }
-.qidian-tab-panel[hidden] { display:none !important; }
+.qidian-tab:focus-visible { outline:2px solid var(--qidian-blue); outline-offset:2px; }
+.qidian-tab > span { padding:2px 7px; border:1px solid var(--qidian-border); border-radius:999px; background:var(--qidian-surface-soft); color:var(--qidian-warning); font-size:11px; }
+.qidian-tab > span[hidden], .qidian-tab-panel[hidden], .qidian-config-page-actions[hidden] { display:none !important; }
 .qidian-install-section { max-width:none; }
-.qidian-config-page-actions[hidden] { display:none !important; }
-.qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools,.qidian-log-panel { margin-top:12px; }
-.qidian-service-state { display:flex; align-items:center; gap:10px; min-height:34px; }
-.qidian-service-state > div { display:flex; flex-direction:column; gap:3px; }
-.qidian-service-state strong { font-size:15px; font-style:normal; font-weight:600; line-height:1.4; }
-.qidian-service-state span:last-child { color:var(--qidian-muted); font-size:13px; }
-.qidian-service-indicator { width:12px; height:12px; flex:0 0 12px; border-radius:50%; background:#8994a6; box-shadow:0 0 0 5px #8994a61a; }
-.qidian-service-state.is-running { color:#07833c; }
-.qidian-service-state.is-running .qidian-service-indicator { background:#18a957; box-shadow:0 0 0 5px #18a9571e; }
-.qidian-service-state.is-busy { color:#90660a; }
-.qidian-service-state.is-busy .qidian-service-indicator { background:#e6ad26; box-shadow:0 0 0 5px #e6ad2626; animation:qidian-pulse 1.3s ease-in-out infinite; }
-.qidian-service-state.is-error { color:#b83b48; }
-.qidian-service-state.is-error .qidian-service-indicator { background:#d94f5b; box-shadow:0 0 0 5px #d94f5b1e; }
-.qidian-open-row { align-items:center; flex-wrap:wrap; gap:12px; }
-.qidian-open-row[hidden] { display:none !important; }
-.qidian-open-button { display:inline-flex; align-items:center; gap:12px; min-height:34px; box-sizing:border-box; padding:0 12px; border:1px solid var(--qidian-blue); border-radius:3px; background:var(--qidian-blue); color:#fff !important; font-size:13px; font-weight:600; text-decoration:none !important; transition:background .15s; }
-.qidian-open-button:hover { background:#4b60d7; }
-.qidian-open-button > span:last-child { font-size:17px; opacity:.8; }
-.qidian-service-details .cbi-value-field > strong { overflow-wrap:anywhere; font-size:13px; font-weight:550; }
+.qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools,.qidian-log-panel { min-width:0; margin:0 0 16px; }
+.qidian-service-page #qidian-panel-service > .cbi-section, .qidian-service-page #qidian-panel-logs { overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); }
+.qidian-service-page #qidian-panel-service > .cbi-section > h3, .qidian-service-page #qidian-panel-logs > h3 { margin:0; padding:13px 18px; border-bottom:1px solid var(--qidian-border); color:var(--qidian-ink); font-size:16px; font-weight:600; line-height:1.4; }
+.qidian-service-operations > .cbi-section-descr, .qidian-account-tools > .cbi-section-descr, .qidian-service-page #qidian-panel-logs > .cbi-section-descr { margin:0; padding:10px 18px 0; color:var(--qidian-muted); font-size:13px; line-height:1.55; }
+.qidian-service-state { display:flex; align-items:center; gap:11px; min-height:40px; }
+.qidian-service-state > div { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.qidian-service-state strong { color:currentColor; font-size:16px; font-weight:600; line-height:1.4; }
+.qidian-service-state span:last-child { color:var(--qidian-muted); font-size:13px; line-height:1.5; }
+.qidian-service-indicator { width:11px; height:11px; flex:0 0 11px; border-radius:50%; background:var(--qidian-muted); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-muted) 14%, transparent); }
+.qidian-service-state.is-running { color:var(--qidian-success); }
+.qidian-service-state.is-running .qidian-service-indicator { background:var(--qidian-success); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-success) 14%, transparent); }
+.qidian-service-state.is-busy { color:var(--qidian-warning); }
+.qidian-service-state.is-busy .qidian-service-indicator { background:var(--qidian-warning); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-warning) 16%, transparent); animation:qidian-pulse 1.3s ease-in-out infinite; }
+.qidian-service-state.is-error { color:var(--qidian-danger); }
+.qidian-service-state.is-error .qidian-service-indicator { background:var(--qidian-danger); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-danger) 14%, transparent); }
+.qidian-open-row[hidden], .qidian-path-value button[hidden], .qidian-account-tools[hidden], .qidian-modal-backdrop[hidden] { display:none !important; }
+.qidian-open-button { display:inline-flex; align-items:center; gap:10px; min-height:36px; font-size:13px; font-weight:600; text-decoration:none !important; }
+.qidian-open-button > span:last-child { font-size:16px; opacity:.8; }
+.qidian-service-details .cbi-value-field > strong { font-size:13px; font-weight:550; overflow-wrap:anywhere; }
 .qidian-path-value { display:flex; align-items:center; gap:9px; width:100%; min-width:0; }
-.qidian-path-value strong { min-width:0; flex:1; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; }
-.qidian-path-value button { flex:0 0 auto; min-height:28px; padding:0 8px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface); color:var(--qidian-ink); font:inherit; font-size:11px; cursor:pointer; }
-.qidian-path-value button[hidden] { display:none !important; }
-.qidian-account-tools[hidden] { display:none !important; }
-.qidian-account-tools > p { margin:6px 0 10px; color:var(--qidian-muted); font-size:12px; line-height:1.6; }
-.qidian-command-row { display:flex; align-items:center; gap:8px; margin-top:12px; }
+.qidian-path-value strong { min-width:0; flex:1; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; overflow-wrap:anywhere; }
+.qidian-account-tools > p { margin:8px 18px 12px; color:var(--qidian-muted); font-size:13px; line-height:1.6; }
+.qidian-command-row { display:flex; align-items:center; gap:8px; min-width:0; }
 .qidian-command-row code { min-width:0; flex:1; overflow:auto; padding:9px 11px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface-soft); color:var(--qidian-ink); white-space:nowrap; }
-.qidian-command-row button { min-height:36px; padding:0 13px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface); color:var(--qidian-ink); cursor:pointer; white-space:nowrap; }
-.qidian-copy-message { min-height:18px; margin-top:5px !important; color:#07833c !important; }
-.qidian-modal-backdrop[hidden] { display:none !important; }
+.qidian-copy-message { min-height:18px; margin:4px 18px 8px !important; color:var(--qidian-success) !important; }
 .qidian-modal-backdrop { position:fixed; z-index:2000; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.48); }
-.qidian-modal { width:min(900px,96vw); max-height:calc(100vh - 40px); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--qidian-border); border-radius:5px; background:var(--qidian-surface); box-shadow:0 12px 36px rgba(0,0,0,.25); }
+.qidian-modal { box-sizing:border-box; display:flex; flex-direction:column; width:min(900px,96vw); max-height:calc(100vh - 40px); overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); color:var(--qidian-ink); box-shadow:0 12px 36px rgba(0,0,0,.25); }
 .qidian-modal-head { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:13px 17px; border-bottom:1px solid var(--qidian-border); background:var(--qidian-surface-soft); }
 .qidian-modal-kicker { display:block; margin-top:3px; color:var(--qidian-muted); font-size:12px; }
 .qidian-modal-head h2 { margin:0; color:var(--qidian-ink); font-size:18px; line-height:1.4; }
-.qidian-modal-close { width:30px; height:30px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface); color:var(--qidian-muted); font-size:22px; line-height:1; cursor:pointer; }
-.qidian-modal-message { margin:13px 17px; color:var(--qidian-muted); font-size:13px; }
-.qidian-console { min-width:0; margin:0 16px; overflow:hidden; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface); }
-.qidian-console-bar { display:flex; align-items:center; gap:10px; min-height:34px; box-sizing:border-box; padding:0 11px; border-bottom:1px solid var(--qidian-border); background:var(--qidian-surface-soft); color:var(--qidian-ink); font-family:inherit; font-size:12px; line-height:1.4; }
-.qidian-live-indicator { display:inline-flex; align-items:center; gap:6px; margin-left:auto; color:#8cdbb7; font-size:11px; }
-.qidian-live-indicator[hidden] { display:none; }
+.qidian-modal-close { display:grid; place-items:center; width:34px; min-width:34px; height:34px; padding:0 !important; font-size:20px; line-height:1; }
+.qidian-modal-message { margin:13px 17px; color:var(--qidian-muted); font-size:13px; line-height:1.5; }
+.qidian-console { min-width:0; margin:0 16px; overflow:hidden; border:1px solid var(--qidian-border); border-radius:6px; background:var(--qidian-surface); }
+.qidian-console-bar { display:flex; align-items:center; gap:10px; min-height:36px; padding:0 11px; border-bottom:1px solid var(--qidian-border); background:var(--qidian-surface-soft); color:var(--qidian-ink); font-size:12px; line-height:1.4; }
+.qidian-live-indicator { display:inline-flex; align-items:center; gap:6px; margin-left:auto; color:var(--qidian-success); font-size:11px; }
+.qidian-live-indicator[hidden], .qidian-log-meta time[hidden], .qidian-log-card-foot button[hidden] { display:none; }
 .qidian-live-indicator i { width:6px; height:6px; border-radius:50%; background:currentColor; }
-.qidian-operation-log { box-sizing:border-box; width:100%; max-width:100%; max-height:min(58vh,520px); min-height:180px; margin:0; padding:14px; overflow:auto; color:var(--qidian-ink); background:var(--qidian-surface); font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; white-space:pre; tab-size:2; }
+.qidian-operation-log { box-sizing:border-box; width:100%; max-width:100%; min-height:180px; max-height:min(58vh,520px); margin:0; padding:13px; overflow:auto; background:var(--qidian-surface); color:var(--qidian-ink); font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; white-space:pre; tab-size:2; }
 .qidian-modal-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-top:1px solid var(--qidian-border); background:var(--qidian-surface-soft); }
-.qidian-modal-foot > button:first-child { min-height:34px; padding:0; border:0; background:transparent; color:var(--qidian-blue); font:inherit; font-size:13px; cursor:pointer; }
-.qidian-modal-done { min-height:34px; padding:0 14px; border:1px solid var(--qidian-blue); border-radius:4px; background:var(--qidian-blue); color:#fff; font-size:13px; cursor:pointer; }
+.qidian-modal-foot > button:first-child { margin-right:auto; }
+.qidian-modal-done { min-height:34px; padding:0 14px; }
 .qidian-logs-heading { display:flex; align-items:center; justify-content:flex-end; gap:16px; margin:10px 0 14px; }
 .qidian-log-meta { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex:0 0 auto; }
 .qidian-log-meta time { color:var(--qidian-muted); font-size:12px; white-space:nowrap; }
-.qidian-log-meta time[hidden] { display:none; }
 .qidian-log-state { display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; padding:6px 10px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface-soft); color:var(--qidian-muted); font-size:12px; font-weight:600; }
 .qidian-log-state i { width:7px; height:7px; border-radius:50%; background:currentColor; }
-.qidian-log-state.is-busy { border-color:var(--warn-color-high,#a87913); color:var(--warn-color-high,#79580d); }
+.qidian-log-state.is-busy { border-color:var(--qidian-warning); color:var(--qidian-warning); }
 .qidian-log-state.is-busy i { animation:qidian-log-pulse 1s infinite alternate; }
-.qidian-log-state.is-success { border-color:var(--success-color-high,#158251); color:var(--success-color-high,#13795b); }
-.qidian-log-state.is-error { border-color:var(--error-color-high,#c3424d); color:var(--error-color-high,#b43e48); }
-.qidian-log-card { overflow:hidden; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface); }
+.qidian-log-state.is-success { border-color:var(--qidian-success); color:var(--qidian-success); }
+.qidian-log-state.is-error { border-color:var(--qidian-danger); color:var(--qidian-danger); }
+.qidian-log-card { overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); }
 .qidian-log-panel .qidian-console { margin:12px; }
-.qidian-log-panel .qidian-live-indicator { color:var(--success-color-high,#13795b); }
+.qidian-log-panel .qidian-live-indicator { color:var(--qidian-success); }
 .qidian-log-panel .qidian-operation-log { min-height:190px; max-height:min(62vh,560px); white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; }
 .qidian-log-card-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-top:1px solid var(--qidian-border); background:var(--qidian-surface-soft); color:var(--qidian-muted); font-size:12px; }
 .qidian-log-card-foot > div { display:flex; gap:8px; }
-.qidian-log-card-foot button { min-height:32px; padding:0 11px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface); color:var(--qidian-ink); cursor:pointer; }
-.qidian-log-card-foot button[hidden] { display:none !important; }
-.qidian-log-card-foot button:last-child { border-color:var(--qidian-blue); background:var(--qidian-blue); color:#fff; }
 .qidian-log-card-foot button:disabled { opacity:.6; cursor:wait; }
 @keyframes qidian-log-pulse { to { opacity:.4; } }
-@keyframes qidian-pulse { 50% { opacity:.48; box-shadow:0 0 0 8px #e6ad2610; } }
+@keyframes qidian-pulse { 50% { opacity:.65; } }
 @media(max-width:700px) {
-	.qidian-tabs { margin:0 0 10px; }
-	.qidian-tab { flex:1; justify-content:center; min-height:40px; padding:0 7px; font-size:13px; }
-	.qidian-service-state strong { font-size:14px; }
-	.qidian-open-button { min-height:38px; padding:0 12px; font-size:13px; }
+	.qidian-tabs { gap:0; margin:0 0 12px; padding:0; }
+	.qidian-tab { flex:1; min-width:0; min-height:42px; padding:0 6px; font-size:13px; }
+	.qidian-service-page #qidian-panel-service > .cbi-section > h3, .qidian-service-page #qidian-panel-logs > h3 { padding:12px 14px; }
+	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value { display:block; width:auto; margin:0; padding:10px 14px; }
+	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-title { float:none; width:auto; padding:0 0 4px; color:var(--qidian-muted); text-align:left; }
+	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-field { width:auto; min-width:0; text-align:left; }
+	.qidian-service-state strong { font-size:15px; }
+	.qidian-open-row .cbi-value-field { padding-top:2px; }
 	.qidian-command-row { align-items:stretch; flex-direction:column; }
 	.qidian-command-row code { box-sizing:border-box; width:100%; }
 	.qidian-modal-backdrop { align-items:flex-end; padding:8px; }
-	.qidian-modal { width:100%; max-height:min(82vh,620px); max-height:min(82svh,620px); border-radius:7px; }
+	.qidian-modal { width:100%; max-height:min(82vh,620px); max-height:min(82svh,620px); border-radius:8px; }
 	.qidian-modal-head { padding:12px 13px; }
 	.qidian-modal-kicker { display:none; }
-	.qidian-modal-message { margin:8px 13px; font-size:12px; line-height:1.5; }
+	.qidian-modal-message { margin:8px 13px; font-size:12px; }
 	.qidian-console { margin:0 10px; }
 	.qidian-operation-log { min-height:82px; max-height:180px; padding:9px; font-size:12px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; -webkit-overflow-scrolling:touch; }
 	.qidian-modal-foot { padding:10px; }
@@ -444,21 +452,19 @@
 	.qidian-log-card-foot button { flex:1; }
 }
 @media(min-width:701px) {
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value { display:grid; grid-template-columns:minmax(145px,210px) minmax(0,1fr); align-items:center; gap:14px; box-sizing:border-box; width:auto; margin:0; padding:12px 20px; line-height:1.5; }
+	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value { display:grid; grid-template-columns:minmax(130px,175px) minmax(0,1fr); align-items:center; gap:12px; width:auto; margin:0; padding:11px 18px; line-height:1.5; }
 	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-title { display:block; float:none; width:auto; padding:0; color:var(--qidian-muted); text-align:left; line-height:1.5; }
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-field { display:block; float:none; width:auto; min-width:0; text-align:left; }
-	.qidian-service-details .cbi-value + .cbi-value,
-	.qidian-service-hero .cbi-value + .cbi-value { border-top:1px solid var(--qidian-border); }
+	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-field { display:block; width:auto; min-width:0; text-align:left; }
+	.qidian-service-details .cbi-value + .cbi-value, .qidian-service-hero .cbi-value + .cbi-value { border-top:1px solid var(--qidian-border); }
 }
 @media(min-width:1100px) {
-	.qidian-service-page { max-width:1560px; }
-	#qidian-panel-service:not([hidden]) { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); align-items:start; gap:16px; }
-	.qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools { min-width:0; margin:0; }
+	#qidian-panel-service:not([hidden]) { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); align-items:start; gap:16px; }
+	.qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools { margin:0; }
 	.qidian-service-hero { grid-column:1; grid-row:1; }
 	.qidian-service-details { grid-column:2; grid-row:1; }
 	.qidian-service-operations { grid-column:1; grid-row:2; }
 	.qidian-account-tools { grid-column:2; grid-row:2; }
-	.qidian-service-details .cbi-value { grid-template-columns:minmax(120px,170px) minmax(0,1fr); }
+	.qidian-service-details .cbi-value { grid-template-columns:minmax(110px,140px) minmax(0,1fr); }
 }
-@media(prefers-reduced-motion:reduce) { .qidian-service-state.is-busy .qidian-service-indicator { animation:none; } }
+@media(prefers-reduced-motion:reduce) { .qidian-service-state.is-busy .qidian-service-indicator,.qidian-log-state.is-busy i { animation:none; } }
 </style>
