@@ -17,10 +17,13 @@
 
 | 设备环境 | 安装包 | 安装方式 |
 |---|---|---|
-| iStoreOS | [`栖点-<版本>.run`](https://github.com/luckyalanzhou/qidian/releases/latest) | 在 iStore 的“手动安装”中上传，再从 LuCI 部署服务 |
-| OpenWrt 24.10 | [`luci-app-qidian_<版本>_all.ipk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 使用 `opkg` 安装 |
-| OpenWrt 25.12 | [`luci-app-qidian-<版本>.apk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 使用 `apk` 安装 |
+| iStoreOS 24.10 | [`栖点-<版本>.run`](https://github.com/luckyalanzhou/qidian/releases/latest) 或匹配的 `.ipk` | `.run` 在 iStore“手动安装”中上传；`.ipk` 从“系统 → 软件包”安装 |
+| iStoreOS 25.12 | [`栖点-<版本>.run`](https://github.com/luckyalanzhou/qidian/releases/latest) 或匹配的 `.apk` | `.run` 在 iStore“手动安装”中上传；`.apk` 从“系统 → 软件包”上传，必要时用 `apk` 安装 |
+| OpenWrt 24.10 | [`luci-app-qidian_<版本>_all.ipk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 在 LuCI“系统 → 软件包”上传，或使用 `opkg` 安装 |
+| OpenWrt 25.12 | [`luci-app-qidian-<版本>.apk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 经 LuCI 上传后，按[部署指南](docs/deployment.md#原生软件包安装)使用 `apk` 安装 |
 | Linux、NAS、服务器 | Docker Compose | 使用下方命令启动 |
+
+iStoreOS 24.10 基于 opkg，25.12 基于 apk。`.run` 是独立的自解压安装器，两种版本都可从 iStore“手动安装”使用；原生 `.ipk` / `.apk` 则按设备的系统版本从“系统 → 软件包”或对应包管理器安装。25.12 的未受信任独立 APK 可能需要通过 SSH 完成安装，详见[部署指南](docs/deployment.md#原生软件包安装)。
 
 OpenWrt 和 iStoreOS 的设备端需要预先安装并启动 Docker、Docker Compose 和 LuCI。安装包只提供管理界面与设备脚本；Docker 会拉取适合设备架构的应用镜像。应用镜像支持 `amd64` 和 `arm64`。完整步骤、SHA-256 校验命令和数据迁移说明见[部署指南](docs/deployment.md)。
 
@@ -46,7 +49,7 @@ docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml
 ## 版本与兼容性
 
 - Docker Hub 提供 [`luckyalanzhou/qidian`](https://hub.docker.com/r/luckyalanzhou/qidian) 镜像，支持 `linux/amd64` 和 `linux/arm64`。
-- iStoreOS 安装 `.run`；OpenWrt 24.10 使用 opkg 和 `.ipk`；OpenWrt 25.12 使用 apk 和 `.apk`。
+- iStoreOS 24.10 使用 opkg、25.12 使用 apk；两者都可通过 iStore“手动安装”使用 `.run`，也可选择与系统版本匹配的 `.ipk` / `.apk` 原生包。OpenWrt 24.10 使用 `.ipk`，25.12 使用 `.apk`。
 - 每次成功的手动发布会在同一 GitHub Release 提供以上三种安装包及各自的 SHA-256 校验文件，并发布对应版本和 `latest` 多架构镜像。普通推送到 `main` 不会触发发布。
 - 发布版本号以 `package.json` 为准；当前版本、历史版本、版本说明和下载文件见 [GitHub Releases](https://github.com/luckyalanzhou/qidian/releases)。Web 在线更新会按设备安装来源选择安装包。
 

@@ -1,14 +1,15 @@
 # 部署指南
 
-栖点是本地 Docker 服务，默认监听 HTTP 9908。iStoreOS 使用 `.run`，OpenWrt 使用原生 IPK / APK，均通过 LuCI 管理；其他 Linux、NAS 和服务器使用标准 Docker Compose。
+栖点是本地 Docker 服务，默认监听 HTTP 9908。iStoreOS 24.10 和 25.12 都可从 iStore“手动安装”上传 `.run` 自解压包；也可按系统底层版本安装原生包：24.10 使用 `.ipk`，25.12 使用 `.apk`。OpenWrt 同样按 24.10 / 25.12 分别使用 `.ipk` / `.apk`。原生包可从 LuCI“系统 → 软件包”上传；部分 25.12 LuCI 版本无法直接安装未受信任的独立 APK，需要改用命令行完成。安装管理包后，从 LuCI 部署和管理 Docker 服务；其他 Linux、NAS 和服务器使用标准 Docker Compose。
 
 ## 部署方式
 
 | 环境 | 应用来源 | 数据位置 | 更新方式 |
 |---|---|---|---|
-| iStoreOS | GitHub Release 的 `.run` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 LuCI 安装/更新 |
-| OpenWrt 24.10（opkg） | GitHub Release 的 `.ipk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 `opkg` 安装包 |
-| OpenWrt 25.12（apk） | GitHub Release 的 `.apk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 `apk` 安装包 |
+| iStoreOS 24.10（opkg） | GitHub Release 的 `.run` 或 `.ipk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新、iStore 手动安装 `.run`，或 LuCI“系统 → 软件包” / `opkg` |
+| iStoreOS 25.12（apk） | GitHub Release 的 `.run` 或 `.apk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新、iStore 手动安装 `.run`，或 LuCI 上传后通过 `apk` 安装 |
+| OpenWrt 24.10（opkg） | GitHub Release 的 `.ipk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 LuCI“系统 → 软件包” / `opkg` |
+| OpenWrt 25.12（apk） | GitHub Release 的 `.apk` + Docker Hub 镜像 | 当前设备 Docker Root Dir 下 `volumes/qidian/data` | Web 在线更新或 LuCI 上传后通过 `apk` 安装 |
 | 通用 Docker | Docker Hub 镜像 | `qidian-data` 命名卷 | Compose 拉取并重建 |
 
 ## 发布产物
@@ -24,6 +25,8 @@ GitHub Actions 的 `iStoreOS Docker release` 工作流由人工手动触发。�
 镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择当前设备架构。设备无需安装 Node.js、pnpm，也不会在设备上构建前端。
 
 ## iStoreOS 安装
+
+iStoreOS 24.10 与 25.12 都可通过 iStore“手动安装”使用 `.run`。该自解压安装器直接部署 LuCI 文件，不调用 `opkg` 或 `apk`；如果选择原生软件包，请按下文根据底层版本选择 `.ipk` 或 `.apk`。
 
 ### 准备
 
@@ -43,23 +46,31 @@ GitHub Actions 的 `iStoreOS Docker release` 工作流由人工手动触发。�
 
 LuCI 每次部署都会读取当前设备的 Docker Root Dir。若已有 `.env` 指向另一数据目录，脚本会停止并提示，避免误启动一个空知识库。
 
-## 原生 OpenWrt 安装
+## 原生软件包安装
 
-先在设备安装并启动 Docker、Docker Compose 和 LuCI，再按系统自带的包管理器选择 Release 中的文件。无需按 CPU 架构挑选；管理包只包含 Lua、Shell 和配置文件。Docker 镜像仍由设备按自身架构拉取。
+本节适用于 OpenWrt 和 iStoreOS。先在设备安装并启动 Docker、Docker Compose 和 LuCI，再按系统底层版本选择 Release 文件：24.10（opkg）用 `.ipk`，25.12（apk）用 `.apk`。无需按 CPU 架构挑选；管理包只包含 LuCI、Shell 和配置文件。Docker 镜像仍由设备按自身架构拉取。
 
-OpenWrt 24.10 使用 opkg：下载 `luci-app-qidian_<版本>_all.ipk` 和同名 `.sha256`，校验后安装：
+OpenWrt 24.10 使用 opkg。下载 `luci-app-qidian_<版本>_all.ipk` 和同名 `.sha256`，先校验文件。随后可在 LuCI **系统 → 软件包 → 上传软件包**中上传并安装；如果使用 SSH，需先把安装包和校验文件都传到设备：
 
 ```sh
 sha256sum -c luci-app-qidian_<版本>_all.ipk.sha256
 opkg install ./luci-app-qidian_<版本>_all.ipk
 ```
 
-OpenWrt 25.12 使用 apk：下载 `luci-app-qidian-<版本>.apk` 和同名 `.sha256`，校验后安装：
+OpenWrt 25.12 使用 apk。下载 `luci-app-qidian-<版本>.apk` 和同名 `.sha256`，先校验文件，再在 LuCI **系统 → 软件包 → 上传软件包**中上传。部分 LuCI 版本安装未受信任的独立 APK 时会报告 `UNTRUSTED signature`；遇到此错误时，上传后的文件位于 `/tmp/upload.apk`，通过 SSH 执行：
+
+```sh
+apk add --allow-untrusted /tmp/upload.apk
+```
+
+如果将 APK 和校验文件直接传到设备，可在文件所在目录运行：
 
 ```sh
 sha256sum -c luci-app-qidian-<版本>.apk.sha256
 apk add --allow-untrusted ./luci-app-qidian-<版本>.apk
 ```
+
+`--allow-untrusted` 仅用于确认来源并校验过的独立安装包；不要对来源不明的 APK 使用此选项。有关 OpenWrt APK 包管理的说明见[官方文档](https://openwrt.org/docs/guide-user/additional-software/apk)，LuCI 独立 APK 上传签名问题见[上游记录](https://github.com/openwrt/luci/issues/8482)。
 
 安装后在 LuCI **服务 → 栖点知识库**部署 Docker 服务。之后 Web 在线更新会根据安装来源调用 opkg、apk 或原有 `.run` 安装流程。卸载 LuCI 包不会主动删除 Docker 容器或知识库数据；如需卸载容器，请先在 LuCI 服务页操作。
 

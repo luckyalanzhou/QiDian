@@ -90,8 +90,8 @@
 ## 部署与更新
 
 - 正式镜像发布到 `docker.io/luckyalanzhou/qidian`，同时提供 `linux/amd64` 与 `linux/arm64`。
-- iStoreOS `.run` 和 OpenWrt 原生包只安装 LuCI、Compose 和宿主管理脚本，不在设备上编译前端。
-- OpenWrt 24.10（opkg）发布架构无关 `.ipk`；25.12（apk）发布架构无关 `.apk`。
+- iStoreOS 24.10 / 25.12 均可用 `.run` 自解压安装 LuCI、Compose 和宿主管理脚本；该安装方式不依赖 opkg 或 apk，不在设备上编译前端。
+- OpenWrt 与 iStoreOS 24.10（opkg）发布架构无关 `.ipk`；25.12（apk）发布架构无关 `.apk`。
 - 所有 LuCI 部署都必须实时读取当前设备 Docker Root Dir，再创建 `volumes/qidian/data`，不得写死任何设备路径。
 - 通用 Docker 使用当前 Docker Root Dir 管理的 `qidian-data` 命名卷。
 - Web 只从固定 GitHub Release API读取版本信息，不上传知识库数据。

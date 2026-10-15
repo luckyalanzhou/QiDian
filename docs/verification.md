@@ -63,7 +63,7 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 
 - 通用 Compose 使用本机命名卷，容器没有宿主更新权限。
 - `.run`、IPK 和 APK 只包含 LuCI、Compose 和管理脚本，不包含应用构建产物。
-- 发布工作流配置为使用 OpenWrt 24.10.7 SDK 构建 IPK、25.12.5 SDK 构建 APK，并要求 Release 包含两种包和校验文件；工作流尚未运行，实际包尚未生成。
+- 发布工作流配置为使用 OpenWrt 24.10.7 SDK 构建 IPK、25.12.5 SDK 构建 APK；对应格式分别面向 OpenWrt / iStoreOS 24.10 与 25.12。这里只核对了工作流配置和源码，未验证实际 Release 产物。
 - 重装保留 `.env`、LuCI 配置和知识库目录。
 - LuCI 自动读取 Docker Root Dir，默认 HTTP 9908。
 - 更新代理只接受固定任务，校验 Release SHA-256，不挂载 Docker Socket。
@@ -75,7 +75,7 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 以下项目不能由当前 Node/JSDOM 测试证明：
 
 - OpenWrt / iStoreOS 不同版本、磁盘挂载方式和 Docker Root Dir 的实际表现。
-- OpenWrt 24.10 上 IPK 与 25.12 上 APK 的设备安装、卸载和 Web 在线更新；当前只验证了构建配置与来源代码，尚未连接 OpenWrt 设备。
+- OpenWrt / iStoreOS 24.10 上 IPK 与 25.12 上 APK 的设备安装、卸载和 Web 在线更新；当前只验证了构建配置与来源代码，尚未连接路由器实机。
 - x86-64 与 ARM64 设备实际拉取 Docker Hub 清单并启动。
 - LuCI 主题、窗口尺寸、日志弹窗和安装按钮的真实显示。
 - iPhone Safari 与 Android Chrome 的输入法、剪贴板、文件选择和下载。

@@ -1,6 +1,6 @@
 # 栖点 iStoreOS 安装包
 
-本目录包含 iStoreOS `.run` 安装器和 OpenWrt 原生 `luci-app-qidian` 软件包定义。安装包不包含应用镜像，也不在路由器上编译 Node.js 项目。
+本目录包含适用于 iStoreOS 24.10 / 25.12 的 `.run` 自解压安装器，以及适用于 OpenWrt / iStoreOS 对应底层版本的原生 `luci-app-qidian` 软件包定义。`.run` 不依赖 `opkg` 或 `apk`；原生包按版本分别使用 IPK 或 APK。安装包不包含应用镜像，也不在路由器上编译 Node.js 项目。
 
 ## 安装包内容
 
@@ -25,18 +25,20 @@
 ## 用户安装
 
 1. 从[最新 Release](https://github.com/luckyalanzhou/qidian/releases/latest)下载 `栖点-<版本>.run` 和 `.sha256`。
-2. 在 iStore 软件商店选择手动安装并上传 `.run`。
+2. 在 iStore 软件商店选择“手动安装”并上传 `.run`。此入口使用自解压安装器，与系统使用 opkg 还是 apk 无关；原生 `.ipk` / `.apk` 应在“系统 → 软件包”安装。
 3. 打开 **服务 → 栖点知识库**。
 4. 确认 Docker、Compose、端口和数据目录后点击 **安装 / 更新**。
 5. 等待实时日志显示容器健康，再打开 Web 创建管理员。
 
 默认端口是 HTTP 9908。首次管理员名称预填 `admin`，没有默认密码。
 
-## OpenWrt 原生包
+## OpenWrt / iStoreOS 原生包
 
-GitHub Release 同时提供架构无关的 LuCI 管理包：OpenWrt 24.10（opkg）使用 `.ipk`，25.12（apk）使用 `.apk`。发布工作流分别使用 24.10.7 和 25.12.5 SDK 构建。两种格式都只安装 LuCI 页面、管理脚本、Compose 配置和 `/etc/config/qidian`；Docker 容器与知识库数据由 LuCI 部署时创建。
+GitHub Release 同时提供架构无关的 LuCI 管理包：OpenWrt 或 iStoreOS 24.10（opkg）使用 `.ipk`，25.12（apk）使用 `.apk`。发布工作流分别使用 OpenWrt 24.10.7 和 25.12.5 SDK 构建。两种格式都只安装 LuCI 页面、管理脚本、Compose 配置和 `/etc/config/qidian`；Docker 容器与知识库数据由 LuCI 部署时创建。
 
-校验并安装示例见 [`docs/deployment.md`](../../docs/deployment.md#原生-openwrt-安装)。安装来源会记录在 `/etc/qidian-package-manager`，Web 在线更新据此使用正确的本机包管理器。
+原生包通过 LuCI **系统 → 软件包 → 上传软件包**或设备的包管理器安装，不经过 iStore 的 `.run` 手动安装流程。25.12 系统（包括 iStoreOS 25.12）对未受信任的独立 APK 可能在 LuCI 安装时提示 `UNTRUSTED signature`；可先通过 LuCI 上传，再用 SSH 执行 `apk add --allow-untrusted /tmp/upload.apk`。请先校验 Release 提供的 SHA-256。完整步骤见[部署指南](../../docs/deployment.md#原生软件包安装)。
+
+校验并安装示例见 [`docs/deployment.md`](../../docs/deployment.md#原生软件包安装)。安装来源会记录在 `/etc/qidian-package-manager`，Web 在线更新据此使用 `.run`、opkg 或 apk 的对应方式。
 
 完整使用说明见 [`docs/deployment.md`](../../docs/deployment.md)。
 
