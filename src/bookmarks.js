@@ -167,10 +167,6 @@ export function createBookmarkView({ main, getData, save, backup, download, noti
     const selected = selectedFolder ? locate(selectedFolder)?.item : null;
     const groups = selected ? collections(selected.children, paths().find(x => x.id === selected.id)?.path || selected.title, selected.id) : all;
     let html = '';
-    if (!selectedFolder) {
-      const pinned = all.flatMap(group => group.links.filter(item => item.pinned).map(item => card(item, group.entries)));
-      if (pinned.length && !organizing) html += section('常用书签', pinned.join(''), '', pinned.length);
-    }
     for (const group of groups) {
       const folder = group.folderId ? locate(group.folderId) : null;
       if (!folder && !group.links.length) continue;
@@ -255,7 +251,6 @@ export function createBookmarkView({ main, getData, save, backup, download, noti
     render,
     addBookmark(folderId = '') { selectedFolder = folderId; editItem('link', '', folderId); },
     openFolder(folderId = '') { selectedFolder = folderId; query = ''; pinnedOnly = false; selected.clear(); organizing = false; render(); },
-    openPinned() { selectedFolder = ''; query = ''; pinnedOnly = true; selected.clear(); organizing = false; render(); },
     leave() { scrollPosition = window.scrollY; selected.clear(); organizing = false; },
     resume() { syncPreferences(); render(); window.scrollTo({top:scrollPosition}); },
     syncPreferences,

@@ -520,6 +520,7 @@ body.booting > :not(#loginGate){display:none!important}
   body.menu-open .mobile-shade{display:block;visibility:visible;opacity:1;pointer-events:auto;transition:opacity .2s ease}
   .topbar{position:sticky;top:0;z-index:14;box-sizing:content-box;height:58px;padding-top:env(safe-area-inset-top);padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));background:color-mix(in srgb,var(--bg) 88%,var(--panel) 12%);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
   .top-actions{gap:2px}
+  .top-actions .search-btn{display:none}
   .top-actions .round-btn,.top-actions .avatar,.top-actions .search-btn{width:40px;height:40px}
   .breadcrumb .round-btn{width:40px;height:40px}
   .version-trigger{height:40px;min-width:48px}

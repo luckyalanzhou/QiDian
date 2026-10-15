@@ -622,7 +622,8 @@ test('editing a published note updates its private draft and only changes the re
   w.document.querySelector('[data-open="published-1"]').click();
   w.document.querySelector('#editDoc').click();
   const title = w.document.querySelector('#editTitle'); title.value='后台新标题'; title.dispatchEvent(new w.Event('input',{bubbles:true}));
-  w.document.querySelector('#viewEditor').click();
+  assert.equal(w.document.querySelector('#viewEditor'),null,'editing has one return-to-reading action');
+  w.document.querySelector('#backDoc').click();
   assert.match(w.document.querySelector('#main').textContent,/后台新标题/);
   w.document.querySelector('#backDoc').click();
   assert.match(w.document.querySelector('#main').textContent,/原有标题/);
@@ -1252,6 +1253,8 @@ test('account menu separates profile from app settings and removes settings from
   assert.equal(w.document.querySelector('#profileSettingsOverlay').classList.contains('open'),false);
   assert.ok(w.document.querySelector('#appSettingsOverlay').textContent.includes('数据与恢复'));
   assert.ok(w.document.querySelector('#appSettingsOverlay').textContent.includes('备份与迁移'));
+  assert.ok(w.document.querySelector('#appSettingsOverlay').textContent.includes('设置只影响当前账号'));
+  assert.equal(w.document.querySelectorAll('#appSettingsOverlay [data-close="appSettingsOverlay"]').length,1,'the fixed header is the only settings close action');
   dom.window.close();
 });
 test('account settings keep the footer visible while long dialog content scrolls independently', async () => {
@@ -1525,6 +1528,7 @@ test('bookmark browse and organize modes preserve hierarchy, folder scope and cl
   const { dom, w, saves, initialOptions } = await mount(vault);
   const click = selector => w.document.querySelector(selector).click();
   click('#openBookmarks');
+  assert.equal(w.document.querySelector('[data-open-pinned-bookmarks]'), null, 'the bookmarks toolbar is the only favorites navigation entry');
   assert.equal(w.document.querySelectorAll('.bookmark-card').length, 4);
   assert.equal(w.document.querySelector('[data-bm-import]').closest('details').open,false);
   const directory = w.document.querySelector('.bookmark-directory');
@@ -1552,8 +1556,16 @@ test('bookmark browse and organize modes preserve hierarchy, folder scope and cl
   assert.equal(saves.at(-1).bookmarks[1].children[1].children[0].pinned, true);
   click('[data-bm-organize]');
   click('[data-bm-folder=""]');
-  assert.equal(w.document.querySelector('.bookmark-section h2>span:not(.ico)').textContent, '常用书签');
-  assert.equal(w.document.querySelectorAll('.bookmark-card').length, 5);
+  const allTitles = [...w.document.querySelectorAll('.bookmark-link strong')].map(node => node.textContent);
+  assert.equal(allTitles.length, 4);
+  assert.equal(new Set(allTitles).size, 4, 'all-bookmarks view lists each link only under its folder');
+  assert.equal(w.document.querySelector('.bookmark-favorites'), null, 'the all-bookmarks view does not repeat the favorites filter');
+  click('[data-bm-pinned]');
+  assert.equal(w.document.querySelectorAll('.bookmark-card').length, 1, 'favorites remain available as a dedicated filter');
+  assert.equal(w.document.querySelector('.bookmark-link strong').textContent, 'MDN');
+  click('[data-bm-pinned]');
+  click('[data-bm-folder=""]');
+
   assert.equal(w.document.querySelectorAll('.bookmark-actions').length, 0);
   const search = w.document.querySelector('#bookmarkSearch'); search.value = '文档'; search.dispatchEvent(new w.Event('input'));
   assert.equal(w.document.querySelectorAll('.bookmark-card').length, 1, 'global search matches folder path and does not duplicate favorite');
