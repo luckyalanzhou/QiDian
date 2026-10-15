@@ -12,8 +12,9 @@ case "$INSTALL_DIR" in /opt/qidian) ;; *) fail "程序目录必须为 /opt/qidia
 [ -f "$SCRIPT_DIR/root/usr/libexec/istorec/qidian.sh" ] || fail '安装包缺少 iStoreOS 服务管理脚本。'
 [ -f "$SCRIPT_DIR/root/usr/libexec/istorec/qidian-updater.sh" ] || fail '安装包缺少网页更新管理服务。'
 [ -f "$SCRIPT_DIR/root/etc/init.d/qidian-updater" ] || fail '安装包缺少网页更新服务启动脚本。'
-command -v uci >/dev/null 2>&1 || fail '未检测到 iStoreOS UCI 配置工具。'
-[ -d /usr/lib/lua/luci/controller ] || fail '未检测到兼容的 LuCI 控制器目录，请先安装 iStoreOS LuCI。'
+command -v uci >/dev/null 2>&1 || fail '未检测到设备 UCI 配置工具。'
+command -v jsonfilter >/dev/null 2>&1 || fail '缺少 jsonfilter，请先通过设备软件包管理器安装后重试。'
+[ -d /usr/lib/lua/luci/controller ] || fail '未检测到 LuCI 控制器目录，请先安装 LuCI。'
 [ -d /usr/lib/lua/luci/model/cbi ] || fail '当前系统没有 LuCI CBI 管理界面，无法提供服务配置页。'
 
 HAD_CONFIG=false
@@ -41,7 +42,6 @@ chmod 755 /usr/libexec/istorec/qidian.sh
 chmod 755 /usr/libexec/istorec/qidian-updater.sh
 chmod 755 /etc/init.d/qidian-updater
 printf '%s\n' "$(cat "$SCRIPT_DIR/version")" > /etc/qidian-version
-printf 'run\n' > /etc/qidian-package-manager
 
 if [ "$HAD_CONFIG" = false ]; then
 	uci set qidian.main=qidian

@@ -67,60 +67,6 @@ jobs:
           pnpm check
           pnpm test
           pnpm build
-      - name: Prepare OpenWrt package feed
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          mkdir -p artifacts/openwrt-ipk artifacts/openwrt-apk artifacts/istoreos
-          printf '%s\n' "$VERSION" > packaging/istoreos/VERSION
-      - name: Build native OpenWrt IPK package
-        uses: openwrt/gh-action-sdk@main
-        env:
-          ARCH: x86_64-24.10.7
-          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts/openwrt-ipk
-          FEED_DIR: ${{ github.workspace }}/packaging/istoreos
-          FEEDNAME: qidian
-          PACKAGES: luci-app-qidian
-          BUILD_LOG: 1
-          NO_REFRESH_CHECK: 1
-          NO_SHFMT_CHECK: 1
-          V: s
-      - name: Build native OpenWrt APK package
-        uses: openwrt/gh-action-sdk@main
-        env:
-          ARCH: x86_64-25.12.5
-          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts/openwrt-apk
-          FEED_DIR: ${{ github.workspace }}/packaging/istoreos
-          FEEDNAME: qidian
-          PACKAGES: luci-app-qidian
-          BUILD_LOG: 1
-          NO_REFRESH_CHECK: 1
-          NO_SHFMT_CHECK: 1
-          V: s
-      - name: Upload OpenWrt SDK logs after failed package build
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: openwrt-sdk-build-logs
-          path: |
-            artifacts/openwrt-ipk/logs/
-            artifacts/openwrt-apk/logs/
-          if-no-files-found: warn
-          retention-days: 3
-      - name: Collect and checksum OpenWrt packages
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ipk=$(find artifacts/openwrt-ipk/bin/packages -type f -name 'luci-app-qidian_*.ipk' -print -quit)
-          apk=$(find artifacts/openwrt-apk/bin/packages -type f -name 'luci-app-qidian-*.apk' -print -quit)
-          test -n "$ipk" && test -f "$ipk"
-          test -n "$apk" && test -f "$apk"
-          cp "$ipk" "artifacts/istoreos/luci-app-qidian_${VERSION}_all.ipk"
-          cp "$apk" "artifacts/istoreos/luci-app-qidian-${VERSION}.apk"
-          (cd artifacts/istoreos && sha256sum "luci-app-qidian_${VERSION}_all.ipk" > "luci-app-qidian_${VERSION}_all.ipk.sha256")
-          (cd artifacts/istoreos && sha256sum "luci-app-qidian-${VERSION}.apk" > "luci-app-qidian-${VERSION}.apk.sha256")
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -178,7 +124,7 @@ jobs:
           sh -n packaging/istoreos/install.sh
           sh -n packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian.sh
           sh -n packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh
-      - name: Build iStoreOS package
+      - name: Build self-extracting .run installer
         run: bash packaging/istoreos/build-run.sh artifacts/istoreos
       - name: Prepare release checksum with the public asset name
         env:
@@ -196,8 +142,6 @@ jobs:
         run: |
           sh "artifacts/istoreos/qidian-${VERSION}.run" --check
           (cd artifacts/istoreos && sha256sum --check "qidian-${VERSION}.run.sha256")
-          (cd artifacts/istoreos && sha256sum --check "luci-app-qidian_${VERSION}_all.ipk.sha256")
-          (cd artifacts/istoreos && sha256sum --check "luci-app-qidian-${VERSION}.apk.sha256")
       - name: Commit version bump to main
         id: release_commit
         env:
@@ -258,8 +202,6 @@ jobs:
             if [ "$item" -eq 0 ]; then printf '1. 完成本版维护与兼容性优化。\n'; fi
             printf '\n## 安装包\n\n'
             printf -- '- iStoreOS Docker 安装包 v%s。\n' "$version"
-            printf -- '- OpenWrt 24.10（opkg）：`luci-app-qidian_%s_all.ipk`。\n' "$version"
-            printf -- '- OpenWrt 25.12（apk）：`luci-app-qidian-%s.apk`。\n' "$version"
             printf -- '- Docker Hub 多架构镜像：`luckyalanzhou/qidian:%s`（amd64 / arm64）。\n' "$version"
             printf -- '- 源码版本已自动递增并提交到 `main`。\n'
           } > "$notes_file"
@@ -279,23 +221,9 @@ jobs:
           gh release upload "$tag" \
             "artifacts/istoreos/qidian-${version}.run#栖点-${version}.run" \
             "artifacts/istoreos/qidian-${version}.run.release.sha256#栖点-${version}.run.sha256" \
-            "artifacts/istoreos/luci-app-qidian_${version}_all.ipk" \
-            "artifacts/istoreos/luci-app-qidian_${version}_all.ipk.sha256" \
-            "artifacts/istoreos/luci-app-qidian-${version}.apk" \
-            "artifacts/istoreos/luci-app-qidian-${version}.apk.sha256" \
             --clobber
           assets=$(gh release view "$tag" --json assets --jq '.assets[] | (.label // .name)')
           for expected in "栖点-${version}.run" "栖点-${version}.run.sha256"; do
-            printf '%s\n' "$assets" | grep -Fqx "$expected" || {
-              echo "Release asset missing after upload: $expected" >&2
-              exit 1
-            }
-          done
-          for expected in \
-            "luci-app-qidian_${version}_all.ipk" \
-            "luci-app-qidian_${version}_all.ipk.sha256" \
-            "luci-app-qidian-${version}.apk" \
-            "luci-app-qidian-${version}.apk.sha256"; do
             printf '%s\n' "$assets" | grep -Fqx "$expected" || {
               echo "Release asset missing after upload: $expected" >&2
               exit 1

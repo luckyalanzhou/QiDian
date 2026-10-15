@@ -109,7 +109,7 @@ run_update() {
 		exit 1
 	fi
 	if ! command -v jsonfilter >/dev/null 2>&1; then
-		append_log '缺少 jsonfilter，请在 OpenWrt 软件包管理器中更新栖点管理组件。'
+		append_log '缺少 jsonfilter，请先通过设备软件包管理器安装该依赖。'
 		exit 1
 	fi
 	tag=$(jsonfilter -i "$work_dir/release.json" -e '@.tag_name' 2>/dev/null || true)
@@ -117,36 +117,12 @@ run_update() {
 	printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || { append_log 'Release 版本号格式无效，已停止更新。'; exit 1; }
 	write_state running "$version"
 	asset_prefix="https://github.com/$REPOSITORY/releases/download/$tag/"
-	package_manager=$(cat /etc/qidian-package-manager 2>/dev/null || true)
-	case "$package_manager" in
-		opkg)
-		update_format=ipk
-		archive="luci-app-qidian_${version}_all.ipk"
-		checksum="$archive.sha256"
-		asset_name=$archive
-		checksum_asset_name=$checksum
-		asset_label=$archive
-		checksum_label=$checksum
-		;;
-		apk)
-		update_format=apk
-		archive="luci-app-qidian-${version}.apk"
-		checksum="$archive.sha256"
-		asset_name=$archive
-		checksum_asset_name=$checksum
-		asset_label=$archive
-		checksum_label=$checksum
-		;;
-		*)
-		update_format=run
-		archive="栖点-$version.run"
-		checksum="$archive.sha256"
-		asset_name="qidian-$version.run"
-		checksum_asset_name="qidian-$version.run.release.sha256"
-		asset_label=$archive
-		checksum_label=$checksum
-		;;
-	esac
+	archive="栖点-$version.run"
+	checksum="$archive.sha256"
+	asset_name="qidian-$version.run"
+	checksum_asset_name="qidian-$version.run.release.sha256"
+	asset_label=$archive
+	checksum_label=$checksum
 	installer_url=$(release_asset_url "$asset_name" "$asset_label") || { append_log 'Release 安装包链接无效。'; exit 1; }
 	checksum_url=$(release_asset_url "$checksum_asset_name" "$checksum_label") || { append_log 'Release 校验文件链接无效。'; exit 1; }
 	append_log "发现栖点 $version，正在下载安装包和校验文件…"
@@ -160,29 +136,11 @@ run_update() {
 		exit 1
 	fi
 	append_log '校验通过，正在更新设备管理文件…'
-	case "$update_format" in
-		run)
-			chmod 755 "$work_dir/$archive"
-			if ! (cd "$work_dir" && QIDIAN_UPDATE_WORKER=1 "./$archive"); then
-				append_log '管理包安装失败，已停止更新。'
-				exit 1
-			fi
-			;;
-		ipk)
-			command -v opkg >/dev/null 2>&1 || { append_log '当前设备记录为 IPK 安装，但未找到 opkg。'; exit 1; }
-			if ! opkg install "$work_dir/$archive"; then
-				append_log 'IPK 管理包安装失败，已停止更新。'
-				exit 1
-			fi
-			;;
-		apk)
-			command -v apk >/dev/null 2>&1 || { append_log '当前设备记录为 APK 安装，但未找到 apk。'; exit 1; }
-			if ! apk add --allow-untrusted "$work_dir/$archive"; then
-				append_log 'APK 管理包安装失败，已停止更新。'
-				exit 1
-			fi
-			;;
-	esac
+	chmod 755 "$work_dir/$archive"
+	if ! (cd "$work_dir" && QIDIAN_UPDATE_WORKER=1 "./$archive"); then
+		append_log '管理包安装失败，已停止更新。'
+		exit 1
+	fi
 	installed=$(cat /etc/qidian-version 2>/dev/null || true)
 	[ "$installed" = "$version" ] || { append_log "安装包版本不匹配：预期 $version，设备记录为 $installed。"; exit 1; }
 	append_log '管理文件已更新；等待 10 秒后拉取成品镜像并重启栖点服务以应用新版本…'

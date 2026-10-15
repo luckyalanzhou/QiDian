@@ -10,12 +10,12 @@ pnpm test
 pnpm build
 ```
 
-2026-10-15 OpenWrt 原生包支持与编辑器资源拆分后的验证结果：
+2026-10-15 iStoreOS `.run` 发布流程与编辑器资源拆分后的验证结果：
 
 | 项目 | 结果 | 覆盖范围 |
 |---|---|---|
 | Node.js 语法检查 | 通过 | 前端、API、自托管服务和迁移脚本 |
-| `node --test tests/*.test.mjs` | 179/179 通过 | SQLite、账号、保存、编辑器、书签、更新代理、IPK/APK 发布配置与 LuCI 包结构 |
+| `node --test tests/*.test.mjs` | 179/179 通过 | SQLite、账号、保存、编辑器、书签、更新代理、`.run` 发布配置与 LuCI 管理脚本 |
 | `node node_modules/vite/bin/vite.js build` | 通过 | Vite 生产资源构建，最大编辑器块 461 kB |
 
 在 Windows 沙箱中，`pnpm` 尝试创建外部项目链接时会遇到 `EPERM`，直接运行等价 Node.js 命令完成检查和构建。完整测试中的本机 HTTP 与 Git Bash 子进程用例在获准的测试环境运行并全部通过。
@@ -62,8 +62,8 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 ### Docker 与 LuCI 部署
 
 - 通用 Compose 使用本机命名卷，容器没有宿主更新权限。
-- `.run`、IPK 和 APK 只包含 LuCI、Compose 和管理脚本，不包含应用构建产物。
-- 发布工作流配置为使用 OpenWrt 24.10.7 SDK 构建 IPK、25.12.5 SDK 构建 APK；对应格式分别面向 OpenWrt / iStoreOS 24.10 与 25.12。这里只核对了工作流配置和源码，未验证实际 Release 产物。
+- `.run` 只包含 LuCI、Compose 和管理脚本，不包含应用构建产物；发布不生成 `.ipk` 或 `.apk`。
+- 发布工作流校验 `.run` 自解压归档和 SHA-256，并只上传 `.run` 及其校验文件；源码检查不代替 GitHub Release 实际发布验证。
 - 重装保留 `.env`、LuCI 配置和知识库目录。
 - LuCI 自动读取 Docker Root Dir，默认 HTTP 9908。
 - 更新代理只接受固定任务，校验 Release SHA-256，不挂载 Docker Socket。
@@ -74,8 +74,8 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 
 以下项目不能由当前 Node/JSDOM 测试证明：
 
-- OpenWrt / iStoreOS 不同版本、磁盘挂载方式和 Docker Root Dir 的实际表现。
-- OpenWrt / iStoreOS 24.10 上 IPK 与 25.12 上 APK 的设备安装、卸载和 Web 在线更新；当前只验证了构建配置与来源代码，尚未连接路由器实机。
+- iStoreOS 24.10 / 25.12 与兼容 OpenWrt 设备的系统差异、磁盘挂载方式和 Docker Root Dir 实际表现。
+- iStoreOS / OpenWrt 上 `.run` 的设备安装、升级和 Web 在线更新；当前尚未连接路由器实机。
 - x86-64 与 ARM64 设备实际拉取 Docker Hub 清单并启动。
 - LuCI 主题、窗口尺寸、日志弹窗和安装按钮的真实显示。
 - iPhone Safari 与 Android Chrome 的输入法、剪贴板、文件选择和下载。
@@ -89,8 +89,8 @@ Vite 当前会提示编辑器动态块超过 500 kB。编辑器已经使用动�
 2. `package.json` 是发布版本的唯一来源，基准为 `0.0.0`；版本采用无固定上限的 `Major.Minor.Patch` 整数格式，不使用前导零。发布工作流默认递增 Patch，也可按兼容性影响选择 Minor 或 Major。
 3. `pnpm check`、`pnpm test`、`pnpm build` 全部通过。
 4. 手动发布工作流成功推送版本镜像和 `latest`。
-5. GitHub Release 包含 `.run`、`.ipk`、`.apk` 及各自的 SHA-256 校验文件，发布工作流须逐个校验。
-6. 在至少一台目标 iStoreOS 或 OpenWrt 设备完成安装、登录、保存、更新和重启验收。
+5. GitHub Release 只包含 `.run` 和 SHA-256 校验文件，发布工作流须验证两者。
+6. 在至少一台目标 iStoreOS 设备完成安装、登录、保存、更新和重启验收。
 
 ## 验收记录原则
 

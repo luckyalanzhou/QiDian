@@ -31,10 +31,7 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /test -n "\$DOCKERHUB_TOKEN"/);
   assert.match(workflow, /test -n "\$RELEASE_PUBLISH_TOKEN"/);
   assert.match(workflow, /Select or resume release version/);
-  assert.match(workflow, /Prepare OpenWrt package feed[\s\S]*?mkdir -p artifacts\/openwrt-ipk artifacts\/openwrt-apk artifacts\/istoreos/);
-  assert.equal((workflow.match(/BUILD_LOG: 1/g) ?? []).length, 2, 'both SDK builds retain detailed logs');
-  assert.equal((workflow.match(/V: s/g) ?? []).length, 2, 'both SDK builds use verbose output');
-  assert.match(workflow, /Upload OpenWrt SDK logs after failed package build[\s\S]*?if: failure\(\)[\s\S]*?actions\/upload-artifact@v4[\s\S]*?retention-days: 3/);
+  assert.doesNotMatch(workflow, /openwrt\/gh-action-sdk|artifacts\/openwrt|\.ipk|\.apk/);
   assert.match(workflow, /release_bump:[\s\S]*?options:[\s\S]*?- patch[\s\S]*?- minor[\s\S]*?- major[\s\S]*?default: patch/);
   assert.match(workflow, /node scripts\/release-version\.mjs/);
   assert.match(workflow, /RELEASE_PUBLISH_TOKEN/);
@@ -73,33 +70,19 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /qidian-\$\{version\}\.run#栖点-\$\{version\}\.run/);
   assert.match(workflow, /for expected in "栖点-\$\{version\}\.run" "栖点-\$\{version\}\.run\.sha256"/);
   assert.match(workflow, /git add package\.json/);
-  assert.match(workflow, /uses: openwrt\/gh-action-sdk@main[\s\S]*?ARCH: x86_64-24\.10\.7[\s\S]*?PACKAGES: luci-app-qidian/);
-  assert.match(workflow, /uses: openwrt\/gh-action-sdk@main[\s\S]*?ARCH: x86_64-25\.12\.5[\s\S]*?PACKAGES: luci-app-qidian/);
-  assert.match(workflow, /luci-app-qidian_\$\{version\}_all\.ipk/);
-  assert.match(workflow, /luci-app-qidian-\$\{version\}\.apk/);
-  assert.match(workflow, /sha256sum --check "luci-app-qidian_\$\{VERSION\}_all\.ipk\.sha256"/);
-  assert.match(workflow, /sha256sum --check "luci-app-qidian-\$\{VERSION\}\.apk\.sha256"/);
+  assert.equal((workflow.match(/gh release upload/g) ?? []).length, 1);
+  assert.match(workflow, /gh release upload "\$tag"[\s\S]*?qidian-\$\{version\}\.run[\s\S]*?qidian-\$\{version\}\.run\.release\.sha256/);
 });
 
-test('native OpenWrt package installs LuCI manager files for both package managers', async () => {
-  const makefile = await read('../packaging/istoreos/luci-app-qidian/Makefile');
+test('the iStoreOS self-extracting installer installs the LuCI manager and records its version', async () => {
   const installer = await read('../packaging/istoreos/install.sh');
 
-  assert.match(makefile, /PKG_NAME:=luci-app-qidian/);
-  assert.match(makefile, /QIDIAN_PKG_DIR:=\$\(realpath/);
-  assert.match(makefile, /QIDIAN_FEED_DIR:=\$\(realpath/);
-  assert.match(makefile, /PKGARCH:=all/);
-  assert.match(makefile, /DEPENDS:=\+luci-base \+jsonfilter/);
-  assert.match(makefile, /mkdir -p \$\(PKG_BUILD_DIR\)\/root[\s\S]*?\$\(QIDIAN_PKG_DIR\)\/root\/\. \$\(PKG_BUILD_DIR\)\/root\//);
-  assert.match(makefile, /Package\/luci-app-qidian\/install[\s\S]*?\$\(CP\) \$\(PKG_BUILD_DIR\)\/root\/\. \$\(1\)\//);
-  assert.doesNotMatch(makefile, /\$\(CP\) \$\(PKG_BUILD_DIR\)\/\. \$\(1\)\//, 'package staging must not copy its output directory into itself');
-  assert.match(makefile, /Package\/luci-app-qidian\/conffiles[\s\S]*?\/etc\/config\/qidian/);
-  assert.match(makefile, /\/opt\/qidian/);
-  assert.match(makefile, /CONFIG_USE_APK\),apk,opkg/);
-  assert.match(installer, /qidian-package-manager/);
-  assert.match(makefile, /IPKG_INSTROOT/);
-  assert.match(makefile, /qidian-updater enable/);
-  assert.doesNotMatch(makefile, /docker (?:pull|run|build)|docker\.sock|rm -rf/);
+  assert.match(installer, /cp -a "\$SCRIPT_DIR\/root\/usr\/\." \/usr\//);
+  assert.match(installer, /cat "\$SCRIPT_DIR\/version"/);
+  assert.match(installer, /qidian\.sh prepare-control/);
+  assert.match(installer, /qidian-updater enable/);
+  assert.match(installer, /command -v jsonfilter/);
+  assert.doesNotMatch(installer, /qidian-package-manager|docker build|compose up|rm -rf/i);
 });
 
 test('reinstall preserves LuCI config and never starts or removes note data', async () => {
@@ -130,9 +113,11 @@ test('web updates use a limited host agent, verify the public release checksum, 
   assert.match(updater, /sha256sum -c/);
   assert.match(updater, /栖点-\$version\.run/);
   assert.match(updater, /browser_download_url/);
-  assert.match(updater, /update_format=ipk[\s\S]*opkg install/);
-  assert.match(updater, /update_format=apk[\s\S]*apk add --allow-untrusted/);
-  assert.match(updater, /update_format=run[\s\S]*QIDIAN_UPDATE_WORKER=1/);
+  assert.match(updater, /archive="栖点-\$version\.run"/);
+  assert.match(updater, /asset_name="qidian-\$version\.run"/);
+  assert.match(updater, /checksum_asset_name="qidian-\$version\.run\.release\.sha256"/);
+  assert.match(updater, /QIDIAN_UPDATE_WORKER=1 "\.\/\$archive"/);
+  assert.doesNotMatch(updater, /update_format=(?:ipk|apk)|opkg install|apk add --allow-untrusted/);
   assert.ok(updater.includes("grep -Eq '^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$'"), 'updater validates canonical SemVer integers without fixed limits');
   assert.match(updater, /mkdir "\$OPERATION_LOCK"/);
   assert.match(updater, /rmdir "\$OPERATION_LOCK"/);

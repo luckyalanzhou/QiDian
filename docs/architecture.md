@@ -22,9 +22,7 @@ flowchart LR
 | 服务端 | Node.js 24 HTTP 服务，提供静态资源、账号、知识库、附件、备份和版本 API |
 | 数据库 | Node 内置 SQLite，WAL 模式、同步事务和顺序迁移 |
 | 镜像 | `luckyalanzhou/qidian`，支持 `linux/amd64` 与 `linux/arm64` |
-| iStoreOS 24.10 / 25.12 | `.run` 自解压安装器部署 LuCI、Compose、管理脚本和受限更新代理，不调用系统包管理器 |
-| OpenWrt / iStoreOS 24.10（opkg） | 架构无关 `.ipk` 安装 LuCI、Compose 和管理脚本 |
-| OpenWrt / iStoreOS 25.12（apk） | 架构无关 `.apk` 安装 LuCI、Compose 和管理脚本 |
+| iStoreOS 24.10 / 25.12 与兼容的 OpenWrt | `.run` 自解压安装器部署 LuCI、Compose、管理脚本和受限更新代理，不调用系统包管理器 |
 
 正式入口是 `index.html`。前端代码位于 `src/`，服务端位于 `server/`，数据库迁移位于 `migrations/`。`private_wiki_prototype.html` 只作为原始设计基线，不参与构建。
 
@@ -102,7 +100,7 @@ SQLite 触发器在数据更新前保存正文快照，每分钟最多一个，�
 OpenWrt / iStoreOS 宿主代理由 procd 管理，处理步骤如下：
 
 1. 从固定 GitHub 仓库读取最新 Release。
-2. 按设备安装来源下载带版本号的 `.run`、`.ipk` 或 `.apk` 及 `.sha256`。
+2. 下载带版本号的 `.run` 及 `.sha256`。
 3. 校验 SHA-256 与版本号。
 4. 更新 LuCI 和宿主管理文件。
 5. 等待 10 秒，拉取适合当前架构的 Docker Hub 镜像。

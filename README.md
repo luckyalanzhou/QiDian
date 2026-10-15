@@ -9,23 +9,21 @@
 - Docker 服务端使用 SQLite 持久化数据，支持正文历史、回收站、自动快照和完整 ZIP 备份。
 - 账号登录、多设备数据同步、并发修改检测及冲突保护。
 - 桌面与手机适配，支持浅色、深色和跟随系统主题；偏好设置按账号同步。
-- iStoreOS 与 OpenWrt 提供 LuCI 管理界面，可部署、更新 Docker 服务并查看操作日志。
+- iStoreOS 与兼容的 OpenWrt 提供 LuCI 管理界面，可部署、更新 Docker 服务并查看操作日志。
 
 ## 安装
 
-栖点应用运行在 Docker 容器中。选择与设备系统匹配的管理安装包；其他 Linux、NAS 和服务器可直接使用 Docker Compose。
+栖点应用运行在 Docker 容器中。iStoreOS 和兼容的 OpenWrt 使用 `.run` 自解压安装管理界面；其他 Linux、NAS 和服务器可直接使用 Docker Compose。
 
-| 设备环境 | 安装包 | 安装方式 |
-|---|---|---|
-| iStoreOS 24.10 | [`栖点-<版本>.run`](https://github.com/luckyalanzhou/qidian/releases/latest) 或匹配的 `.ipk` | `.run` 在 iStore“手动安装”中上传；`.ipk` 从“系统 → 软件包”安装 |
-| iStoreOS 25.12 | [`栖点-<版本>.run`](https://github.com/luckyalanzhou/qidian/releases/latest) 或匹配的 `.apk` | `.run` 在 iStore“手动安装”中上传；`.apk` 从“系统 → 软件包”上传，必要时用 `apk` 安装 |
-| OpenWrt 24.10 | [`luci-app-qidian_<版本>_all.ipk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 在 LuCI“系统 → 软件包”上传，或使用 `opkg` 安装 |
-| OpenWrt 25.12 | [`luci-app-qidian-<版本>.apk`](https://github.com/luckyalanzhou/qidian/releases/latest) | 经 LuCI 上传后，按[部署指南](docs/deployment.md#原生软件包安装)使用 `apk` 安装 |
-| Linux、NAS、服务器 | Docker Compose | 使用下方命令启动 |
+| 设备环境 | 安装方式 |
+|---|---|
+| iStoreOS 24.10 / 25.12 | 从[最新 Release](https://github.com/luckyalanzhou/qidian/releases/latest)下载 `栖点-<版本>.run`，在 iStore“手动安装”上传 |
+| OpenWrt 24.10 / 25.12 | 下载相同 `.run`，在设备终端以 root 校验并执行 |
+| Linux、NAS、服务器 | 使用下方 Docker Compose 命令启动 |
 
-iStoreOS 24.10 基于 opkg，25.12 基于 apk。`.run` 是独立的自解压安装器，两种版本都可从 iStore“手动安装”使用；原生 `.ipk` / `.apk` 则按设备的系统版本从“系统 → 软件包”或对应包管理器安装。25.12 的未受信任独立 APK 可能需要通过 SSH 完成安装，详见[部署指南](docs/deployment.md#原生软件包安装)。
+发布只提供 `.run` 自解压安装包及其 SHA-256 校验文件。iStoreOS 24.10 与 25.12 均通过 iStore“手动安装”使用，不受系统底层采用 opkg 或 apk 的影响；OpenWrt 设备可从终端执行同一个 `.run`。
 
-OpenWrt 和 iStoreOS 的设备端需要预先安装并启动 Docker、Docker Compose 和 LuCI。安装包只提供管理界面与设备脚本；Docker 会拉取适合设备架构的应用镜像。应用镜像支持 `amd64` 和 `arm64`。完整步骤、SHA-256 校验命令和数据迁移说明见[部署指南](docs/deployment.md)。
+OpenWrt 和 iStoreOS 的设备端需要预先安装并启动 Docker、Docker Compose、LuCI 和 `jsonfilter`。安装包只提供管理界面与设备脚本；Docker 会拉取适合设备架构的应用镜像。应用镜像支持 `amd64` 和 `arm64`。完整步骤、SHA-256 校验命令和数据迁移说明见[部署指南](docs/deployment.md)。
 
 ### Docker Compose 示例
 
@@ -49,9 +47,9 @@ docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml
 ## 版本与兼容性
 
 - Docker Hub 提供 [`luckyalanzhou/qidian`](https://hub.docker.com/r/luckyalanzhou/qidian) 镜像，支持 `linux/amd64` 和 `linux/arm64`。
-- iStoreOS 24.10 使用 opkg、25.12 使用 apk；两者都可通过 iStore“手动安装”使用 `.run`，也可选择与系统版本匹配的 `.ipk` / `.apk` 原生包。OpenWrt 24.10 使用 `.ipk`，25.12 使用 `.apk`。
-- 每次成功的手动发布会在同一 GitHub Release 提供以上三种安装包及各自的 SHA-256 校验文件，并发布对应版本和 `latest` 多架构镜像。普通推送到 `main` 不会触发发布。
-- 发布版本号以 `package.json` 为准；当前版本、历史版本、版本说明和下载文件见 [GitHub Releases](https://github.com/luckyalanzhou/qidian/releases)。Web 在线更新会按设备安装来源选择安装包。
+- iStoreOS 管理界面仅提供 `.run` 自解压安装包；应用容器镜像支持 iStoreOS 24.10 / 25.12 所需的 Docker 平台架构。
+- 每次成功的手动发布会在同一 GitHub Release 提供 `.run` 和 SHA-256 校验文件，并发布对应版本和 `latest` 多架构镜像。普通推送到 `main` 不会触发发布。
+- 发布版本号以 `package.json` 为准；当前版本、历史版本、版本说明和下载文件见 [GitHub Releases](https://github.com/luckyalanzhou/qidian/releases)。Web 在线更新统一下载 `.run` 管理安装包。
 
 ## 本地开发
 
@@ -81,7 +79,7 @@ pnpm build
 | [需求与边界](docs/requirements.md) | 产品功能、隐私边界和验收要求 |
 | [验证说明](docs/verification.md) | 自动化验证范围与设备验收清单 |
 | [Docker Hub 镜像说明](docs/dockerhub-overview.md) | 镜像参数和容器配置 |
-| [LuCI 安装包说明](packaging/istoreos/README.md) | `.run`、IPK、APK 的构建与发布流程 |
+| [iStoreOS / OpenWrt 安装包说明](packaging/istoreos/README.md) | `.run` 的安装、构建与发布流程 |
 
 ## 许可证
 
