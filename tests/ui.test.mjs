@@ -63,7 +63,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.createRecycleBinView = createRecycleBinView;
   w.createTrashEntry = createTrashEntry;
   w.DOMPurify = createDOMPurify(w); w.initial = { data: structuredClone(vault), local:true, ...initialOptions };
-  w.queueSave = data => saves.push(structuredClone(data)); w.flush = async () => { initialOptions.flushCalls=(initialOptions.flushCalls||0)+1; return initialOptions.flushResult??true; }; w.retrySync = () => { initialOptions.retryRequests = (initialOptions.retryRequests || 0) + 1; return true; }; w.onStatus = callback => { if (initialOptions.restoreConflict) callback('草稿与 Docker 服务端版本冲突；请导出后再载入服务端版本'); }; w.onAuthenticationRequired = callback => { initialOptions.authenticationRequired = callback; }; w.onRemoteUpdate = callback => { initialOptions.remoteUpdate = callback; }; w.getSyncConflict = () => initialOptions.syncConflict ? structuredClone(initialOptions.syncConflict) : null; w.exportSyncConflict = async () => { initialOptions.conflictExports = (initialOptions.conflictExports || 0) + 1; return true; }; w.refreshCloud = async () => false; w.reauthenticateAccount = async () => ({ data:structuredClone(vault), conflict:false, synced:true }); w.showAuthentication = (_config,recovery) => { initialOptions.reauthentication = recovery; return Promise.resolve(); }; w.setOwner = () => {};
+  w.queueSave = data => saves.push(structuredClone(data)); w.flush = async () => { initialOptions.flushCalls=(initialOptions.flushCalls||0)+1; return initialOptions.flushResult??true; }; w.commitSave = async data => { w.queueSave(data); if(initialOptions.commitError)throw Error(initialOptions.commitError); if(!await w.flush())throw Error('修改尚未写入 Docker 服务端，请保持页面打开并重试'); return true; }; w.retrySync = () => { initialOptions.retryRequests = (initialOptions.retryRequests || 0) + 1; return true; }; w.onStatus = callback => { if (initialOptions.restoreConflict) callback('草稿与 Docker 服务端版本冲突；请导出后再载入服务端版本'); }; w.onAuthenticationRequired = callback => { initialOptions.authenticationRequired = callback; }; w.onRemoteUpdate = callback => { initialOptions.remoteUpdate = callback; }; w.getSyncConflict = () => initialOptions.syncConflict ? structuredClone(initialOptions.syncConflict) : null; w.exportSyncConflict = async () => { initialOptions.conflictExports = (initialOptions.conflictExports || 0) + 1; return true; }; w.refreshCloud = async () => false; w.reauthenticateAccount = async () => ({ data:structuredClone(vault), conflict:false, synced:true }); w.showAuthentication = (_config,recovery) => { initialOptions.reauthentication = recovery; return Promise.resolve(); }; w.setOwner = () => {};
   const editorFactory = options => { w.currentEditor = createQidianEditor(options); return w.currentEditor; };
   w.createQidianEditor = editorFactory; w.__qidianTestEditorFactory = editorFactory;
   w.listBackups = async () => initialOptions.backups || [];
@@ -71,7 +71,9 @@ async function mount(vault=empty, initialOptions={}) {
   w.getSystemUpdateStatus = async () => typeof initialOptions.updateStatus==='function' ? initialOptions.updateStatus() : initialOptions.updateStatus || ({ state:'idle', version:'', updatedAt:null, log:'' });
   w.requestSystemUpdate = async () => { assert.ok(initialOptions.flushCalls>0,'pending edits are flushed before the container restarts'); initialOptions.updateRequests=(initialOptions.updateRequests||0)+1; return initialOptions.onRequestSystemUpdate ? initialOptions.onRequestSystemUpdate() : { accepted:true, version:'0.1.6' }; };
   w.getBackup = async revision => { initialOptions.requestedBackup = revision; return structuredClone(initialOptions.snapshot || ({ categories:[], noteTypes:structuredClone(empty.noteTypes), notes:[], theme:'light', pasteMode:'rich', revision })); };
-  w.exportBackup = async data => { if(initialOptions.backupError)throw Error(initialOptions.backupError); if(initialOptions.onBackup)await initialOptions.onBackup(); initialOptions.exportedBeforeRestore = structuredClone(data); };
+  w.exportBackup = async data => { if(initialOptions.backupError)throw Error(initialOptions.backupError); if(initialOptions.onBackup)await initialOptions.onBackup(); (initialOptions.backupOrder??=[]).push('download'); initialOptions.exportedBeforeRestore = structuredClone(data); };
+  w.createBackupSnapshot = async () => { (initialOptions.backupOrder??=[]).push('snapshot'); initialOptions.backupSnapshots=(initialOptions.backupSnapshots||0)+1; return { revision:1 }; };
+  w.pruneAssets = async () => { initialOptions.assetPrunes=(initialOptions.assetPrunes||0)+1; return { removed:0, bytes:0 }; };
   w.download = () => {};
   w.restoreIgnoredDraft = async () => ({ data: structuredClone(vault), conflict:false });
   w.hasUnsaved = () => false; w.scrollTo = () => {}; w.confirm = () => true;
@@ -594,6 +596,7 @@ test('moving all bookmarks to trash is reversible and does not force a backup', 
   assert.equal(w.document.querySelector('#openBookmarks .count').textContent,'0','sidebar totals follow bookmark mutations');
   w.document.querySelector('[data-trash-nav]').click();
   w.document.querySelector('[data-trash-restore]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(saves.at(-1).bookmarks[0].children[0].url,'https://example.com/');
   assert.deepEqual(saves.at(-1).trash,[]);
   dom.window.close();
@@ -646,12 +649,14 @@ test('deleted notes remain recoverable for 30 days and can be restored from the 
   const {dom,w,saves}=await mount({...structuredClone(empty),notes:[note]});
   w.document.querySelector('#sideCore [data-nav="all"]').click();
   w.document.querySelector('[data-note-delete="trash-note"]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(saves.at(-1).notes,[]);
   assert.equal(saves.at(-1).trash[0].item.id,'trash-note');
   w.document.querySelector('[data-trash-nav]').click();
   assert.match(w.document.querySelector('#main').textContent,/保留 30 天/);
   assert.match(w.document.querySelector('#main').textContent,/待还原笔记/);
   w.document.querySelector('[data-trash-restore]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(saves.at(-1).notes[0].id,'trash-note');
   assert.deepEqual(saves.at(-1).trash,[]);
   dom.window.close();
@@ -673,6 +678,37 @@ test('emptying the recycle bin requires confirmation but never requires or start
   assert.equal(options.exportedBeforeRestore,undefined,'permanent clear does not call the export flow');
   assert.match(w.document.querySelector('#main').textContent,/回收站为空/);
   dom.window.close();
+});
+test('destructive actions remain visible when the Docker transaction is not confirmed', async () => {
+  const note={id:'unsaved-delete',title:'不能误报删除',type:'note',category:'开发',tags:[],body:'<p>内容</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
+  const {dom,w}=await mount({...structuredClone(empty),notes:[note]},{commitError:'Docker 服务端保存失败'});
+  w.document.querySelector('#sideCore [data-nav="all"]').click();
+  w.document.querySelector('[data-note-delete="unsaved-delete"]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(w.document.querySelector('#main').textContent,/不能误报删除/,'failed deletion rolls the optimistic view back');
+  assert.match(w.document.querySelector('#toast').textContent,/Docker 服务端保存失败/);
+  dom.window.close();
+});
+test('bookmark and recycle-bin mutations roll back when the Docker transaction is not confirmed', async () => {
+  const bookmarkVault={...structuredClone(empty),bookmarks:[{id:'saved-folder',kind:'folder',title:'保留分组',children:[{id:'saved-link',kind:'link',title:'保留网址',url:'https://example.com'}]}],bookmarkFolderStates:{'saved-folder':true}};
+  const bookmarkMount=await mount(bookmarkVault,{commitError:'Docker 服务端保存失败'});
+  bookmarkMount.w.document.querySelector('#openBookmarks').click();
+  bookmarkMount.w.document.querySelector('[data-bm-organize]').click();
+  bookmarkMount.w.document.querySelector('[data-bm-clear]').click();
+  bookmarkMount.w.document.querySelector('#bookmarkForm').dispatchEvent(new bookmarkMount.w.Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(bookmarkMount.w.document.querySelector('#bookmarkTree').textContent,/保留分组/);
+  assert.deepEqual(bookmarkMount.saves.at(-1).bookmarks,[],'the failed candidate reached the mocked transaction boundary');
+  bookmarkMount.dom.window.close();
+
+  const note={id:'retained-trash',title:'保留在回收站',type:'note',category:'开发',tags:[],body:'<p>内容</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
+  const trashMount=await mount({...structuredClone(empty),trash:[createTrashEntry('note',note,{index:0})]},{commitError:'Docker 服务端保存失败'});
+  trashMount.w.document.querySelector('[data-trash-nav]').click();
+  trashMount.w.document.querySelector('[data-trash-clear]').click();
+  trashMount.w.document.querySelector('#trashClearOverlay form').dispatchEvent(new trashMount.w.Event('submit',{bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(trashMount.w.document.querySelector('#main').textContent,/保留在回收站/);
+  trashMount.dom.window.close();
 });
 test('the reader presents article metadata and keeps a section outline available on mobile', async () => {
   const note = { id:'article-note', title:'一篇长文笔记', type:'note', category:'开发', tags:['教程'], body:'<h2>部署前准备</h2><p>先检查环境。</p><h3>确认版本</h3><pre><code>node --version</code></pre>', source:'', created:1, updated:2, pinned:false };
@@ -1437,6 +1473,7 @@ test('restoring a history revision downloads the current full backup before queu
   assert.equal(restoreOptions.requestedBackup, '12');
   assert.equal(w.document.querySelector('#toast').textContent, '');
   assert.equal(restoreOptions.exportedBeforeRestore.notes[0].title, '当前版本');
+  assert.deepEqual(restoreOptions.backupOrder,['download','snapshot'],'the confirmed full backup precedes the server snapshot and replacement');
   assert.equal(saves.at(-1).notes[0].title, '历史版本');
   assert.equal(w.document.querySelector('#backupHistoryOverlay').classList.contains('open'), false);
   dom.window.close();
@@ -1446,12 +1483,14 @@ test('note types can be created and renamed from the sidebar and persist in the 
   w.document.querySelector('#addNoteType').click();
   w.document.querySelector('#typeNameInput').value = '读书笔记';
   w.document.querySelector('#typeDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   let created = saves.at(-1).noteTypes.find(t => t.name === '读书笔记');
   assert.ok(created); assert.match(created.id, /^custom_/);
   assert.ok(w.document.querySelector(`[data-type-edit="${created.id}"]`));
   w.document.querySelector('[data-type-edit="command"]').click();
   const name = w.document.querySelector('#typeNameInput'); name.value = '终端命令';
   w.document.querySelector('#typeDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(saves.at(-1).noteTypes.find(t => t.id === 'command'), { id:'command', name:'终端命令' });
   dom.window.close();
 });
@@ -1469,6 +1508,7 @@ test('new categories use the in-app dialog and are saved to the vault', async ()
   assert.equal(w.document.querySelector('#categoryDialogMessage').textContent, '请输入分类名称');
   input.value = '系统维护';
   w.document.querySelector('#categoryDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(overlay.classList.contains('open'), false);
   assert.ok(saves.at(-1).categories.includes('系统维护'));
   assert.ok(w.document.querySelector('#sideCats [data-nav="系统维护"]'));
@@ -1483,6 +1523,7 @@ test('deleting a note type requires a target and preserves its notes by reassign
   assert.match(w.document.querySelector('#typeDialogBody').textContent, /1 篇笔记/);
   w.document.querySelector('#typeReplacement').value = 'note';
   w.document.querySelector('#typeDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   const saved = saves.at(-1);
   assert.equal(saved.noteTypes.some(t => t.id === 'clip'), false);
   assert.equal(saved.notes[0].type, 'note'); assert.match(saved.notes[0].body,/保留正文/);
@@ -1498,6 +1539,7 @@ test('deleting the last non-default type creates a default target and preserves 
   assert.equal(replacement.value, 'note');
   assert.match(replacement.options[0].textContent, /自动创建/);
   w.document.querySelector('#typeDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   const saved = saves.at(-1);
   assert.deepEqual(saved.noteTypes, [{ id:'note', name:'普通笔记' }]);
   assert.equal(saved.notes[0].type, 'note');
@@ -1635,6 +1677,7 @@ test('bookmark navigation edits nested groups and links, moves safely and preser
   assert.deepEqual(saves.at(-1).trash[0].releasedChildren,['child']);
   w.document.querySelector('[data-trash-nav]').click();
   w.document.querySelector('[data-trash-restore]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(saves.at(-1).bookmarks,[
     {id:'group',kind:'folder',title:'开发',children:[{id:'child',kind:'folder',title:'文档',children:[]}]},
     {id:'site',kind:'link',title:'Web 文档',url:'https://developer.mozilla.org/'}
@@ -1699,6 +1742,7 @@ test('bookmark browse and organize modes preserve hierarchy, folder scope and cl
   assert.equal(w.document.querySelector('[data-bm-organize]').getAttribute('aria-pressed'), 'true');
   assert.equal(w.document.querySelector('.bookmark-directory').open, true);
   click('[data-bm-pin="second"]');
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(saves.at(-1).bookmarks[1].children[1].children[0].pinned, true);
   click('[data-bm-organize]');
   click('[data-bm-folder=""]');
@@ -1730,6 +1774,7 @@ test('bookmark card sorting moves among visible siblings without moving subfolde
   w.document.querySelector('#openBookmarks').click();
   w.document.querySelector('[data-bm-organize]').click();
   w.document.querySelector('[data-bm-up="sortb"]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(saves.at(-1).bookmarks[0].children.map(x=>x.id), ['sortb','sortchild','sorta']);
   assert.equal(saves.at(-1).bookmarks[0].children[1].children[0].id, 'nestedsite');
   assert.deepEqual([...w.document.querySelectorAll('.bookmark-link strong')].map(x=>x.textContent), ['网站 B','网站 A','子网站']);

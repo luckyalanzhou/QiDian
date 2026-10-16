@@ -13,6 +13,7 @@ services:
       MIGRATIONS_DIR: /app/migrations
       REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
       TRUST_PROXY: ${TRUST_PROXY:-false}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
     volumes:
       - qidian-data:/data
     ports:

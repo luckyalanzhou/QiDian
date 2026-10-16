@@ -78,6 +78,12 @@ async function readJson(request, maxBytes = MAX_VAULT_BYTES + 10000) {
   try { return JSON.parse(new TextDecoder().decode(bytes)); } catch { throw new HttpError(400, 'JSON 无效'); }
 }
 
+function assetReferences(serialized, target = new Set()) {
+  const pattern = /\/api\/assets\/([a-f0-9-]{36})(?:\?download=1)?/gi;
+  for (const match of String(serialized || '').matchAll(pattern)) target.add(match[1].toLowerCase());
+  return target;
+}
+
 async function readLimitedBytes(request, limit) {
   const reader = request.body?.getReader();
   if (!reader) throw new HttpError(400, '图片为空');
@@ -344,6 +350,20 @@ export async function handle(request, env) {
       const { results } = await env.DB.prepare('SELECT revision, created FROM account_snapshots WHERE account_id = ? ORDER BY revision DESC').bind(accountId).all();
       return json(results);
     }
+    if (path === '/api/backups' && request.method === 'POST') {
+      const current = await env.DB.prepare('SELECT revision, data FROM account_vaults WHERE account_id = ?').bind(accountId).first();
+      if (!current) throw new HttpError(404, '知识库不存在');
+      const created = Date.now();
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO account_snapshots(account_id, revision, data, created) VALUES (?, ?, ?, ?)
+          ON CONFLICT(account_id, revision) DO UPDATE SET data = excluded.data, created = excluded.created`)
+          .bind(accountId, current.revision, current.data, created),
+        env.DB.prepare(`DELETE FROM account_snapshots WHERE account_id = ? AND revision NOT IN (
+          SELECT revision FROM account_snapshots WHERE account_id = ? ORDER BY created DESC, revision DESC LIMIT 20
+        )`).bind(accountId, accountId)
+      ]);
+      return json({ revision: current.revision, created }, 201);
+    }
     const backup = path.match(/^\/api\/backups\/(\d+)$/);
     if (backup && request.method === 'GET') {
       const row = await env.DB.prepare('SELECT * FROM account_snapshots WHERE account_id = ? AND revision = ?').bind(accountId, Number(backup[1])).first();
@@ -375,6 +395,18 @@ export async function handle(request, env) {
       for (let i = 0; i < size; i += CHUNK) statements.push(env.DB.prepare('INSERT INTO account_asset_chunks(account_id, asset_id, ordinal, data) VALUES (?, ?, ?, ?)').bind(accountId, id, i / CHUNK, bytes.slice(i, i + CHUNK).buffer));
       try { await env.DB.batch(statements); } catch (error) { if (String(error).includes('ASSET_QUOTA')) throw new HttpError(413, '此账号附件总容量已达 100 MB，请先导出整理'); throw error; }
       return json({ id, name, mime, size, created, url: `/api/assets/${id}` }, 201);
+    }
+    if (path === '/api/assets/prune' && request.method === 'POST') {
+      const [vault, snapshots, assets] = await Promise.all([
+        env.DB.prepare('SELECT data FROM account_vaults WHERE account_id = ?').bind(accountId).first(),
+        env.DB.prepare('SELECT data FROM account_snapshots WHERE account_id = ?').bind(accountId).all(),
+        env.DB.prepare('SELECT id, size FROM account_assets WHERE account_id = ?').bind(accountId).all()
+      ]);
+      const referenced = assetReferences(vault?.data);
+      for (const snapshot of snapshots.results) assetReferences(snapshot.data, referenced);
+      const unused = assets.results.filter(asset => !referenced.has(String(asset.id).toLowerCase()));
+      if (unused.length) await env.DB.batch(unused.map(asset => env.DB.prepare('DELETE FROM account_assets WHERE account_id = ? AND id = ?').bind(accountId, asset.id)));
+      return json({ removed: unused.length, bytes: unused.reduce((total, asset) => total + Number(asset.size || 0), 0) });
     }
     const asset = path.match(/^\/api\/assets\/([a-f0-9-]{36})$/);
     if (asset && request.method === 'GET') {

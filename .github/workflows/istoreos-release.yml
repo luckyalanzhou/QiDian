@@ -92,7 +92,7 @@ jobs:
           cleanup() { docker rm -f qidian-smoke >/dev/null 2>&1 || true; }
           trap cleanup EXIT
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:9908/healthz >/dev/null; then break; fi
+            if curl --fail --silent http://127.0.0.1:9908/readyz >/dev/null; then break; fi
             sleep 2
           done
           curl --fail --silent http://127.0.0.1:9908/ >/dev/null
@@ -111,9 +111,7 @@ jobs:
           push: true
           build-args: |
             QIDIAN_VERSION=${{ steps.version.outputs.version }}
-          tags: |
-            docker.io/luckyalanzhou/qidian:${{ steps.version.outputs.version }}
-            docker.io/luckyalanzhou/qidian:latest
+          tags: docker.io/luckyalanzhou/qidian:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=qidian-image
           cache-to: type=gha,mode=max,scope=qidian-image
       - name: Install Makeself
@@ -157,7 +155,7 @@ jobs:
             git push origin HEAD:main
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Publish public GitHub Release
+      - name: Prepare verified GitHub Release
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
@@ -217,6 +215,8 @@ jobs:
           fi
           if [ "$RELEASE_EXISTS" != "true" ]; then
             gh release create "$tag" --draft --target "$TARGET_SHA" --title "$title" --notes-file "$notes_file"
+          else
+            gh release edit "$tag" --title "$title" --notes-file "$notes_file"
           fi
           gh release upload "$tag" \
             "artifacts/istoreos/qidian-${version}.run#栖点-${version}.run" \
@@ -229,4 +229,17 @@ jobs:
               exit 1
             }
           done
-          gh release edit "$tag" --title "$title" --notes-file "$notes_file" --draft=false --latest
+      - name: Publish verified GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh release edit "v${VERSION}" --draft=false --latest
+      - name: Promote released image to latest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            --tag docker.io/luckyalanzhou/qidian:latest \
+            "docker.io/luckyalanzhou/qidian:${VERSION}"
+          docker buildx imagetools inspect docker.io/luckyalanzhou/qidian:latest

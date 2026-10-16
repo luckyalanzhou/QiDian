@@ -78,6 +78,7 @@ docker exec -it qidian node server/reset-password.mjs
 | `MIGRATIONS_DIR` | `/app/migrations` | SQLite 迁移目录 |
 | `REGISTRATION_ENABLED` | `false` | 管理员创建后是否允许其他账号注册 |
 | `TRUST_PROXY` | `false` | 是否信任反向代理转发头 |
+| `TRUSTED_PROXY_IPS` | 空 | 允许提供转发头的直接代理 IP，多个地址以英文逗号分隔 |
 | `QIDIAN_VERSION` | 构建时写入 | 页面和 API 显示的镜像版本 |
 
 不要把 `DATA_DIR` 指向容器临时目录。必须挂载命名卷或宿主持久化目录。
@@ -87,7 +88,7 @@ docker exec -it qidian node server/reset-password.mjs
 - 数据库、账号、笔记、书签和附件都保存在 `/data`。
 - 容器重建不会删除已挂载的数据卷。
 - 默认 HTTP 只适合可信局域网；公网访问请使用 HTTPS 反向代理。
-- 设置 `TRUST_PROXY=true` 时，应确保外部不能绕过代理直接访问容器。
+- 设置 `TRUST_PROXY=true` 时，应同时填写 `TRUSTED_PROXY_IPS`，并确保外部不能绕过代理直接访问容器。
 - 栖点不向 GitHub 或 Docker Hub上传知识库内容；它们只用于版本元数据、镜像和安装包分发。
 
 备份时应同时在 Web 导出完整 ZIP，并复制 Docker 卷。
@@ -107,10 +108,11 @@ docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml
 
 ```sh
 curl http://127.0.0.1:9908/healthz
+curl http://127.0.0.1:9908/readyz
 docker logs --tail=100 qidian
 ```
 
-健康接口返回 `ok` 表示 HTTP 服务已启动。实际验收还应登录并检查笔记、书签和附件。
+`/healthz` 返回 `ok` 表示 HTTP 服务已启动；`/readyz` 返回 `ready` 表示 SQLite 可读取。实际验收还应登录并检查笔记、书签和附件。
 
 ## 链接
 

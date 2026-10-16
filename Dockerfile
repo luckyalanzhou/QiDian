@@ -30,5 +30,5 @@ RUN mkdir -p /data /run/qidian-update-inbox /run/qidian-update-status && chown n
 USER node
 EXPOSE 9908
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "require('node:http').get('http://127.0.0.1:9908/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+  CMD node -e "require('node:http').get('http://127.0.0.1:9908/readyz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 CMD ["node", "server/selfhost.mjs"]

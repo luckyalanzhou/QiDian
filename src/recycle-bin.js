@@ -15,7 +15,7 @@ export function createRecycleBinView({ main, getData, save, notify }) {
     const retained = before.filter(entry => now - entry.deletedAt < TRASH_RETENTION_MS);
     if (retained.length === before.length) return 0;
     data.trash = retained;
-    save();
+    void Promise.resolve(save()).catch(error=>{data.trash=before;notify(error.message||'过期内容尚未清理')});
     return before.length - retained.length;
   }
 
@@ -54,13 +54,15 @@ export function createRecycleBinView({ main, getData, save, notify }) {
       if (busy) return;
       const submit = overlay.querySelector('[type=submit]');
       busy = true; submit.disabled = true;
+      const previousTrash = getData().trash;
       try {
         if (JSON.stringify(getData()) !== serialized) throw new Error('回收站内容已变化，请关闭窗口后重新确认');
         getData().trash = [];
-        save();
+        await save();
         overlay.classList.remove('open');
         render();
       } catch (error) {
+        getData().trash = previousTrash;
         notify(error.message || '清空未完成');
       } finally {
         busy = false;
@@ -69,16 +71,17 @@ export function createRecycleBinView({ main, getData, save, notify }) {
     };
   }
 
-  main.addEventListener('click', event => {
+  main.addEventListener('click', async event => {
     const restore = event.target.closest('[data-trash-restore]');
     if (restore) {
+      const previous = structuredClone(getData());
       try {
         const candidate = structuredClone(getData());
         restoreTrashEntry(candidate, restore.dataset.trashRestore);
         const validated = validateVault(candidate);
         Object.assign(getData(), validated);
-        save(); render();
-      } catch (error) { notify(error.message || '还原失败'); }
+        await save(); render();
+      } catch (error) { Object.assign(getData(), previous); notify(error.message || '还原失败'); }
       return;
     }
     if (event.target.closest('[data-trash-clear]')) openClearDialog();

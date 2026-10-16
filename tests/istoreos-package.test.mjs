@@ -51,6 +51,7 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.ok(workflow.indexOf('name: Verify source') < workflow.indexOf('docker/setup-qemu-action@v3'), 'source verification fails before Docker emulation setup');
   assert.ok(workflow.indexOf('name: Smoke-test self-hosted container') < workflow.indexOf('name: Sign in to Docker Hub'), 'Docker Hub login happens only after the local smoke test');
   assert.match(workflow, /Build amd64 image for smoke test[\s\S]*?platforms: linux\/amd64[\s\S]*?load: true/);
+  assert.match(workflow, /curl --fail --silent http:\/\/127\.0\.0\.1:9908\/readyz/);
   assert.doesNotMatch(workflow, /docker build --pull/);
   assert.match(workflow, /cache-from: type=gha,scope=qidian-image/);
   assert.match(workflow, /cache-to: type=gha,mode=max,scope=qidian-image/);
@@ -62,7 +63,10 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /\.assets\[\] \| \(\.label \/\/ \.name\)/);
   assert.match(workflow, /git\/refs\/tags\/\$\{tag\}/);
   assert.match(workflow, /--method PATCH/);
-  assert.match(workflow, /gh release edit "\$tag".*--draft=false/);
+  assert.match(workflow, /gh release edit "v\$\{VERSION\}" --draft=false --latest/);
+  assert.match(workflow, /docker buildx imagetools create/);
+  assert.ok(workflow.indexOf('name: Prepare verified GitHub Release') < workflow.indexOf('name: Publish verified GitHub Release'));
+  assert.ok(workflow.indexOf('name: Publish verified GitHub Release') < workflow.indexOf('name: Promote released image to latest'));
   assert.match(workflow, /Prepare release checksum with the public asset name/);
   assert.match(workflow, /run\.release\.sha256#栖点-/);
   assert.match(workflow, /qidian-\$\{version\}\.run#栖点-\$\{version\}\.run/);
@@ -173,7 +177,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /set_env REGISTRATION_ENABLED/);
   assert.match(manager, /IMAGE_REPOSITORY=docker\.io\/luckyalanzhou\/qidian/);
   assert.match(manager, /set_env QIDIAN_IMAGE "\$IMAGE_REPOSITORY:latest"/);
-  assert.match(manager, /image_name=\$IMAGE_REPOSITORY:latest/);
+  assert.match(manager, /image_name=\$IMAGE_REPOSITORY:\$latest_version/);
   assert.match(manager, /docker pull "\$image_name"/);
   assert.match(manager, /check-update\)\s*check_and_apply_updates/);
   assert.match(manager, /version_is_newer "\$latest_version" "\$installed_plugin_version"/);
@@ -202,7 +206,7 @@ test('Docker service and LuCI use HTTP 9908 without requiring certificates', asy
   const installer = await read('../packaging/istoreos/install.sh');
   const view = await read('../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/view/qidian/status.htm');
 
-  assert.match(dockerfile, /node:http.*http:\/\/127\.0\.0\.1:9908\/healthz/);
+  assert.match(dockerfile, /node:http.*http:\/\/127\.0\.0\.1:9908\/readyz/);
   assert.match(compose, /APP_PORT:-9908/);
   assert.match(compose, /QIDIAN_DATA_PATH:\?请先在LuCI执行安装或更新/);
   assert.match(compose, /QIDIAN_IMAGE:\?请先在LuCI执行安装或更新/);

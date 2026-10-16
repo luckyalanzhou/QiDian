@@ -16,7 +16,7 @@ GitHub Actions 的 `iStoreOS Docker release` 工作流由人工手动触发。�
 
 - iStoreOS / OpenWrt：`栖点-<版本>.run`
 
-普通推送到 `main` 不会触发发布构建。该工作流还会构建并推送对应版本及 `latest` 的多架构 Docker 镜像；安装包本身不包含应用镜像。
+普通推送到 `main` 不会触发发布构建。该工作流先构建并推送固定版本的多架构 Docker 镜像，校验并公开 GitHub Release 后再将该版本提升为 `latest`；安装包本身不包含应用镜像。
 
 镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择当前设备架构。设备无需安装 Node.js、pnpm，也不会在设备上构建前端。
 
@@ -71,6 +71,7 @@ APP_BIND_ADDRESS=0.0.0.0
 APP_PORT=9908
 REGISTRATION_ENABLED=false
 TRUST_PROXY=false
+TRUSTED_PROXY_IPS=
 QIDIAN_IMAGE=docker.io/luckyalanzhou/qidian:latest
 ```
 
@@ -104,9 +105,10 @@ HTTP 不加密账号和内容，只应在可信网络使用。路由器端口转
 
 ```dotenv
 TRUST_PROXY=true
+TRUSTED_PROXY_IPS=127.0.0.1
 ```
 
-反向代理须正确设置 `X-Forwarded-Proto`、`X-Forwarded-Host`、`X-Forwarded-For`，并禁止公网绕过代理直接访问 9908。局域网地址和域名都可以登录，但同一浏览器会按不同站点分别保存 Cookie。
+`TRUSTED_PROXY_IPS` 填写直接连接容器的反向代理 IP，多个地址以英文逗号分隔。反向代理须正确设置 `X-Forwarded-Proto`、`X-Forwarded-Host`、`X-Forwarded-For`，并禁止公网绕过代理直接访问 9908。暂不填写受信地址时会保留旧版兼容行为并输出启动警告。局域网地址和域名都可以登录，但同一浏览器会按不同站点分别保存 Cookie。
 
 ## 注册和密码
 
@@ -181,6 +183,7 @@ cd /opt/qidian
 docker compose ps
 docker compose logs --tail=100 qidian
 curl http://127.0.0.1:9908/healthz
+curl http://127.0.0.1:9908/readyz
 cat /etc/qidian-version
 docker exec qidian printenv QIDIAN_VERSION
 ```
@@ -191,9 +194,10 @@ docker exec qidian printenv QIDIAN_VERSION
 docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml ps
 docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml logs --tail=100 qidian
 curl http://127.0.0.1:9908/healthz
+curl http://127.0.0.1:9908/readyz
 ```
 
-`/healthz` 返回 `ok` 只表示 HTTP 服务存活。还应登录并检查 SQLite 数据、附件下载和实际页面版本。
+`/healthz` 返回 `ok` 只表示 HTTP 服务存活；`/readyz` 返回 `ready` 表示服务可以读取 SQLite。还应登录并检查附件下载和实际页面版本。
 
 ## 卸载
 

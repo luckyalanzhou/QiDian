@@ -263,6 +263,11 @@ export function queueSave(data) {
   listener(DEV ? '本地开发预览：正在保存到此设备…' : blocked ? lastError : '正在保存到 Docker 数据目录…');
   void drain();
 }
+export async function commitSave(data) {
+  queueSave(data);
+  if (!await flush()) throw Error(lastError || '修改尚未写入 Docker 服务端，请保持页面打开并重试');
+  return true;
+}
 export function retrySync() {
   if (requiresLogin) { authenticationListener(); return false; }
   if (!pending) return false;
@@ -350,12 +355,16 @@ export async function upload(file) {
   if (!file.size || file.size > 8 * 1024 * 1024) throw Error('单个文件须介于 1 字节与 8 MB 之间');
   return (await api('/assets', { method: 'POST', headers: { 'X-File-Name': encodeURIComponent(file.name.slice(0,200)), 'Content-Type': 'application/octet-stream' }, body: file })).json();
 }
+export async function pruneAssets() {
+  if (DEV) return { removed: 0, bytes: 0 };
+  return (await api('/assets/prune', { method: 'POST' })).json();
+}
 export function download(blob, name) {
   const url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 export async function exportBackup(data) {
-  await flush();
+  if (!await flush()) throw Error(lastError || '当前修改尚未写入 Docker 服务端，暂不能生成一致备份');
   const files = { 'vault.json': strToU8(JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), ...data })) };
   const assets = DEV ? [] : await (await api('/assets')).json();
   files['assets.json'] = strToU8(JSON.stringify(assets));
@@ -415,5 +424,9 @@ export async function readBackup(file) {
   return data;
 }
 export async function listBackups() { return DEV ? [] : (await api('/backups')).json(); }
+export async function createBackupSnapshot() {
+  if (DEV) return { revision, created: Date.now() };
+  return (await api('/backups', { method: 'POST' })).json();
+}
 export async function getBackup(id) { return (await (await api(`/backups/${id}`)).json()).data; }
 window.addEventListener('online', () => { if (pending && !blocked) void drain(); });

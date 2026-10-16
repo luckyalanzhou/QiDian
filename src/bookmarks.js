@@ -46,9 +46,11 @@ export function createBookmarkView({ main, getData, save, download, notify }) {
       finally { busy = false; button.disabled = false; }
     };
   }
-  function apply(items, trash = getData().trash || []) {
+  async function apply(items, trash = getData().trash || []) {
     const candidate = validateVault({ ...getData(), bookmarks: items, trash });
-    getData().bookmarks = candidate.bookmarks; getData().trash = candidate.trash; save();
+    const previousBookmarks=getData().bookmarks,previousTrash=getData().trash;
+    getData().bookmarks = candidate.bookmarks; getData().trash = candidate.trash;
+    try{return await save()}catch(error){getData().bookmarks=previousBookmarks;getData().trash=previousTrash;throw error}
   }
   function editItem(kind, id = '', parent = '') {
     const found = id ? locate(id) : null, item = found?.item;
@@ -64,7 +66,7 @@ export function createBookmarkView({ main, getData, save, download, notify }) {
         if (!destination) throw Error('目标分组已变更');
         if (existing && destination === existing.entries) existing.entries[existing.entries.indexOf(existing.item)] = next;
         else { if (existing) existing.entries.splice(existing.entries.indexOf(existing.item), 1); destination.push(next); }
-        apply(items);
+        return apply(items);
       });
   }
   function removeItem(id) {
@@ -79,7 +81,7 @@ export function createBookmarkView({ main, getData, save, download, notify }) {
       const trashedItem = releasedChildren ? { ...current.item, children: [] } : current.item;
       const trash = [...(getData().trash || []), createTrashEntry('bookmark', trashedItem, location,
         releasedChildren ? { releasedChildren } : {})];
-      current.entries.splice(index, 1, ...(keep ? current.item.children : [])); apply(items, trash);
+      current.entries.splice(index, 1, ...(keep ? current.item.children : [])); return apply(items, trash);
     }, '移入回收站');
   }
   function clearAll() {
@@ -92,7 +94,9 @@ export function createBookmarkView({ main, getData, save, download, notify }) {
       removed.forEach((item, index) => trash.push(createTrashEntry('bookmark', item, {
         parentId: '', index, previousId: removed[index - 1]?.id || '', nextId: removed[index + 1]?.id || ''
       }, {}, deletedAt)));
-      closed.clear(); getData().bookmarkFolderStates = {}; apply([], trash); selectedFolder = ''; query = '';
+      const previousFolderStates=getData().bookmarkFolderStates;
+      closed.clear(); getData().bookmarkFolderStates = {}; selectedFolder = ''; query = '';
+      return apply([], trash).catch(error=>{getData().bookmarkFolderStates=previousFolderStates;throw error});
     }, '移入回收站');
     overlay.querySelector('[type=submit]').classList.add('danger-btn');
   }
@@ -140,7 +144,7 @@ export function createBookmarkView({ main, getData, save, download, notify }) {
         if (target && destination?.kind !== 'folder') throw Error('目标分组已变更');
         (destination ? destination.children : items).push(...moving);
       }
-      apply(items, trash); selected.clear();
+      selected.clear(); return apply(items, trash);
     }, deleting ? '移入回收站' : '移动');
     if (deleting) overlay.querySelector('[type=submit]').classList.add('danger-btn');
   }
@@ -253,7 +257,7 @@ export function createBookmarkView({ main, getData, save, download, notify }) {
       validateVault({ ...getData(), bookmarks: preview.items });
       dialog('导入书签', `<p>新增 ${preview.added} 个书签 · 跳过 ${preview.duplicates} 个重复项${parsed.skipped ? ` · 忽略 ${parsed.skipped} 个不支持的网址` : ''}</p><p class="hint">保留分组层级和顺序，同路径分组合并。</p><div class="bookmark-import-preview">${paths(parsed.items).map(x => `<div>${esc(x.path)}</div>`).join('') || '根目录书签'}</div>`, () => {
         if (JSON.stringify(getData()) !== snapshot) throw Error('知识库已变更，请重新选择文件预览');
-        apply(preview.items);
+        return apply(preview.items);
       }, '导入书签');
     } catch (error) { notify(error.message); }
   };

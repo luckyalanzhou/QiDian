@@ -437,6 +437,37 @@ test('chunked attachment round-trip preserves bytes and other accounts receive 4
   assert.equal((await call(`/assets/${asset.id}`,'GET',undefined,BOB.username,bob.cookie)).status,404);
 });
 
+test('manual snapshots protect referenced attachments while orphan pruning reclaims unused bytes', async () => {
+  const upload = async name => {
+    const response = await call('/assets','POST',new TextEncoder().encode(name),ALICE.username,alice.cookie,{ 'X-File-Name':encodeURIComponent(name) });
+    assert.equal(response.status,201);
+    return response.json();
+  };
+  const referenced = await upload('referenced.txt'), orphan = await upload('orphan.txt');
+  const current = await (await call('/vault')).json();
+  const note = { id:'asset-note', title:'附件引用', category:'开发', type:'note', tags:[], body:`<p><a href="/api/assets/${referenced.id}?download=1">附件</a></p>`, source:'', created:10, updated:10, pinned:false };
+  const saved = await call('/vault','PUT',JSON.stringify({ revision:current.revision, data:{ ...current.data, notes:[...current.data.notes,note] } }));
+  assert.equal(saved.status,200);
+  const snapshot = await call('/backups','POST');
+  assert.equal(snapshot.status,201);
+  assert.equal((await snapshot.json()).revision,current.revision+1);
+
+  const firstPrune = await call('/assets/prune','POST');
+  assert.equal(firstPrune.status,200);
+  assert.equal((await call(`/assets/${referenced.id}`)).status,200,'the active vault keeps referenced attachments');
+  assert.equal((await call(`/assets/${orphan.id}`)).status,404,'an unreferenced attachment is reclaimed');
+
+  const withAsset = await (await call('/vault')).json();
+  const removed = await call('/vault','PUT',JSON.stringify({ revision:withAsset.revision, data:{ ...withAsset.data, notes:withAsset.data.notes.filter(item=>item.id!==note.id) } }));
+  assert.equal(removed.status,200);
+  await call('/assets/prune','POST');
+  assert.equal((await call(`/assets/${referenced.id}`)).status,200,'retained snapshots keep historical attachment references valid');
+  await env.DB.prepare('DELETE FROM account_snapshots WHERE account_id = ?').bind(alice.data.id).run();
+  const finalPrune = await (await call('/assets/prune','POST')).json();
+  assert.ok(finalPrune.removed>=1);
+  assert.equal((await call(`/assets/${referenced.id}`)).status,404);
+});
+
 test('per-account file quota is atomic and oversized or empty uploads do not write', async () => {
   const db=env.DB, account=await db.prepare('SELECT id FROM accounts WHERE username_normalized=?').bind(ALICE.username).first();
   for (let i=0;i<12;i++) await db.prepare('INSERT INTO account_assets(account_id,id,name,mime,size,created) VALUES(?,?,?,?,?,?)').bind(account.id,`quota-${i}`,'quota','application/octet-stream',8388608,0).run();

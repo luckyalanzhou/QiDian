@@ -218,8 +218,10 @@ check_and_apply_updates() {
 	if [ "$image_needs_update" = true ]; then
 		printf '正在准备 Docker 数据目录和 Compose 配置…\n'
 		if prepare; then
-			printf '正在拉取 Docker 镜像 %s:latest…\n' "$IMAGE_REPOSITORY"
-			if docker pull "$IMAGE_REPOSITORY:latest"; then
+			image_name=$IMAGE_REPOSITORY:$latest_version
+			set_env QIDIAN_IMAGE "$image_name"
+			printf '正在拉取 Docker 镜像 %s…\n' "$image_name"
+			if docker pull "$image_name"; then
 				cd "$INSTALL_DIR"
 				if [ "$container_state" = running ]; then
 					if compose up -d --no-build --force-recreate qidian; then

@@ -22,7 +22,7 @@ test('self-hosted SQLite migrations back up schema changes and serve a private a
   const backups = await (await import('node:fs/promises')).readdir(join(data, 'migration-backups'));
   assert.equal(backups.length, 6, 'each data or schema migration after the first leaves a pre-change database copy');
 
-  const server = createSelfHostedServer({ DB, root: staticRoot, registrationEnabled: true, trustProxy: true });
+  const server = createSelfHostedServer({ DB, root: staticRoot, registrationEnabled: true, trustProxy: true, trustedProxies:['127.0.0.1'] });
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolveListen);
@@ -43,6 +43,11 @@ test('self-hosted SQLite migrations back up schema changes and serve a private a
   assert.match(page.headers.get('content-security-policy'), /frame-ancestors 'none'/);
   assert.match(page.headers.get('content-security-policy'), /script-src 'self' 'wasm-unsafe-eval'/);
   assert.match(page.headers.get('content-security-policy'), /worker-src 'self'/);
+  const ready = await fetch(`${base}/readyz`);
+  assert.equal(ready.status,200);
+  assert.equal(await ready.text(),'ready');
+  assert.equal(server.headersTimeout,15_000);
+  assert.equal(server.requestTimeout,60_000);
   const unauthenticated = await fetch(`${base}/api/vault`);
   assert.equal(unauthenticated.status, 401);
   const missingFile = await fetch(`${base}/missing.js`);

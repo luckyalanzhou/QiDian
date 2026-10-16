@@ -56,9 +56,6 @@ importers:
       hash-wasm:
         specifier: ^4.12.0
         version: 4.12.0
-      jose:
-        specifier: ^6.1.0
-        version: 6.2.12
     devDependencies:
       jsdom:
         specifier: ^27.0.0
@@ -693,9 +690,6 @@ packages:
 
   is-potential-custom-element-name@1.0.1:
     resolution: {integrity: sha512-bCYeRA2rVibKZd+s2625gGnGF/t7DSqDs4dP7CrLA1m7jKWz6pps0LpYLJN8Q64HtmPKJ1hrN3nzPNKFEKOUiQ==}
-
-  jose@6.2.12:
-    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   jsdom@27.4.0:
     resolution: {integrity: sha512-mjzqwWRD9Y1J1KUi7W97Gja1bwOOM5Ug0EZ6UDK3xS7j7mndrkwozHtSblfomlzyB4NepioNt+B2sOSzczVgtQ==}
@@ -1413,8 +1407,6 @@ snapshots:
       - supports-color
 
   is-potential-custom-element-name@1.0.1: {}
-
-  jose@6.2.12: {}
 
   jsdom@27.4.0(supports-color@10.2.2):
     dependencies:

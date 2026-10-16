@@ -24,9 +24,17 @@ const MIME = {
   '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8'
 };
 
-function externalOrigin(request, trustProxy) {
-  const forwardedProto = trustProxy ? request.headers['x-forwarded-proto'] : undefined;
-  const forwardedHost = trustProxy ? request.headers['x-forwarded-host'] : undefined;
+function normalizedAddress(value='') { return String(value).replace(/^::ffff:/,''); }
+function proxyIsTrusted(request, trustProxy, trustedProxies=[]) {
+  if (!trustProxy) return false;
+  if (!trustedProxies.length) return true;
+  return trustedProxies.map(normalizedAddress).includes(normalizedAddress(request.socket.remoteAddress));
+}
+
+function externalOrigin(request, trustProxy, trustedProxies) {
+  const trusted = proxyIsTrusted(request, trustProxy, trustedProxies);
+  const forwardedProto = trusted ? request.headers['x-forwarded-proto'] : undefined;
+  const forwardedHost = trusted ? request.headers['x-forwarded-host'] : undefined;
   const protoValue = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
   const hostValue = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost;
   const protocol = (typeof protoValue === 'string' ? protoValue : '').split(',')[0].trim()
@@ -48,8 +56,8 @@ async function readBody(request, limit) {
   return chunks.length ? Buffer.concat(chunks, size) : undefined;
 }
 
-function forwardedClientIp(request, trustProxy) {
-  if (trustProxy) {
+function forwardedClientIp(request, trustProxy, trustedProxies) {
+  if (proxyIsTrusted(request, trustProxy, trustedProxies)) {
     const forwarded = request.headers['x-forwarded-for'];
     const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded;
     const first = (typeof forwardedValue === 'string' ? forwardedValue : '').split(',')[0].trim();
@@ -134,17 +142,24 @@ function safeStaticPath(root, pathname) {
   return path === root || path.startsWith(`${root}${sep}`) ? path : null;
 }
 
-export function createSelfHostedServer({ DB, root = resolve('dist'), registrationEnabled = false, trustProxy = false,
+export function createSelfHostedServer({ DB, root = resolve('dist'), registrationEnabled = false, trustProxy = false, trustedProxies = [],
   updateRequestDir = process.env.UPDATE_REQUEST_DIR, updateStatusDir = process.env.UPDATE_STATUS_DIR,
   qidianVersion = process.env.QIDIAN_VERSION || PACKAGE_VERSION || '0.0.0', fetchRelease = globalThis.fetch } = {}) {
   if (!DB) throw new Error('A configured SQLite database is required before serving requests');
   const staticRoot = resolve(root);
   const handler = async (incoming, outgoing) => {
     try {
-      const url = new URL(incoming.url || '/', externalOrigin(incoming, trustProxy));
+      const url = new URL(incoming.url || '/', externalOrigin(incoming, trustProxy, trustedProxies));
       if (url.pathname === '/healthz' && incoming.method === 'GET') {
         writeHead(outgoing, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         outgoing.end('ok');
+        return;
+      }
+      if (url.pathname === '/readyz' && incoming.method === 'GET') {
+        const ready = await DB.prepare('SELECT 1 AS ready').first();
+        if (ready?.ready !== 1) throw new Error('Database readiness check failed');
+        writeHead(outgoing, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        outgoing.end('ready');
         return;
       }
 
@@ -157,7 +172,7 @@ export function createSelfHostedServer({ DB, root = resolve('dist'), registratio
           if (HOP_BY_HOP_HEADERS.has(key) || raw === undefined) continue;
           headers.set(key, Array.isArray(raw) ? raw.join(', ') : String(raw));
         }
-        headers.set('X-Client-IP', forwardedClientIp(incoming, trustProxy));
+        headers.set('X-Client-IP', forwardedClientIp(incoming, trustProxy, trustedProxies));
         const request = new Request(url, {
           method: incoming.method || 'GET', headers,
           ...(body ? { body, duplex: 'half' } : {})
@@ -211,7 +226,11 @@ export function createSelfHostedServer({ DB, root = resolve('dist'), registratio
       outgoing.end(JSON.stringify({ error: status === 413 ? '请求内容过大' : '服务器暂时无法完成操作' }));
     }
   };
-  return createServer(handler);
+  const server = createServer(handler);
+  server.headersTimeout = 15_000;
+  server.requestTimeout = 60_000;
+  server.keepAliveTimeout = 5_000;
+  return server;
 }
 
 async function main() {
@@ -222,10 +241,14 @@ async function main() {
     migrationsDir: resolve(process.env.MIGRATIONS_DIR || '/app/migrations'),
     backupsDir: resolve(dataDir, 'migration-backups')
   });
+  const trustProxy = process.env.TRUST_PROXY === 'true';
+  const trustedProxies = String(process.env.TRUSTED_PROXY_IPS || '').split(',').map(value=>value.trim()).filter(Boolean);
+  if (trustProxy && !trustedProxies.length) console.warn('TRUST_PROXY is enabled without TRUSTED_PROXY_IPS; forwarded headers are trusted for backward compatibility.');
   const server = createSelfHostedServer({
     DB, root,
     registrationEnabled: process.env.REGISTRATION_ENABLED === 'true',
-    trustProxy: process.env.TRUST_PROXY === 'true'
+    trustProxy,
+    trustedProxies
   });
   const port = Number.parseInt(process.env.PORT || '9908', 10);
   const host = process.env.HOST || '0.0.0.0';
