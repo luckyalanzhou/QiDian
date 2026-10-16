@@ -46,6 +46,10 @@ local function button(option, title, style, action)
 	return option
 end
 
+local updates = s:option(Button, "_check_update", translate("软件更新"))
+updates.description = translate("检查 LuCI 管理插件和 Docker 镜像；发现更新时自动更新对应组件。")
+button(updates, translate("检查更新"), "apply", "check-update")
+
 local install = s:option(Button, "_install", translate("部署"))
 button(install, translate("安装 / 更新"), "apply", "install")
 
@@ -65,10 +69,10 @@ image.default = "luckyalanzhou/qidian:latest"
 image.description = translate("多架构镜像会自动匹配设备；固定版本标签可用于回滚。")
 
 local start = s:option(Button, "_start", translate("启动服务"))
-button(start, translate("启动"), "apply", "start")
+button(start, translate("启动服务"), "apply", "start")
 local stop = s:option(Button, "_stop", translate("停止服务"))
-button(stop, translate("停止"), "reset", "stop")
-local remove = s:option(Button, "_remove", translate("卸载容器"))
-button(remove, translate("卸载容器"), "remove", "remove")
+button(stop, translate("停止服务"), "reset", "stop")
+local remove = s:option(Button, "_remove", translate("卸载服务"))
+button(remove, translate("卸载服务"), "remove", "remove")
 
 return m

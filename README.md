@@ -50,6 +50,7 @@ docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml
 - iStoreOS 管理界面仅提供 `.run` 自解压安装包；应用容器镜像支持 iStoreOS 24.10 / 25.12 所需的 Docker 平台架构。
 - 每次成功的手动发布会在同一 GitHub Release 提供 `.run` 和 SHA-256 校验文件，并发布对应版本和 `latest` 多架构镜像。普通推送到 `main` 不会触发发布。
 - 发布版本号以 `package.json` 为准；当前版本、历史版本、版本说明和下载文件见 [GitHub Releases](https://github.com/luckyalanzhou/qidian/releases)。Web 在线更新统一下载 `.run` 管理安装包。
+- LuCI 部署页可分别检查并更新管理插件与 Docker 镜像；两者都有更新时会在同一任务中完成。
 
 ## 本地开发
 

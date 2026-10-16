@@ -6,92 +6,65 @@
 <% local has_data_path = data_path ~= "" %>
 <% if data_path == "" then local docker_root = util.trim(sys.exec("docker info --format '{{.DockerRootDir}}' 2>/dev/null")); if docker_root:sub(1, 1) == "/" and docker_root ~= "/" then data_path = docker_root:gsub("/$", "") .. "/volumes/qidian/data"; has_data_path = true else data_path = translate("等待 Docker 启动后检测") end end %>
 <% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
-<% local initial_tab = state == "running" and not busy and "service" or "config" %>
+<% local initial_tab = busy and "logs" or (state == "running" and "service" or "config") %>
 <% local result = util.trim(sys.exec("cat /tmp/qidian-operation.result 2>/dev/null")) %>
 <% local log = sys.exec("tail -c 65536 /tmp/qidian-operation.log 2>/dev/null") %>
 <% local log_endpoint = luci.dispatcher.build_url("admin/services/qidian/log-data") %>
 
 <div class="qidian-service-page">
 	<div class="cbi-tabcontainer">
-	<div id="qidian-panel-service" data-tab="service" data-tab-title="<%:服务%>" <% if initial_tab == "service" then %>data-tab-active="true"<% end %>>
-	<section class="cbi-section qidian-service-hero">
-		<h3><%:服务状态%></h3>
-		<div class="cbi-value">
-			<div class="cbi-value-title"><%:状态%></div>
-			<div class="cbi-value-field">
-				<div id="qidian-service-state" class="qidian-service-state <% if state == "running" and not busy then %>is-running<% elseif busy then %>is-busy<% elseif state == "error" or result == "failed" then %>is-error<% else %>is-stopped<% end %>">
-					<span class="qidian-service-indicator" aria-hidden="true"></span>
-					<div>
-						<strong id="qidian-service-title">
-							<% if busy then %><%:操作进行中%>
-							<% elseif state == "running" then %><%:栖点服务运行中%>
-							<% elseif state == "error" then %><%:Docker 服务不可用%>
-							<% elseif result == "failed" then %><%:上次操作失败%>
-							<% else %><%:服务未启动%><% end %>
-						</strong>
-						<span id="qidian-service-description"><% if busy then %><%:进度见“日志”页。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "running" then %><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:查看“日志”页末尾的错误信息。%><% else %><%:前往“部署与配置”页安装服务，或在本页启动服务。%><% end %></span>
+		<div id="qidian-panel-service" data-tab="service" data-tab-title="<%:服务%>" <% if initial_tab == "service" then %>data-tab-active="true"<% end %>>
+			<div class="cbi-section">
+				<h3><%:服务状态%></h3>
+				<div class="cbi-value">
+					<div class="cbi-value-field">
+						<strong id="qidian-service-title"><% if busy then %><%:操作进行中%><% elseif state == "running" then %><%:栖点服务运行中%><% elseif state == "error" then %><%:Docker 服务不可用%><% elseif result == "failed" then %><%:上次操作失败%><% else %><%:服务未启动%><% end %></strong>
+						<div id="qidian-service-description" <% if not busy and state == "running" and account_status ~= "setup_required" then %>hidden<% end %>><% if busy then %><%:请在日志页查看实时进度。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:请查看日志末尾的错误信息。%><% elseif state ~= "running" then %><%:部署服务后可在此打开栖点。%><% end %></div>
 					</div>
 				</div>
+				<div id="qidian-open-row" class="cbi-value" <% if state ~= "running" or busy then %>hidden<% end %>>
+					<div class="cbi-value-field"><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></div>
+				</div>
+			</div>
+
+			<div class="cbi-section">
+				<h3><%:服务信息%></h3>
+				<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%></div><div class="cbi-value-field"><strong><%=util.pcdata(port)%></strong></div></div>
+				<div class="cbi-value"><div class="cbi-value-title"><%:Docker 数据目录%></div><div class="cbi-value-field"><code id="qidian-data-path"><%=util.pcdata(data_path)%></code> <button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></div></div>
+				<div class="cbi-value"><div class="cbi-value-title"><%:账号状态%></div><div class="cbi-value-field"><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></div></div>
+			</div>
+
+			<div id="qidian-service-operations" class="cbi-section">
+				<h3><%:服务操作%></h3>
+				<div id="qidian-service-action-fields"></div>
+			</div>
+
+			<div id="qidian-account-tools" class="cbi-section" <% if state ~= "running" or account_status ~= "ready" then %>hidden<% end %>>
+				<h3><%:管理员密码重置%></h3>
+				<div class="cbi-section-descr"><%:在 OpenWrt 终端运行命令，按提示输入账号；输入 Y 确认或 N 取消，然后输入两次新密码。%></div>
+				<div class="cbi-value"><div class="cbi-value-title"><%:重置密码命令%></div><div class="cbi-value-field"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code> <button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制命令%></button><div id="qidian-copy-message" role="status" aria-live="polite"></div></div></div>
 			</div>
 		</div>
-		<div id="qidian-open-row" class="cbi-value qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>>
-			<div class="cbi-value-title"><%:网页入口%></div>
-			<div class="cbi-value-field"><a id="qidian-open" class="cbi-button cbi-button-apply qidian-open-button" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><span id="qidian-open-label"><%:打开栖点%></span><span aria-hidden="true">↗</span></a></div>
+
+		<div id="qidian-panel-config" data-tab="config" data-tab-title="<%:部署与配置%>" <% if initial_tab == "config" then %>data-tab-active="true"<% end %>>
+			<div id="qidian-install-config-slot"></div>
 		</div>
-	</section>
 
-	<section class="cbi-section qidian-service-details">
-		<h3><%:服务信息%></h3>
-		<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%></div><div class="cbi-value-field"><strong><%=util.pcdata(port)%></strong></div></div>
-		<div class="cbi-value"><div class="cbi-value-title"><%:Docker 数据目录%></div><div class="cbi-value-field"><div class="qidian-path-value"><strong id="qidian-data-path"><%=util.pcdata(data_path)%></strong><button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></div></div></div>
-		<div class="cbi-value"><div class="cbi-value-title"><%:账号状态%></div><div class="cbi-value-field"><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></div></div>
-	</section>
-
-	<section id="qidian-service-operations" class="cbi-section qidian-service-operations">
-		<h3><%:服务操作%></h3>
-		<div class="cbi-section-descr"><%:卸载仅移除容器；数据、附件、证书和配置会保留。%></div>
-		<div id="qidian-service-action-fields"></div>
-	</section>
-
-	<section id="qidian-account-tools" class="cbi-section qidian-account-tools" <% if state ~= "running" or account_status ~= "ready" then %>hidden<% end %>>
-		<h3><%:管理员密码重置%></h3>
-		<div class="cbi-section-descr"><%:在 OpenWrt 终端运行命令，输入账号后按 Y 确认或 N 取消；确认后输入两次新密码。密码不会保存在 LuCI。%></div>
-		<div class="cbi-value"><div class="cbi-value-title"><%:重置密码命令%></div><div class="cbi-value-field qidian-command-row"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code><button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制命令%></button></div></div>
-		<p id="qidian-copy-message" class="qidian-copy-message" role="status" aria-live="polite"></p>
-	</section>
-	</div>
-	<section id="qidian-panel-config" data-tab="config" data-tab-title="<%:部署与配置%>" <% if initial_tab == "config" then %>data-tab-active="true"<% end %>>
-		<div id="qidian-install-config-slot"></div>
-	</section>
-
-	<section id="qidian-panel-logs" class="cbi-section qidian-log-panel" data-tab="logs" data-tab-title="<%:日志%>">
-		<h3><%:操作日志%></h3>
-		<div class="cbi-section-descr qidian-logs-description"><%:部署、更新和服务操作记录。%></div>
-		<div class="qidian-logs-heading">
-			<div class="qidian-log-meta"><time id="qidian-log-updated" hidden></time><span id="qidian-log-state" class="qidian-log-state <% if busy then %>is-busy<% elseif result == "failed" then %>is-error<% elseif result == "success" then %>is-success<% end %>"><i aria-hidden="true"></i><span id="qidian-log-state-text"><% if busy then %><%:执行中%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:上次操作成功%><% else %><%:暂无操作记录%><% end %></span></span></div>
-		</div>
-		<div class="qidian-log-card">
-			<div class="qidian-console">
-				<div class="qidian-console-bar"><span><%:操作输出%></span><span id="qidian-panel-live" class="qidian-live-indicator" <% if not busy then %>hidden<% end %>><i></i><%:实时更新%></span></div>
-				<pre id="qidian-panel-log" class="qidian-operation-log"><% if log == "" then %><%:暂无日志。%><% else %><%=util.pcdata(log)%><% end %></pre>
+		<div id="qidian-panel-logs" class="cbi-section" data-tab="logs" data-tab-title="<%:日志%>" <% if initial_tab == "logs" then %>data-tab-active="true"<% end %>>
+			<h3><%:操作日志%></h3>
+			<div class="cbi-section-descr"><%:部署、更新和服务操作记录；操作期间自动刷新。%></div>
+			<div class="cbi-value">
+				<div class="cbi-value-title"><%:操作状态%></div>
+				<div class="cbi-value-field"><strong id="qidian-log-state-text"><% if busy then %><%:执行中%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:上次操作成功%><% else %><%:暂无操作记录%><% end %></strong> <time id="qidian-log-updated" hidden></time></div>
 			</div>
-			<div class="qidian-log-card-foot"><span><%:显示最近 64 KB 日志。%></span><div><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button><button id="qidian-log-refresh" class="cbi-button cbi-button-apply" type="button"><%:刷新日志%></button></div></div>
-		</div>
-	</section>
-	</div>
-
-	<div id="qidian-install-modal" class="qidian-modal-backdrop" <% if not busy then %>hidden<% end %> role="dialog" aria-modal="true" aria-labelledby="qidian-modal-title" tabindex="-1">
-		<div class="qidian-modal">
-			<div class="qidian-modal-head">
-				<div><h2 id="qidian-modal-title"><% if busy then %><%:操作进行中%><% else %><%:操作日志%><% end %></h2></div>
-				<button type="button" id="qidian-modal-close" class="cbi-button qidian-modal-close" aria-label="<%:关闭日志窗口%>">×</button>
+			<div class="cbi-value">
+				<div class="cbi-value-title"><label for="qidian-panel-log"><%:操作输出%></label></div>
+				<div class="cbi-value-field"><textarea id="qidian-panel-log" class="cbi-input-textarea" rows="18" readonly spellcheck="false" wrap="off"><% if log == "" then %><%:暂无日志。%><% else %><%=util.pcdata(log)%><% end %></textarea></div>
 			</div>
-			<p id="qidian-modal-message" class="qidian-modal-message" <% if not busy then %>hidden<% end %>><% if busy then %><%:查看下方日志了解进度。%><% end %></p>
-			<div class="qidian-console">
-				<div class="qidian-console-bar"><span><%:操作输出%></span><span id="qidian-live-indicator" class="qidian-live-indicator" <% if not busy then %>hidden<% end %>><i></i><%:实时更新%></span></div>
-				<pre id="qidian-modal-log" class="qidian-operation-log"><% if log == "" then %><%:等待日志…%><% else %><%=util.pcdata(log)%><% end %></pre>
+			<div class="cbi-value">
+				<div class="cbi-value-title"><%:日志操作%></div>
+				<div class="cbi-value-field"><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button> <button id="qidian-log-refresh" class="cbi-button cbi-button-apply" type="button"><%:刷新日志%></button> <span><%:最多显示最近 64 KB。%></span></div>
 			</div>
-			<div class="qidian-modal-foot"><button type="button" id="qidian-modal-show-logs" class="cbi-button"><%:查看日志%></button><button type="button" id="qidian-modal-done" class="cbi-button cbi-button-apply qidian-modal-done"><% if busy then %><%:收起窗口%><% else %><%:关闭%><% end %></button></div>
 		</div>
 	</div>
 </div>
@@ -104,75 +77,41 @@
 	var accountStatus = "<%=util.pcdata(account_status)%>";
 	var endpoint = "<%=log_endpoint%>";
 	var servicePage = document.querySelector(".qidian-service-page");
-	var modal = document.getElementById("qidian-install-modal");
-	var log = document.getElementById("qidian-modal-log");
-	var previousLog = log.textContent;
 	var panelLog = document.getElementById("qidian-panel-log");
-	var previousPanelLog = panelLog.textContent;
+	var previousLog = panelLog.value;
 	var servicePanel = document.getElementById("qidian-panel-service");
 	var configPanel = document.getElementById("qidian-panel-config");
 	var logsPanel = document.getElementById("qidian-panel-logs");
-	var stateBox = document.getElementById("qidian-service-state");
 	var openRow = document.getElementById("qidian-open-row");
-	var openButton = document.getElementById("qidian-open");
-	var openLabel = document.getElementById("qidian-open-label");
 	var accountState = document.getElementById("qidian-account-state");
 	var accountTools = document.getElementById("qidian-account-tools");
 	var serviceActions = document.getElementById("qidian-service-operations");
 	var serviceActionFields = document.getElementById("qidian-service-action-fields");
 	var installConfigSlot = document.getElementById("qidian-install-config-slot");
-	var installSection = null;
 	var updatedAt = document.getElementById("qidian-log-updated");
-	var modalFollowLog = true;
 	var panelFollowLog = true;
-	var panelBottomButton = document.getElementById("qidian-log-bottom");
-	function syncArgonPalette() {
-		if (!servicePage) return;
-		var argonDark = Array.prototype.some.call(document.querySelectorAll('link[rel~="stylesheet"][href]'), function (link) {
-			if (link.disabled || !/(?:^|\/)argon\/css\/dark\.css(?:[?#]|$)/i.test(link.href || "")) return false;
-			var media = (link.media || "").trim();
-			return !media || media === "all" || !window.matchMedia || window.matchMedia(media).matches;
-		});
-		servicePage.classList.toggle("is-argon-dark", argonDark);
-	}
-	syncArgonPalette();
-	if (window.MutationObserver && document.head) {
-		var themeObserver = new MutationObserver(syncArgonPalette);
-		themeObserver.observe(document.head, { childList: true, subtree: true, attributes: true, attributeFilter: ["href", "media", "disabled"] });
-	}
 	function moveInstallConfig() {
 		var installButton = document.querySelector('input[type="submit"][name$="._install"]');
-		installSection = installButton && installButton.closest(".cbi-section");
-		if (installSection && installConfigSlot && !installConfigSlot.contains(installSection)) {
-			installSection.classList.add("qidian-install-section");
-			installConfigSlot.appendChild(installSection);
-		}
+		var installSection = installButton && installButton.closest(".cbi-section");
+		if (installSection && installConfigSlot && !installConfigSlot.contains(installSection)) installConfigSlot.appendChild(installSection);
 	}
 	function activatePanel(name) {
 		if (name === "config") moveInstallConfig();
 		var pageActions = document.querySelector(".cbi-page-actions");
-		if (pageActions) {
-			pageActions.classList.add("qidian-config-page-actions");
-			pageActions.hidden = name !== "config";
-		}
+		if (pageActions) pageActions.hidden = name !== "config";
 		if (name === "logs") {
-			if (panelLog.scrollHeight - panelLog.scrollTop <= panelLog.clientHeight + 32) panelLog.scrollTop = panelLog.scrollHeight;
+			if (panelFollowLog) panelLog.scrollTop = panelLog.scrollHeight;
 			pollLog();
 		}
 	}
 	servicePanel.addEventListener("cbi-tab-active", function () { activatePanel("service"); });
 	configPanel.addEventListener("cbi-tab-active", function () { activatePanel("config"); });
 	logsPanel.addEventListener("cbi-tab-active", function () { activatePanel("logs"); });
-	function showNativeTab(name) {
-		var tabLink = servicePage.querySelector('.cbi-tabmenu [data-tab="' + name + '"] a');
-		if (tabLink) tabLink.click();
-	}
-	document.getElementById("qidian-modal-show-logs").addEventListener("click", function () {
-		modal.hidden = true;
-		showNativeTab("logs");
-	});
 	document.getElementById("qidian-log-refresh").addEventListener("click", pollLog);
 	document.getElementById("qidian-log-bottom").addEventListener("click", function () { panelLog.scrollTop = panelLog.scrollHeight; });
+	panelLog.addEventListener("scroll", function () { panelFollowLog = isAtBottom(panelLog); });
+	panelLog.scrollTop = panelLog.scrollHeight;
+	panelFollowLog = true;
 	document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
 	function organizeServiceActions() {
 		var moved = 0;
@@ -180,6 +119,8 @@
 			var button = document.querySelector('input[type="submit"][name$=".' + suffix + '"]');
 			var field = button && button.closest(".cbi-value");
 			if (field) {
+				var label = field.querySelector(".cbi-value-title");
+				if (label) label.remove();
 				serviceActionFields.appendChild(field);
 				moved += 1;
 			}
@@ -195,18 +136,12 @@
 	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initializePanels, { once: true });
 	else initializePanels();
 	document.addEventListener("click", function (event) {
-		var target = event.target;
-		var removeButton = target && target.closest ? target.closest('input[type="submit"][name$="._remove"]') : null;
-		if (removeButton && !window.confirm("卸载栖点容器？知识库数据、附件、证书和配置会保留。")) {
+		var removeButton = event.target && event.target.closest ? event.target.closest('input[type="submit"][name$="._remove"]') : null;
+		if (removeButton && !window.confirm("卸载栖点服务？此操作会移除容器，知识库数据、附件、证书和配置会保留。")) {
 			event.preventDefault();
 			event.stopImmediatePropagation();
 		}
 	}, true);
-	var closeModal = function () { modal.hidden = true; };
-	document.getElementById("qidian-modal-close").addEventListener("click", closeModal);
-	document.getElementById("qidian-modal-done").addEventListener("click", closeModal);
-	modal.addEventListener("click", function (event) { if (event.target === modal) closeModal(); });
-	document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !modal.hidden) closeModal(); });
 	function copyText(value, onResult) {
 		var fallback = function () {
 			var field = document.createElement("textarea"); field.value = value; field.setAttribute("readonly", ""); field.style.position = "fixed"; field.style.opacity = "0"; document.body.appendChild(field); field.select();
@@ -230,77 +165,47 @@
 	function isAtBottom(element) {
 		return element.scrollHeight - element.scrollTop <= element.clientHeight + 32;
 	}
-	function updateBottomButton() {
-		panelBottomButton.hidden = isAtBottom(panelLog);
-	}
-	log.addEventListener("scroll", function () { modalFollowLog = isAtBottom(log); });
-	panelLog.addEventListener("scroll", function () { panelFollowLog = isAtBottom(panelLog); updateBottomButton(); });
-	panelBottomButton.addEventListener("click", function () { panelLog.scrollTop = panelLog.scrollHeight; });
-	log.scrollTop = log.scrollHeight;
-	panelLog.scrollTop = panelLog.scrollHeight;
-	updateBottomButton();
-
 	function renderStatus(data) {
 		var title = document.getElementById("qidian-service-title");
 		var description = document.getElementById("qidian-service-description");
-		stateBox.className = "qidian-service-state " + (data.busy ? "is-busy" : data.state === "running" ? "is-running" : data.result === "failed" || data.state === "error" ? "is-error" : "is-stopped");
 		if (data.busy) {
 			title.textContent = "操作进行中";
-			description.textContent = "进度见“日志”页。";
+			description.textContent = "请在日志页查看实时进度。";
 		} else if (data.state === "running") {
 			title.textContent = "栖点服务运行中";
 			description.textContent = data.accountStatus === "setup_required" ? "首次访问时创建管理员账号。" : "";
 		} else if (data.result === "failed" || data.state === "error") {
 			title.textContent = data.state === "error" ? "Docker 服务不可用" : "上次操作失败";
-			description.textContent = data.state === "error" ? "请检查 Docker 服务状态。" : "查看“日志”页末尾的错误信息。";
+			description.textContent = data.state === "error" ? "请检查 Docker 服务状态。" : "请查看日志末尾的错误信息。";
 		} else {
 			title.textContent = "服务未启动";
-			description.textContent = "前往“部署与配置”页安装服务，或在本页启动服务。";
+			description.textContent = "部署服务后可在此打开栖点。";
 		}
+		description.hidden = description.textContent.trim() === "";
 		openRow.hidden = data.busy || data.state !== "running";
-		if (!openRow.hidden) openButton.href = "http://" + window.location.hostname + ":" + port;
+		if (!openRow.hidden) document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
 		accountStatus = data.accountStatus || accountStatus;
 		accountState.textContent = accountStatus === "setup_required" ? "管理员待创建" : accountStatus === "ready" ? "管理员已创建" : "启动后检测";
-		openLabel.textContent = "打开栖点";
 		accountTools.hidden = data.state !== "running" || accountStatus !== "ready";
-		document.getElementById("qidian-live-indicator").hidden = !data.busy;
-		document.getElementById("qidian-panel-live").hidden = !data.busy;
-		var logState = document.getElementById("qidian-log-state");
-		logState.className = "qidian-log-state " + (data.busy ? "is-busy" : data.result === "failed" ? "is-error" : data.result === "success" ? "is-success" : "");
 		document.getElementById("qidian-log-state-text").textContent = data.busy ? "执行中" : data.result === "failed" ? "上次操作失败" : data.result === "success" ? "上次操作成功" : "暂无操作记录";
-		document.getElementById("qidian-modal-title").textContent = data.busy ? "操作进行中" : data.result === "success" ? "操作成功" : data.result === "failed" ? "操作失败" : "操作日志";
-		var modalMessage = document.getElementById("qidian-modal-message");
-		modalMessage.textContent = data.busy ? "查看下方日志了解进度。" : data.result === "failed" ? "查看日志末尾的错误信息。" : "";
-		modalMessage.hidden = !modalMessage.textContent;
-		document.getElementById("qidian-modal-done").textContent = data.busy ? "收起窗口" : "关闭";
 	}
-
 	function pollLog() {
 		fetch(endpoint, { credentials: "same-origin", cache: "no-store" }).then(function (response) {
 			if (!response.ok) throw new Error("log request failed");
 			return response.json();
 		}).then(function (data) {
 			if (data.log !== previousLog) {
-				log.textContent = data.log || "等待日志…";
-				previousLog = data.log;
-				if (modalFollowLog) log.scrollTop = log.scrollHeight;
-			}
-			if (data.log !== previousPanelLog) {
-				panelLog.textContent = data.log || "暂无日志。";
-				previousPanelLog = data.log;
+				panelLog.value = data.log || "暂无日志。";
+				previousLog = panelLog.value;
 				if (panelFollowLog) panelLog.scrollTop = panelLog.scrollHeight;
 			}
 			var refreshed = new Date();
 			updatedAt.dateTime = refreshed.toISOString();
 			updatedAt.textContent = "更新于 " + refreshed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 			updatedAt.hidden = false;
-			updateBottomButton();
 			renderStatus(data);
 			if (data.busy) window.setTimeout(pollLog, 1800);
 		}).catch(function () {
-			var modalMessage = document.getElementById("qidian-modal-message");
-			modalMessage.textContent = "日志暂不可用，正在重试…";
-			modalMessage.hidden = false;
 			window.setTimeout(pollLog, 3500);
 		});
 	}
@@ -309,145 +214,7 @@
 </script>
 
 <style>
-/* LuCI owns the palette; this page adds only layout and state semantics. */
-.qidian-service-page {
-	--qidian-ink: var(--text-color-high, var(--gray-dark, #303846));
-	--qidian-muted: var(--text-color-medium, var(--gray, #68778a));
-	--qidian-border: var(--border-color-medium, var(--lighter, #d9dce2));
-	--qidian-blue: var(--primary-color-high, var(--primary, #2876b8));
-	--qidian-surface: var(--background-color-high, #fff);
-	--qidian-surface-soft: var(--background-color-low, #f5f6f8);
-	--qidian-success: var(--success-color-high, #168653);
-	--qidian-warning: var(--warn-color-high, #a87913);
-	--qidian-danger: var(--error-color-high, #c3424d);
-	box-sizing: border-box;
-	width: 100%;
-	max-width: 1320px;
-	margin: 0 auto;
-	color: var(--qidian-ink);
-	font-family: inherit;
-	font-size: 14px;
-}
-.qidian-service-page.is-argon-dark {
-	--qidian-ink: #ccc;
-	--qidian-muted: #adb5bd;
-	--qidian-border: #3c3c3c;
-	--qidian-blue: var(--dark-primary, #483d8b);
-	--qidian-surface: #1e1e1e;
-	--qidian-surface-soft: #333;
-}
-.qidian-config-page-actions[hidden] { display:none !important; }
-.qidian-install-section { max-width:none; }
-.qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools,.qidian-log-panel { min-width:0; margin:0 0 16px; }
-.qidian-service-page #qidian-panel-service > .cbi-section, .qidian-service-page #qidian-panel-logs { overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); }
-.qidian-service-page #qidian-panel-service > .cbi-section > h3, .qidian-service-page #qidian-panel-logs > h3 { margin:0; padding:13px 18px; border-bottom:1px solid var(--qidian-border); color:var(--qidian-ink); font-size:16px; font-weight:600; line-height:1.4; }
-.qidian-service-operations > .cbi-section-descr, .qidian-account-tools > .cbi-section-descr, .qidian-service-page #qidian-panel-logs > .cbi-section-descr { margin:0; padding:10px 18px 0; color:var(--qidian-muted); font-size:13px; line-height:1.55; }
-.qidian-service-state { display:flex; align-items:center; gap:11px; min-height:40px; }
-.qidian-service-state > div { display:flex; flex-direction:column; gap:3px; min-width:0; }
-.qidian-service-state strong { color:currentColor; font-size:16px; font-weight:600; line-height:1.4; }
-.qidian-service-state span:last-child { color:var(--qidian-muted); font-size:13px; line-height:1.5; }
-#qidian-service-description:empty, .qidian-modal-message[hidden] { display:none; }
-.qidian-service-indicator { width:11px; height:11px; flex:0 0 11px; border-radius:50%; background:var(--qidian-muted); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-muted) 14%, transparent); }
-.qidian-service-state.is-running { color:var(--qidian-success); }
-.qidian-service-state.is-running .qidian-service-indicator { background:var(--qidian-success); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-success) 14%, transparent); }
-.qidian-service-state.is-busy { color:var(--qidian-warning); }
-.qidian-service-state.is-busy .qidian-service-indicator { background:var(--qidian-warning); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-warning) 16%, transparent); animation:qidian-pulse 1.3s ease-in-out infinite; }
-.qidian-service-state.is-error { color:var(--qidian-danger); }
-.qidian-service-state.is-error .qidian-service-indicator { background:var(--qidian-danger); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-danger) 14%, transparent); }
-.qidian-open-row[hidden], .qidian-path-value button[hidden], .qidian-account-tools[hidden], .qidian-modal-backdrop[hidden] { display:none !important; }
-.qidian-open-button { display:inline-flex; align-items:center; gap:10px; min-height:36px; font-size:13px; font-weight:600; text-decoration:none !important; }
-.qidian-open-button > span:last-child { font-size:16px; opacity:.8; }
-.qidian-service-details .cbi-value-field > strong { font-size:13px; font-weight:550; overflow-wrap:anywhere; }
-.qidian-path-value { display:flex; align-items:center; gap:9px; width:100%; min-width:0; }
-.qidian-path-value strong { min-width:0; flex:1; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; overflow-wrap:anywhere; }
-.qidian-account-tools > p { margin:8px 18px 12px; color:var(--qidian-muted); font-size:13px; line-height:1.6; }
-.qidian-command-row { display:flex; align-items:center; gap:8px; min-width:0; }
-.qidian-command-row code { min-width:0; flex:1; overflow:auto; padding:9px 11px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface-soft); color:var(--qidian-ink); white-space:nowrap; }
-.qidian-copy-message { min-height:18px; margin:4px 18px 8px !important; color:var(--qidian-success) !important; }
-.qidian-modal-backdrop { position:fixed; z-index:2000; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.48); }
-.qidian-modal { box-sizing:border-box; display:flex; flex-direction:column; width:min(900px,96vw); max-height:calc(100vh - 40px); overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); color:var(--qidian-ink); box-shadow:0 12px 36px rgba(0,0,0,.25); }
-.qidian-modal-head { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:13px 17px; border-bottom:1px solid var(--qidian-border); background:var(--qidian-surface-soft); }
-.qidian-modal-head h2 { margin:0; color:var(--qidian-ink); font-size:18px; line-height:1.4; }
-.qidian-modal-close { display:grid; place-items:center; width:34px; min-width:34px; height:34px; padding:0 !important; font-size:20px; line-height:1; }
-.qidian-modal-message { margin:13px 17px; color:var(--qidian-muted); font-size:13px; line-height:1.5; }
-.qidian-console { min-width:0; margin:0 16px; overflow:hidden; border:1px solid var(--qidian-border); border-radius:6px; background:var(--qidian-surface); }
-.qidian-console-bar { display:flex; align-items:center; gap:10px; min-height:36px; padding:0 11px; border-bottom:1px solid var(--qidian-border); background:var(--qidian-surface-soft); color:var(--qidian-ink); font-size:12px; line-height:1.4; }
-.qidian-live-indicator { display:inline-flex; align-items:center; gap:6px; margin-left:auto; color:var(--qidian-success); font-size:11px; }
-.qidian-live-indicator[hidden], .qidian-log-meta time[hidden], .qidian-log-card-foot button[hidden] { display:none; }
-.qidian-live-indicator i { width:6px; height:6px; border-radius:50%; background:currentColor; }
-.qidian-operation-log { box-sizing:border-box; width:100%; max-width:100%; min-height:180px; max-height:min(58vh,520px); margin:0; padding:13px; overflow:auto; background:var(--qidian-surface); color:var(--qidian-ink); font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; white-space:pre; tab-size:2; }
-.qidian-modal-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-top:1px solid var(--qidian-border); background:var(--qidian-surface-soft); }
-.qidian-modal-foot > button:first-child { margin-right:auto; }
-.qidian-modal-done { min-height:34px; padding:0 14px; }
-.qidian-logs-heading { display:flex; align-items:center; justify-content:flex-end; gap:16px; margin:10px 0 14px; }
-.qidian-log-meta { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex:0 0 auto; }
-.qidian-log-meta time { color:var(--qidian-muted); font-size:12px; white-space:nowrap; }
-.qidian-log-state { display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; padding:6px 10px; border:1px solid var(--qidian-border); border-radius:4px; background:var(--qidian-surface-soft); color:var(--qidian-muted); font-size:12px; font-weight:600; }
-.qidian-log-state i { width:7px; height:7px; border-radius:50%; background:currentColor; }
-.qidian-log-state.is-busy { border-color:var(--qidian-warning); color:var(--qidian-warning); }
-.qidian-log-state.is-busy i { animation:qidian-log-pulse 1s infinite alternate; }
-.qidian-log-state.is-success { border-color:var(--qidian-success); color:var(--qidian-success); }
-.qidian-log-state.is-error { border-color:var(--qidian-danger); color:var(--qidian-danger); }
-.qidian-log-card { overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); }
-.qidian-log-panel .qidian-console { margin:12px; }
-.qidian-log-panel .qidian-live-indicator { color:var(--qidian-success); }
-.qidian-log-panel .qidian-operation-log { min-height:190px; max-height:min(62vh,560px); white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; }
-.qidian-log-card-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-top:1px solid var(--qidian-border); background:var(--qidian-surface-soft); color:var(--qidian-muted); font-size:12px; }
-.qidian-log-card-foot > div { display:flex; gap:8px; }
-.qidian-log-card-foot button:disabled { opacity:.6; cursor:wait; }
-@keyframes qidian-log-pulse { to { opacity:.4; } }
-@keyframes qidian-pulse { 50% { opacity:.65; } }
-@media(max-width:700px) {
-	.qidian-service-page #qidian-panel-service > .cbi-section > h3, .qidian-service-page #qidian-panel-logs > h3 { padding:12px 14px; }
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value { display:block; width:auto; margin:0; padding:10px 14px; }
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-title { float:none; width:auto; padding:0 0 4px; color:var(--qidian-muted); text-align:left; }
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-field { width:auto; min-width:0; text-align:left; }
-	/* Compact only the manager's custom overview rows; keep the deployment form in LuCI's native layout. */
-	.qidian-service-page #qidian-panel-service > .qidian-service-details.cbi-section > .cbi-value { display:grid; grid-template-columns:minmax(86px,.38fr) minmax(0,1fr); align-items:start; gap:8px; padding:10px 14px; }
-	.qidian-service-page #qidian-panel-service > .qidian-service-details.cbi-section > .cbi-value > .cbi-value-title { padding:0; line-height:1.45; }
-	.qidian-service-page #qidian-panel-service > .qidian-service-details.cbi-section > .cbi-value > .cbi-value-field { min-width:0; line-height:1.45; }
-	.qidian-service-details .cbi-value + .cbi-value { border-top:1px solid var(--qidian-border); }
-	.qidian-path-value { align-items:flex-start; }
-	.qidian-path-value strong { line-height:1.45; }
-	.qidian-service-operations #qidian-service-action-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:12px 14px; }
-	.qidian-service-page #qidian-panel-service > .qidian-service-operations.cbi-section #qidian-service-action-fields > .cbi-value { display:flex; flex-direction:column; align-items:stretch; gap:7px; min-width:0; margin:0; padding:0; }
-	.qidian-service-page #qidian-panel-service > .qidian-service-operations.cbi-section #qidian-service-action-fields .cbi-value-title { padding:0; font-size:12px; line-height:1.35; }
-	.qidian-service-page #qidian-panel-service > .qidian-service-operations.cbi-section #qidian-service-action-fields .cbi-value-field { min-width:0; padding:0; }
-	.qidian-service-operations #qidian-service-action-fields input[type="submit"] { box-sizing:border-box; width:100%; min-height:38px; padding:0 6px; white-space:normal; }
-	.qidian-service-state strong { font-size:15px; }
-	.qidian-open-row .cbi-value-field { padding-top:2px; }
-	.qidian-account-tools .qidian-command-row { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
-	.qidian-account-tools .qidian-command-row code { box-sizing:border-box; width:100%; white-space:pre-wrap; overflow-wrap:anywhere; user-select:all; }
-	.qidian-account-tools .qidian-command-row button { width:100%; min-height:38px; }
-	.qidian-modal-backdrop { align-items:flex-end; padding:8px; }
-	.qidian-modal { width:100%; max-height:min(82vh,620px); max-height:min(82svh,620px); border-radius:8px; }
-	.qidian-modal-head { padding:12px 13px; }
-	.qidian-modal-message { margin:8px 13px; font-size:12px; }
-	.qidian-console { margin:0 10px; }
-	.qidian-operation-log { min-height:82px; max-height:180px; padding:9px; font-size:12px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; -webkit-overflow-scrolling:touch; }
-	.qidian-modal-foot { padding:10px; }
-	.qidian-logs-heading { align-items:flex-start; flex-direction:column; gap:9px; }
-	.qidian-log-meta { flex-direction:row-reverse; justify-content:flex-end; gap:8px; }
-	.qidian-log-panel .qidian-console { margin:8px; }
-	.qidian-log-panel .qidian-operation-log { min-height:140px; max-height:min(42vh,320px); padding:9px; font-size:12.5px; line-height:1.55; overflow-wrap:normal; word-break:normal; -webkit-overflow-scrolling:touch; }
-	.qidian-log-card-foot { align-items:flex-start; flex-direction:column; padding:8px 9px; }
-	.qidian-log-card-foot > div { width:100%; }
-	.qidian-log-card-foot button { flex:1; }
-}
-@media(min-width:701px) {
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value { display:grid; grid-template-columns:minmax(130px,175px) minmax(0,1fr); align-items:center; gap:12px; width:auto; margin:0; padding:11px 18px; line-height:1.5; }
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-title { display:block; float:none; width:auto; padding:0; color:var(--qidian-muted); text-align:left; line-height:1.5; }
-	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-field { display:block; width:auto; min-width:0; text-align:left; }
-	.qidian-service-details .cbi-value + .cbi-value, .qidian-service-hero .cbi-value + .cbi-value { border-top:1px solid var(--qidian-border); }
-}
-@media(min-width:1100px) {
-	#qidian-panel-service[data-tab-active="true"] { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); align-items:start; gap:16px; }
-	.qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools { margin:0; }
-	.qidian-service-hero { grid-column:1; grid-row:1; }
-	.qidian-service-details { grid-column:2; grid-row:1; }
-	.qidian-service-operations { grid-column:1; grid-row:2; }
-	.qidian-account-tools { grid-column:2; grid-row:2; }
-	.qidian-service-details .cbi-value { grid-template-columns:minmax(110px,140px) minmax(0,1fr); }
-}
-@media(prefers-reduced-motion:reduce) { .qidian-service-state.is-busy .qidian-service-indicator,.qidian-log-state.is-busy i { animation:none; } }
+.qidian-service-page [hidden] { display: none !important; }
+.qidian-service-page textarea#qidian-panel-log { box-sizing: border-box; max-width: 100%; resize: vertical; }
+.qidian-service-page code { overflow-wrap: anywhere; }
 </style>
