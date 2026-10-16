@@ -155,6 +155,7 @@ test('topbar version badge shows release details and the unified action refreshe
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(w.document.querySelector('#versionInfoOverlay').classList.contains('open'),true);
   assert.equal(w.document.querySelector('#versionInfoTitle').textContent,'版本信息');
+  assert.equal(w.document.querySelector('.version-dialog .account-dialog-subtitle'),null,'the version dialog omits its redundant subtitle');
   assert.equal(w.document.querySelector('#installedVersion').textContent,'0.1.5');
   assert.equal(w.document.querySelector('#latestVersion').textContent,'0.1.5');
   assert.equal(badge.dataset.updateAvailable,'false');
@@ -219,8 +220,16 @@ test('version details stack version rows and reserve space for notes and live up
   const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
   assert.match(styles, /@media\(max-width:560px\)\{#versionInfoOverlay\{align-items:center;/);
   assert.match(styles, /\.version-pair\{grid-template-columns:minmax\(0,1fr\);gap:0\}/);
-  assert.match(styles, /\.release-notes\{min-height:clamp\(140px,24svh,190px\);max-height:min\(28svh,210px\)/);
-  assert.match(styles, /\.update-progress-log\{min-height:64px;max-height:min\(18svh,132px\)/);
+  assert.match(styles, /\.version-dialog-body\{display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:hidden\}/, 'version details stay fixed while the dialog remains open');
+  assert.match(styles, /\.version-pair span\{color:var\(--sub\);font-size:11px\}/, 'version labels use compact text');
+  assert.match(styles, /\.version-pair strong\{[^}]*font-size:12px/);
+  assert.match(styles, /\.version-state\{[^}]*font-size:12px/);
+  assert.match(styles, /\.release-notes\{[^}]*overflow:hidden/);
+  assert.match(styles, /\.release-notes pre\{[^}]*overflow:hidden/);
+  assert.match(styles, /\.update-progress-log\{[^}]*overflow:auto/,'only the live log content scrolls');
+  assert.doesNotMatch(styles, /\.version-dialog-body\{[^}]*overflow:auto|\.release-notes\{[^}]*overflow:auto/);
+  assert.match(styles, /\.release-notes\{min-height:clamp\(80px,14svh,120px\);max-height:min\(22svh,150px\)/);
+  assert.match(styles, /\.update-progress-log\{[^}]*min-height:48px/);
 });
 test('release notes use readable Markdown blocks, suppress generated release commit noise, and treat embedded HTML as text', () => {
   const dom=new JSDOM('<div id="notes"></div>',{url:'https://qidian.example/'}),container=dom.window.document.querySelector('#notes');
