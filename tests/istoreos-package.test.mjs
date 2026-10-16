@@ -206,12 +206,14 @@ test('LuCI separates service, deployment config, and operation logs in one page'
   assert.doesNotMatch(controller, /"qidian", "logs"/);
   assert.doesNotMatch(service, /href="<%=logs_url%>"/);
   assert.match(controller, /"qidian", "log-data"}, call\("log_data"\)/);
-  assert.match(service, /class="qidian-tabs"/);
-  assert.match(service, /id="qidian-tab-service"/);
-  assert.match(service, /id="qidian-tab-config"/);
-  assert.match(service, /id="qidian-tab-logs"/);
+  assert.match(service, /class="cbi-tabcontainer"/);
+  assert.match(service, /data-tab="service" data-tab-title="<%:服务%>"/);
+  assert.match(service, /data-tab="config" data-tab-title="<%:部署与配置%>"/);
+  assert.match(service, /data-tab="logs" data-tab-title="<%:日志%>"/);
+  assert.doesNotMatch(service, /qidian-tabs|qidian-tab-panel|qidian-tab-service|qidian-tab-config|qidian-tab-logs/);
   assert.match(service, /id="qidian-panel-config"/);
-  assert.match(service, /function setPanel\(name\)/);
+  assert.match(service, /addEventListener\("cbi-tab-active"/);
+  assert.match(service, /function showNativeTab\(name\)/);
   assert.match(service, /installConfigSlot\.appendChild\(installSection\)/);
   assert.doesNotMatch(service, /optionsSection\.hidden = showLogs/);
   assert.match(model, /m:section\(NamedSection, "main", "qidian", translate\("部署设置"\)\)/);
@@ -221,7 +223,6 @@ test('LuCI separates service, deployment config, and operation logs in one page'
   assert.match(service, /id="qidian-service-operations" class="cbi-section/);
   assert.match(service, /serviceActionFields\.appendChild\(field\)/);
   assert.doesNotMatch(service, /<details|<summary|advanced-actions-content|仅在需要重置密码时展开/);
-  assert.match(service, /event\.key === "ArrowRight"[\s\S]*?event\.key === "End"/);
   assert.match(service, /id="qidian-modal-show-logs"/);
   assert.match(service, /qidian-data-path/);
   assert.match(service, /name\$="\.' \+ suffix/);
@@ -269,7 +270,7 @@ test('LuCI separates service, deployment config, and operation logs in one page'
   assert.doesNotMatch(service, /luminance|background\.match\(\/rgba\?/, 'theme detection does not infer mode from computed page brightness');
   assert.match(service, /class="cbi-button cbi-button-apply qidian-open-button"/);
   assert.match(service, /@media\(min-width:701px\)[\s\S]*?\.qidian-service-page #qidian-panel-service > \.cbi-section \.cbi-value \{ display:grid; grid-template-columns:minmax\(130px,175px\)/);
-  assert.match(service, /@media\(min-width:1100px\)[\s\S]*?#qidian-panel-service:not\(\[hidden\]\) \{ display:grid; grid-template-columns:minmax\(0,1\.1fr\) minmax\(0,\.9fr\)/);
+  assert.match(service, /@media\(min-width:1100px\)[\s\S]*?#qidian-panel-service\[data-tab-active="true"\] \{ display:grid; grid-template-columns:minmax\(0,1\.1fr\) minmax\(0,\.9fr\)/);
   assert.match(service, /id="qidian-copy-path"/);
   assert.match(service, /max-height:180px[^}]+white-space:pre-wrap/, 'the install log stays compact and wraps long lines on phones');
   assert.match(service, /max-height:min\(42vh,320px\)[^}]+-webkit-overflow-scrolling:touch/, 'the inline LuCI log panel stays bounded on phones');

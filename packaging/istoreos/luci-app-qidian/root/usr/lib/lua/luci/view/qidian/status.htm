@@ -12,12 +12,8 @@
 <% local log_endpoint = luci.dispatcher.build_url("admin/services/qidian/log-data") %>
 
 <div class="qidian-service-page">
-	<nav class="qidian-tabs" role="tablist" aria-label="<%:栖点服务导航%>">
-		<button type="button" id="qidian-tab-service" class="qidian-tab <% if initial_tab == "service" then %>is-active<% end %>" role="tab" aria-selected="<%=initial_tab == "service" and "true" or "false"%>" aria-controls="qidian-panel-service"><%:服务%></button>
-		<button type="button" id="qidian-tab-config" class="qidian-tab <% if initial_tab == "config" then %>is-active<% end %>" role="tab" aria-selected="<%=initial_tab == "config" and "true" or "false"%>" aria-controls="qidian-panel-config"><%:部署与配置%></button>
-		<button type="button" id="qidian-tab-logs" class="qidian-tab" role="tab" aria-selected="false" aria-controls="qidian-panel-logs"><%:日志%><span id="qidian-tab-log-badge" <% if not busy then %>hidden<% end %>><%:执行中%></span></button>
-	</nav>
-	<div id="qidian-panel-service" class="qidian-tab-panel" role="tabpanel" aria-labelledby="qidian-tab-service" <% if initial_tab ~= "service" then %>hidden<% end %>>
+	<div class="cbi-tabcontainer">
+	<div id="qidian-panel-service" data-tab="service" data-tab-title="<%:服务%>" <% if initial_tab == "service" then %>data-tab-active="true"<% end %>>
 	<section class="cbi-section qidian-service-hero">
 		<h3><%:服务状态%></h3>
 		<div class="cbi-value">
@@ -64,11 +60,11 @@
 		<p id="qidian-copy-message" class="qidian-copy-message" role="status" aria-live="polite"></p>
 	</section>
 	</div>
-	<section id="qidian-panel-config" class="qidian-tab-panel qidian-config-panel" role="tabpanel" aria-labelledby="qidian-tab-config" <% if initial_tab ~= "config" then %>hidden<% end %>>
+	<section id="qidian-panel-config" data-tab="config" data-tab-title="<%:部署与配置%>" <% if initial_tab == "config" then %>data-tab-active="true"<% end %>>
 		<div id="qidian-install-config-slot"></div>
 	</section>
 
-	<section id="qidian-panel-logs" class="cbi-section qidian-tab-panel qidian-log-panel" role="tabpanel" aria-labelledby="qidian-tab-logs" hidden>
+	<section id="qidian-panel-logs" class="cbi-section qidian-log-panel" data-tab="logs" data-tab-title="<%:日志%>">
 		<h3><%:操作日志%></h3>
 		<div class="cbi-section-descr qidian-logs-description"><%:部署、更新和服务操作记录。%></div>
 		<div class="qidian-logs-heading">
@@ -82,6 +78,7 @@
 			<div class="qidian-log-card-foot"><span><%:显示最近 64 KB 日志。%></span><div><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button><button id="qidian-log-refresh" class="cbi-button cbi-button-apply" type="button"><%:刷新日志%></button></div></div>
 		</div>
 	</section>
+	</div>
 
 	<div id="qidian-install-modal" class="qidian-modal-backdrop" <% if not busy then %>hidden<% end %> role="dialog" aria-modal="true" aria-labelledby="qidian-modal-title" tabindex="-1">
 		<div class="qidian-modal">
@@ -103,7 +100,7 @@
 (function () {
 	var port = "<%=util.pcdata(port)%>";
 	var busy = <%=busy and "true" or "false"%>;
-	var activeTab = "<%=initial_tab%>";
+	var initialTab = "<%=initial_tab%>";
 	var accountStatus = "<%=util.pcdata(account_status)%>";
 	var endpoint = "<%=log_endpoint%>";
 	var servicePage = document.querySelector(".qidian-service-page");
@@ -115,9 +112,6 @@
 	var servicePanel = document.getElementById("qidian-panel-service");
 	var configPanel = document.getElementById("qidian-panel-config");
 	var logsPanel = document.getElementById("qidian-panel-logs");
-	var serviceTab = document.getElementById("qidian-tab-service");
-	var configTab = document.getElementById("qidian-tab-config");
-	var logsTab = document.getElementById("qidian-tab-logs");
 	var stateBox = document.getElementById("qidian-service-state");
 	var openRow = document.getElementById("qidian-open-row");
 	var openButton = document.getElementById("qidian-open");
@@ -154,46 +148,28 @@
 			installConfigSlot.appendChild(installSection);
 		}
 	}
-	function setPanel(name) {
-		activeTab = name === "logs" || name === "config" ? name : "service";
-		var showService = activeTab === "service";
-		var showConfig = activeTab === "config";
-		var showLogs = activeTab === "logs";
-		servicePanel.hidden = !showService;
-		configPanel.hidden = !showConfig;
-		logsPanel.hidden = !showLogs;
-		serviceTab.classList.toggle("is-active", showService);
-		configTab.classList.toggle("is-active", showConfig);
-		logsTab.classList.toggle("is-active", showLogs);
-		serviceTab.setAttribute("aria-selected", String(showService));
-		configTab.setAttribute("aria-selected", String(showConfig));
-		logsTab.setAttribute("aria-selected", String(showLogs));
-		if (showConfig) moveInstallConfig();
+	function activatePanel(name) {
+		if (name === "config") moveInstallConfig();
 		var pageActions = document.querySelector(".cbi-page-actions");
 		if (pageActions) {
 			pageActions.classList.add("qidian-config-page-actions");
-			pageActions.hidden = !showConfig;
+			pageActions.hidden = name !== "config";
 		}
-		if (showLogs) {
+		if (name === "logs") {
 			if (panelLog.scrollHeight - panelLog.scrollTop <= panelLog.clientHeight + 32) panelLog.scrollTop = panelLog.scrollHeight;
 			pollLog();
 		}
 	}
-	serviceTab.addEventListener("click", function () { setPanel("service"); });
-	configTab.addEventListener("click", function () { setPanel("config"); });
-	logsTab.addEventListener("click", function () { setPanel("logs"); });
-	[serviceTab, configTab, logsTab].forEach(function (tab, index, tabs) {
-		tab.addEventListener("keydown", function (event) {
-			var next = event.key === "ArrowRight" ? (index + 1) % tabs.length : event.key === "ArrowLeft" ? (index + tabs.length - 1) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
-			if (next < 0) return;
-			event.preventDefault();
-			tabs[next].focus();
-			tabs[next].click();
-		});
-	});
+	servicePanel.addEventListener("cbi-tab-active", function () { activatePanel("service"); });
+	configPanel.addEventListener("cbi-tab-active", function () { activatePanel("config"); });
+	logsPanel.addEventListener("cbi-tab-active", function () { activatePanel("logs"); });
+	function showNativeTab(name) {
+		var tabLink = servicePage.querySelector('.cbi-tabmenu [data-tab="' + name + '"] a');
+		if (tabLink) tabLink.click();
+	}
 	document.getElementById("qidian-modal-show-logs").addEventListener("click", function () {
 		modal.hidden = true;
-		setPanel("logs");
+		showNativeTab("logs");
 	});
 	document.getElementById("qidian-log-refresh").addEventListener("click", pollLog);
 	document.getElementById("qidian-log-bottom").addEventListener("click", function () { panelLog.scrollTop = panelLog.scrollHeight; });
@@ -213,7 +189,8 @@
 	function initializePanels() {
 		moveInstallConfig();
 		organizeServiceActions();
-		setPanel(activeTab);
+		var selectedPanel = servicePage.querySelector('.cbi-tabcontainer > [data-tab-active="true"]');
+		activatePanel(selectedPanel ? selectedPanel.getAttribute("data-tab") : initialTab);
 	}
 	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initializePanels, { once: true });
 	else initializePanels();
@@ -288,7 +265,6 @@
 		accountTools.hidden = data.state !== "running" || accountStatus !== "ready";
 		document.getElementById("qidian-live-indicator").hidden = !data.busy;
 		document.getElementById("qidian-panel-live").hidden = !data.busy;
-		document.getElementById("qidian-tab-log-badge").hidden = !data.busy;
 		var logState = document.getElementById("qidian-log-state");
 		logState.className = "qidian-log-state " + (data.busy ? "is-busy" : data.result === "failed" ? "is-error" : data.result === "success" ? "is-success" : "");
 		document.getElementById("qidian-log-state-text").textContent = data.busy ? "执行中" : data.result === "failed" ? "上次操作失败" : data.result === "success" ? "上次操作成功" : "暂无操作记录";
@@ -360,13 +336,7 @@
 	--qidian-surface: #1e1e1e;
 	--qidian-surface-soft: #333;
 }
-.qidian-tabs { display:flex; align-items:center; gap:4px; margin:0 0 16px; padding:0 8px; border-bottom:1px solid var(--qidian-border); }
-.qidian-tab { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-width:92px; min-height:42px; padding:0 15px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--qidian-muted); font:inherit; font-size:14px; cursor:pointer; }
-.qidian-tab:hover { color:var(--qidian-ink); }
-.qidian-tab.is-active { border-bottom-color:var(--qidian-blue); color:var(--qidian-blue); font-weight:600; }
-.qidian-tab:focus-visible { outline:2px solid var(--qidian-blue); outline-offset:2px; }
-.qidian-tab > span { padding:2px 7px; border:1px solid var(--qidian-border); border-radius:999px; background:var(--qidian-surface-soft); color:var(--qidian-warning); font-size:11px; }
-.qidian-tab > span[hidden], .qidian-tab-panel[hidden], .qidian-config-page-actions[hidden] { display:none !important; }
+.qidian-config-page-actions[hidden] { display:none !important; }
 .qidian-install-section { max-width:none; }
 .qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools,.qidian-log-panel { min-width:0; margin:0 0 16px; }
 .qidian-service-page #qidian-panel-service > .cbi-section, .qidian-service-page #qidian-panel-logs { overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); }
@@ -428,8 +398,6 @@
 @keyframes qidian-log-pulse { to { opacity:.4; } }
 @keyframes qidian-pulse { 50% { opacity:.65; } }
 @media(max-width:700px) {
-	.qidian-tabs { gap:0; margin:0 0 12px; padding:0; }
-	.qidian-tab { flex:1; min-width:0; min-height:42px; padding:0 6px; font-size:13px; }
 	.qidian-service-page #qidian-panel-service > .cbi-section > h3, .qidian-service-page #qidian-panel-logs > h3 { padding:12px 14px; }
 	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value { display:block; width:auto; margin:0; padding:10px 14px; }
 	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-title { float:none; width:auto; padding:0 0 4px; color:var(--qidian-muted); text-align:left; }
@@ -473,7 +441,7 @@
 	.qidian-service-details .cbi-value + .cbi-value, .qidian-service-hero .cbi-value + .cbi-value { border-top:1px solid var(--qidian-border); }
 }
 @media(min-width:1100px) {
-	#qidian-panel-service:not([hidden]) { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); align-items:start; gap:16px; }
+	#qidian-panel-service[data-tab-active="true"] { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr); align-items:start; gap:16px; }
 	.qidian-service-hero,.qidian-service-details,.qidian-service-operations,.qidian-account-tools { margin:0; }
 	.qidian-service-hero { grid-column:1; grid-row:1; }
 	.qidian-service-details { grid-column:2; grid-row:1; }
