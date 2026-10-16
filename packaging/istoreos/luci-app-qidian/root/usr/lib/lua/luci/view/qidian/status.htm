@@ -15,32 +15,32 @@
 	<nav class="qidian-tabs" role="tablist" aria-label="<%:栖点服务导航%>">
 		<button type="button" id="qidian-tab-service" class="qidian-tab <% if initial_tab == "service" then %>is-active<% end %>" role="tab" aria-selected="<%=initial_tab == "service" and "true" or "false"%>" aria-controls="qidian-panel-service"><%:服务%></button>
 		<button type="button" id="qidian-tab-config" class="qidian-tab <% if initial_tab == "config" then %>is-active<% end %>" role="tab" aria-selected="<%=initial_tab == "config" and "true" or "false"%>" aria-controls="qidian-panel-config"><%:部署与配置%></button>
-		<button type="button" id="qidian-tab-logs" class="qidian-tab" role="tab" aria-selected="false" aria-controls="qidian-panel-logs"><%:日志%><span id="qidian-tab-log-badge" <% if not busy then %>hidden<% end %>><%:运行中%></span></button>
+		<button type="button" id="qidian-tab-logs" class="qidian-tab" role="tab" aria-selected="false" aria-controls="qidian-panel-logs"><%:日志%><span id="qidian-tab-log-badge" <% if not busy then %>hidden<% end %>><%:执行中%></span></button>
 	</nav>
 	<div id="qidian-panel-service" class="qidian-tab-panel" role="tabpanel" aria-labelledby="qidian-tab-service" <% if initial_tab ~= "service" then %>hidden<% end %>>
 	<section class="cbi-section qidian-service-hero">
 		<h3><%:服务状态%></h3>
 		<div class="cbi-value">
-			<div class="cbi-value-title"><%:运行状态%></div>
+			<div class="cbi-value-title"><%:状态%></div>
 			<div class="cbi-value-field">
 				<div id="qidian-service-state" class="qidian-service-state <% if state == "running" and not busy then %>is-running<% elseif busy then %>is-busy<% elseif state == "error" or result == "failed" then %>is-error<% else %>is-stopped<% end %>">
 					<span class="qidian-service-indicator" aria-hidden="true"></span>
 					<div>
 						<strong id="qidian-service-title">
-							<% if busy then %><%:栖点正在处理中%>
-							<% elseif state == "running" then %><%:栖点服务已启动%>
+							<% if busy then %><%:操作进行中%>
+							<% elseif state == "running" then %><%:栖点服务运行中%>
 							<% elseif state == "error" then %><%:Docker 服务不可用%>
-							<% elseif result == "failed" then %><%:上次操作未完成%>
-							<% else %><%:栖点服务尚未启动%><% end %>
+							<% elseif result == "failed" then %><%:上次操作失败%>
+							<% else %><%:服务未启动%><% end %>
 						</strong>
-						<span id="qidian-service-description"><% if busy then %><%:切换到上方日志查看实时进度。%><% elseif state == "running" and account_status == "setup_required" then %><%:服务已启动，请创建管理员账号。%><% elseif state == "running" then %><%:服务正在运行。%><% else %><%:首次使用请部署服务；笔记会保存在 Docker 数据目录。%><% end %></span>
+						<span id="qidian-service-description"><% if busy then %><%:进度见“日志”页。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "running" then %><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:查看“日志”页末尾的错误信息。%><% else %><%:前往“部署与配置”页安装服务，或在本页启动服务。%><% end %></span>
 					</div>
 				</div>
 			</div>
 		</div>
 		<div id="qidian-open-row" class="cbi-value qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>>
 			<div class="cbi-value-title"><%:网页入口%></div>
-			<div class="cbi-value-field"><a id="qidian-open" class="cbi-button cbi-button-apply qidian-open-button" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><span id="qidian-open-label"><% if account_status == "setup_required" then %><%:打开栖点并创建管理员%><% else %><%:点击打开栖点%><% end %></span><span aria-hidden="true">↗</span></a></div>
+			<div class="cbi-value-field"><a id="qidian-open" class="cbi-button cbi-button-apply qidian-open-button" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><span id="qidian-open-label"><%:打开栖点%></span><span aria-hidden="true">↗</span></a></div>
 		</div>
 	</section>
 
@@ -48,19 +48,18 @@
 		<h3><%:服务信息%></h3>
 		<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%></div><div class="cbi-value-field"><strong><%=util.pcdata(port)%></strong></div></div>
 		<div class="cbi-value"><div class="cbi-value-title"><%:Docker 数据目录%></div><div class="cbi-value-field"><div class="qidian-path-value"><strong id="qidian-data-path"><%=util.pcdata(data_path)%></strong><button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></div></div></div>
-		<div class="cbi-value"><div class="cbi-value-title"><%:账号状态%></div><div class="cbi-value-field"><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:等待创建管理员%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:服务启动后检测%><% end %></strong></div></div>
+		<div class="cbi-value"><div class="cbi-value-title"><%:账号状态%></div><div class="cbi-value-field"><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></div></div>
 	</section>
 
 	<section id="qidian-service-operations" class="cbi-section qidian-service-operations">
 		<h3><%:服务操作%></h3>
-		<div class="cbi-section-descr"><%:启动、停止或卸载 Docker 容器。卸载只移除容器，保留数据目录。%></div>
+		<div class="cbi-section-descr"><%:卸载仅移除容器；数据、附件、证书和配置会保留。%></div>
 		<div id="qidian-service-action-fields"></div>
 	</section>
 
 	<section id="qidian-account-tools" class="cbi-section qidian-account-tools" <% if state ~= "running" or account_status ~= "ready" then %>hidden<% end %>>
-		<h3><%:管理员账号维护%></h3>
-		<div class="cbi-section-descr"><%:仅在需要重置密码时使用；密码不会保存在 LuCI。%></div>
-		<p><%:在 OpenWrt 终端执行命令，按提示输入账号；输入 Y 确认重置，输入 N 取消，然后输入两次新密码。%></p>
+		<h3><%:管理员密码重置%></h3>
+		<div class="cbi-section-descr"><%:在 OpenWrt 终端运行命令，输入账号后按 Y 确认或 N 取消；确认后输入两次新密码。密码不会保存在 LuCI。%></div>
 		<div class="cbi-value"><div class="cbi-value-title"><%:重置密码命令%></div><div class="cbi-value-field qidian-command-row"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code><button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制命令%></button></div></div>
 		<p id="qidian-copy-message" class="qidian-copy-message" role="status" aria-live="polite"></p>
 	</section>
@@ -71,31 +70,31 @@
 
 	<section id="qidian-panel-logs" class="cbi-section qidian-tab-panel qidian-log-panel" role="tabpanel" aria-labelledby="qidian-tab-logs" hidden>
 		<h3><%:操作日志%></h3>
-		<div class="cbi-section-descr qidian-logs-description"><%:安装、更新和服务操作记录；运行中自动刷新。%></div>
+		<div class="cbi-section-descr qidian-logs-description"><%:部署、更新和服务操作记录。%></div>
 		<div class="qidian-logs-heading">
-			<div class="qidian-log-meta"><time id="qidian-log-updated" hidden></time><span id="qidian-log-state" class="qidian-log-state <% if busy then %>is-busy<% elseif result == "failed" then %>is-error<% elseif result == "success" then %>is-success<% end %>"><i aria-hidden="true"></i><span id="qidian-log-state-text"><% if busy then %><%:正在运行%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:操作已完成%><% else %><%:等待操作%><% end %></span></span></div>
+			<div class="qidian-log-meta"><time id="qidian-log-updated" hidden></time><span id="qidian-log-state" class="qidian-log-state <% if busy then %>is-busy<% elseif result == "failed" then %>is-error<% elseif result == "success" then %>is-success<% end %>"><i aria-hidden="true"></i><span id="qidian-log-state-text"><% if busy then %><%:执行中%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:上次操作成功%><% else %><%:暂无操作记录%><% end %></span></span></div>
 		</div>
 		<div class="qidian-log-card">
 			<div class="qidian-console">
 				<div class="qidian-console-bar"><span><%:操作输出%></span><span id="qidian-panel-live" class="qidian-live-indicator" <% if not busy then %>hidden<% end %>><i></i><%:实时更新%></span></div>
-				<pre id="qidian-panel-log" class="qidian-operation-log"><% if log == "" then %><%:暂无操作日志。部署或更新栖点后，这里会显示完整过程。%><% else %><%=util.pcdata(log)%><% end %></pre>
+				<pre id="qidian-panel-log" class="qidian-operation-log"><% if log == "" then %><%:暂无日志。%><% else %><%=util.pcdata(log)%><% end %></pre>
 			</div>
-			<div class="qidian-log-card-foot"><span><%:最多显示最近 64 KB 输出。%></span><div><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button><button id="qidian-log-refresh" class="cbi-button cbi-button-apply" type="button"><%:刷新日志%></button></div></div>
+			<div class="qidian-log-card-foot"><span><%:显示最近 64 KB 日志。%></span><div><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button><button id="qidian-log-refresh" class="cbi-button cbi-button-apply" type="button"><%:刷新日志%></button></div></div>
 		</div>
 	</section>
 
 	<div id="qidian-install-modal" class="qidian-modal-backdrop" <% if not busy then %>hidden<% end %> role="dialog" aria-modal="true" aria-labelledby="qidian-modal-title" tabindex="-1">
 		<div class="qidian-modal">
 			<div class="qidian-modal-head">
-				<div><h2 id="qidian-modal-title"><% if busy then %><%:正在部署栖点%><% else %><%:部署日志%><% end %></h2><span class="qidian-modal-kicker"><%:安装 / 更新过程%></span></div>
+				<div><h2 id="qidian-modal-title"><% if busy then %><%:操作进行中%><% else %><%:操作日志%><% end %></h2></div>
 				<button type="button" id="qidian-modal-close" class="cbi-button qidian-modal-close" aria-label="<%:关闭日志窗口%>">×</button>
 			</div>
-			<p id="qidian-modal-message" class="qidian-modal-message"><% if busy then %><%:正在拉取成品镜像并启动 Docker 服务，请保持页面打开。%><% else %><%:最近一次操作的实时输出。%><% end %></p>
+			<p id="qidian-modal-message" class="qidian-modal-message" <% if not busy then %>hidden<% end %>><% if busy then %><%:查看下方日志了解进度。%><% end %></p>
 			<div class="qidian-console">
 				<div class="qidian-console-bar"><span><%:操作输出%></span><span id="qidian-live-indicator" class="qidian-live-indicator" <% if not busy then %>hidden<% end %>><i></i><%:实时更新%></span></div>
-				<pre id="qidian-modal-log" class="qidian-operation-log"><% if log == "" then %><%:正在等待安装日志…%><% else %><%=util.pcdata(log)%><% end %></pre>
+				<pre id="qidian-modal-log" class="qidian-operation-log"><% if log == "" then %><%:等待日志…%><% else %><%=util.pcdata(log)%><% end %></pre>
 			</div>
-			<div class="qidian-modal-foot"><button type="button" id="qidian-modal-show-logs" class="cbi-button"><%:在当前页查看日志%></button><button type="button" id="qidian-modal-done" class="cbi-button cbi-button-apply qidian-modal-done"><% if busy then %><%:收起窗口%><% else %><%:关闭%><% end %></button></div>
+			<div class="qidian-modal-foot"><button type="button" id="qidian-modal-show-logs" class="cbi-button"><%:查看日志%></button><button type="button" id="qidian-modal-done" class="cbi-button cbi-button-apply qidian-modal-done"><% if busy then %><%:收起窗口%><% else %><%:关闭%><% end %></button></div>
 		</div>
 	</div>
 </div>
@@ -221,7 +220,7 @@
 	document.addEventListener("click", function (event) {
 		var target = event.target;
 		var removeButton = target && target.closest ? target.closest('input[type="submit"][name$="._remove"]') : null;
-		if (removeButton && !window.confirm("确认卸载栖点容器？这不会删除 Docker 数据目录中的笔记和配置。")) {
+		if (removeButton && !window.confirm("卸载栖点容器？知识库数据、附件、证书和配置会保留。")) {
 			event.preventDefault();
 			event.stopImmediatePropagation();
 		}
@@ -269,32 +268,34 @@
 		var description = document.getElementById("qidian-service-description");
 		stateBox.className = "qidian-service-state " + (data.busy ? "is-busy" : data.state === "running" ? "is-running" : data.result === "failed" || data.state === "error" ? "is-error" : "is-stopped");
 		if (data.busy) {
-			title.textContent = "栖点正在处理中";
-			description.textContent = "点击上方日志查看实时进度。";
+			title.textContent = "操作进行中";
+			description.textContent = "进度见“日志”页。";
 		} else if (data.state === "running") {
-			title.textContent = data.result === "success" ? "栖点服务已启动" : "栖点服务正在运行";
-			description.textContent = data.accountStatus === "setup_required" ? "服务已启动，请创建管理员账号。" : "服务正在运行。";
+			title.textContent = "栖点服务运行中";
+			description.textContent = data.accountStatus === "setup_required" ? "首次访问时创建管理员账号。" : "";
 		} else if (data.result === "failed" || data.state === "error") {
-			title.textContent = "操作未完成，请查看日志";
-			description.textContent = "切换到上方日志查看错误信息后重试。";
+			title.textContent = data.state === "error" ? "Docker 服务不可用" : "上次操作失败";
+			description.textContent = data.state === "error" ? "请检查 Docker 服务状态。" : "查看“日志”页末尾的错误信息。";
 		} else {
-			title.textContent = "栖点服务尚未启动";
-			description.textContent = "首次使用请安装 / 更新，现有笔记会保存在 Docker 数据目录。";
+			title.textContent = "服务未启动";
+			description.textContent = "前往“部署与配置”页安装服务，或在本页启动服务。";
 		}
 		openRow.hidden = data.busy || data.state !== "running";
 		if (!openRow.hidden) openButton.href = "http://" + window.location.hostname + ":" + port;
 		accountStatus = data.accountStatus || accountStatus;
-		accountState.textContent = accountStatus === "setup_required" ? "等待创建管理员" : accountStatus === "ready" ? "管理员已创建" : "服务启动后检测";
-		openLabel.textContent = accountStatus === "setup_required" ? "打开栖点并创建管理员" : "点击打开栖点";
+		accountState.textContent = accountStatus === "setup_required" ? "管理员待创建" : accountStatus === "ready" ? "管理员已创建" : "启动后检测";
+		openLabel.textContent = "打开栖点";
 		accountTools.hidden = data.state !== "running" || accountStatus !== "ready";
 		document.getElementById("qidian-live-indicator").hidden = !data.busy;
 		document.getElementById("qidian-panel-live").hidden = !data.busy;
 		document.getElementById("qidian-tab-log-badge").hidden = !data.busy;
 		var logState = document.getElementById("qidian-log-state");
 		logState.className = "qidian-log-state " + (data.busy ? "is-busy" : data.result === "failed" ? "is-error" : data.result === "success" ? "is-success" : "");
-		document.getElementById("qidian-log-state-text").textContent = data.busy ? "正在运行" : data.result === "failed" ? "上次操作失败" : data.result === "success" ? "操作已完成" : "等待操作";
-		document.getElementById("qidian-modal-title").textContent = data.busy ? "正在部署栖点" : data.result === "success" ? "部署已完成" : data.result === "failed" ? "操作未完成" : "部署日志";
-		document.getElementById("qidian-modal-message").textContent = data.busy ? "正在拉取成品镜像并启动 Docker 服务，请保持页面打开。" : data.result === "success" ? "栖点已完成部署，服务状态已更新。" : data.result === "failed" ? "本次操作未完成，请查看日志末尾的报错。" : "最近一次操作的输出。";
+		document.getElementById("qidian-log-state-text").textContent = data.busy ? "执行中" : data.result === "failed" ? "上次操作失败" : data.result === "success" ? "上次操作成功" : "暂无操作记录";
+		document.getElementById("qidian-modal-title").textContent = data.busy ? "操作进行中" : data.result === "success" ? "操作成功" : data.result === "failed" ? "操作失败" : "操作日志";
+		var modalMessage = document.getElementById("qidian-modal-message");
+		modalMessage.textContent = data.busy ? "查看下方日志了解进度。" : data.result === "failed" ? "查看日志末尾的错误信息。" : "";
+		modalMessage.hidden = !modalMessage.textContent;
 		document.getElementById("qidian-modal-done").textContent = data.busy ? "收起窗口" : "关闭";
 	}
 
@@ -304,12 +305,12 @@
 			return response.json();
 		}).then(function (data) {
 			if (data.log !== previousLog) {
-				log.textContent = data.log || "正在等待安装日志…";
+				log.textContent = data.log || "等待日志…";
 				previousLog = data.log;
 				if (modalFollowLog) log.scrollTop = log.scrollHeight;
 			}
 			if (data.log !== previousPanelLog) {
-				panelLog.textContent = data.log || "暂无操作日志。部署或更新栖点后，这里会显示完整过程。";
+				panelLog.textContent = data.log || "暂无日志。";
 				previousPanelLog = data.log;
 				if (panelFollowLog) panelLog.scrollTop = panelLog.scrollHeight;
 			}
@@ -321,7 +322,9 @@
 			renderStatus(data);
 			if (data.busy) window.setTimeout(pollLog, 1800);
 		}).catch(function () {
-			document.getElementById("qidian-modal-message").textContent = "日志连接暂时中断，正在重试…";
+			var modalMessage = document.getElementById("qidian-modal-message");
+			modalMessage.textContent = "日志暂不可用，正在重试…";
+			modalMessage.hidden = false;
 			window.setTimeout(pollLog, 3500);
 		});
 	}
@@ -373,6 +376,7 @@
 .qidian-service-state > div { display:flex; flex-direction:column; gap:3px; min-width:0; }
 .qidian-service-state strong { color:currentColor; font-size:16px; font-weight:600; line-height:1.4; }
 .qidian-service-state span:last-child { color:var(--qidian-muted); font-size:13px; line-height:1.5; }
+#qidian-service-description:empty, .qidian-modal-message[hidden] { display:none; }
 .qidian-service-indicator { width:11px; height:11px; flex:0 0 11px; border-radius:50%; background:var(--qidian-muted); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-muted) 14%, transparent); }
 .qidian-service-state.is-running { color:var(--qidian-success); }
 .qidian-service-state.is-running .qidian-service-indicator { background:var(--qidian-success); box-shadow:0 0 0 4px color-mix(in srgb, var(--qidian-success) 14%, transparent); }
@@ -393,7 +397,6 @@
 .qidian-modal-backdrop { position:fixed; z-index:2000; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(0,0,0,.48); }
 .qidian-modal { box-sizing:border-box; display:flex; flex-direction:column; width:min(900px,96vw); max-height:calc(100vh - 40px); overflow:hidden; border:1px solid var(--qidian-border); border-radius:8px; background:var(--qidian-surface); color:var(--qidian-ink); box-shadow:0 12px 36px rgba(0,0,0,.25); }
 .qidian-modal-head { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:13px 17px; border-bottom:1px solid var(--qidian-border); background:var(--qidian-surface-soft); }
-.qidian-modal-kicker { display:block; margin-top:3px; color:var(--qidian-muted); font-size:12px; }
 .qidian-modal-head h2 { margin:0; color:var(--qidian-ink); font-size:18px; line-height:1.4; }
 .qidian-modal-close { display:grid; place-items:center; width:34px; min-width:34px; height:34px; padding:0 !important; font-size:20px; line-height:1; }
 .qidian-modal-message { margin:13px 17px; color:var(--qidian-muted); font-size:13px; line-height:1.5; }
@@ -431,14 +434,26 @@
 	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value { display:block; width:auto; margin:0; padding:10px 14px; }
 	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-title { float:none; width:auto; padding:0 0 4px; color:var(--qidian-muted); text-align:left; }
 	.qidian-service-page #qidian-panel-service > .cbi-section .cbi-value-field { width:auto; min-width:0; text-align:left; }
+	/* Compact only the manager's custom overview rows; keep the deployment form in LuCI's native layout. */
+	.qidian-service-page #qidian-panel-service > .qidian-service-details.cbi-section > .cbi-value { display:grid; grid-template-columns:minmax(86px,.38fr) minmax(0,1fr); align-items:start; gap:8px; padding:10px 14px; }
+	.qidian-service-page #qidian-panel-service > .qidian-service-details.cbi-section > .cbi-value > .cbi-value-title { padding:0; line-height:1.45; }
+	.qidian-service-page #qidian-panel-service > .qidian-service-details.cbi-section > .cbi-value > .cbi-value-field { min-width:0; line-height:1.45; }
+	.qidian-service-details .cbi-value + .cbi-value { border-top:1px solid var(--qidian-border); }
+	.qidian-path-value { align-items:flex-start; }
+	.qidian-path-value strong { line-height:1.45; }
+	.qidian-service-operations #qidian-service-action-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:12px 14px; }
+	.qidian-service-page #qidian-panel-service > .qidian-service-operations.cbi-section #qidian-service-action-fields > .cbi-value { display:flex; flex-direction:column; align-items:stretch; gap:7px; min-width:0; margin:0; padding:0; }
+	.qidian-service-page #qidian-panel-service > .qidian-service-operations.cbi-section #qidian-service-action-fields .cbi-value-title { padding:0; font-size:12px; line-height:1.35; }
+	.qidian-service-page #qidian-panel-service > .qidian-service-operations.cbi-section #qidian-service-action-fields .cbi-value-field { min-width:0; padding:0; }
+	.qidian-service-operations #qidian-service-action-fields input[type="submit"] { box-sizing:border-box; width:100%; min-height:38px; padding:0 6px; white-space:normal; }
 	.qidian-service-state strong { font-size:15px; }
 	.qidian-open-row .cbi-value-field { padding-top:2px; }
-	.qidian-command-row { align-items:stretch; flex-direction:column; }
-	.qidian-command-row code { box-sizing:border-box; width:100%; }
+	.qidian-account-tools .qidian-command-row { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+	.qidian-account-tools .qidian-command-row code { box-sizing:border-box; width:100%; white-space:pre-wrap; overflow-wrap:anywhere; user-select:all; }
+	.qidian-account-tools .qidian-command-row button { width:100%; min-height:38px; }
 	.qidian-modal-backdrop { align-items:flex-end; padding:8px; }
 	.qidian-modal { width:100%; max-height:min(82vh,620px); max-height:min(82svh,620px); border-radius:8px; }
 	.qidian-modal-head { padding:12px 13px; }
-	.qidian-modal-kicker { display:none; }
 	.qidian-modal-message { margin:8px 13px; font-size:12px; }
 	.qidian-console { margin:0 10px; }
 	.qidian-operation-log { min-height:82px; max-height:180px; padding:9px; font-size:12px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; -webkit-overflow-scrolling:touch; }
@@ -446,7 +461,7 @@
 	.qidian-logs-heading { align-items:flex-start; flex-direction:column; gap:9px; }
 	.qidian-log-meta { flex-direction:row-reverse; justify-content:flex-end; gap:8px; }
 	.qidian-log-panel .qidian-console { margin:8px; }
-	.qidian-log-panel .qidian-operation-log { min-height:140px; max-height:min(42vh,320px); padding:9px; font-size:12px; line-height:1.55; -webkit-overflow-scrolling:touch; }
+	.qidian-log-panel .qidian-operation-log { min-height:140px; max-height:min(42vh,320px); padding:9px; font-size:12.5px; line-height:1.55; overflow-wrap:normal; word-break:normal; -webkit-overflow-scrolling:touch; }
 	.qidian-log-card-foot { align-items:flex-start; flex-direction:column; padding:8px 9px; }
 	.qidian-log-card-foot > div { width:100%; }
 	.qidian-log-card-foot button { flex:1; }
