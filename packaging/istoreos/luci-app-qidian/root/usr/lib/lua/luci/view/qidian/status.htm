@@ -16,22 +16,19 @@
 		<div id="qidian-panel-service" data-tab="service" data-tab-title="<%:服务%>" <% if initial_tab == "service" then %>data-tab-active="true"<% end %>>
 			<div class="cbi-section">
 				<h3><%:服务状态%></h3>
-				<div class="cbi-value">
-					<div class="cbi-value-field">
-						<strong id="qidian-service-title"><% if busy then %><%:操作进行中%><% elseif state == "running" then %><%:栖点服务运行中%><% elseif state == "error" then %><%:Docker 服务不可用%><% elseif result == "failed" then %><%:上次操作失败%><% else %><%:服务未启动%><% end %></strong>
-						<div id="qidian-service-description" <% if not busy and state == "running" and account_status ~= "setup_required" then %>hidden<% end %>><% if busy then %><%:请在日志页查看实时进度。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:请查看日志末尾的错误信息。%><% elseif state ~= "running" then %><%:部署服务后可在此打开栖点。%><% end %></div>
-					</div>
-				</div>
-				<div id="qidian-open-row" class="cbi-value" <% if state ~= "running" or busy then %>hidden<% end %>>
-					<div class="cbi-value-field"><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></div>
-				</div>
+				<div class="cbi-section-descr"><strong id="qidian-service-title"><% if busy then %><%:操作进行中%><% elseif state == "running" then %><%:栖点服务运行中%><% elseif state == "error" then %><%:Docker 服务不可用%><% elseif result == "failed" then %><%:上次操作失败%><% else %><%:服务未启动%><% end %></strong><div id="qidian-service-description" <% if not busy and state == "running" and account_status ~= "setup_required" then %>hidden<% end %>><% if busy then %><%:请在日志页查看实时进度。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:请查看日志末尾的错误信息。%><% elseif state ~= "running" then %><%:部署服务后可在此打开栖点。%><% end %></div></div>
+				<div id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></div>
 			</div>
 
 			<div class="cbi-section">
 				<h3><%:服务信息%></h3>
-				<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%></div><div class="cbi-value-field"><strong><%=util.pcdata(port)%></strong></div></div>
-				<div class="cbi-value"><div class="cbi-value-title"><%:Docker 数据目录%></div><div class="cbi-value-field"><code id="qidian-data-path"><%=util.pcdata(data_path)%></code> <button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></div></div>
-				<div class="cbi-value"><div class="cbi-value-title"><%:账号状态%></div><div class="cbi-value-field"><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></div></div>
+				<table class="table cbi-section-table">
+					<tbody>
+						<tr><th scope="row"><%:访问端口%></th><td><strong><%=util.pcdata(port)%></strong></td></tr>
+						<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code> <button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></td></tr>
+						<tr><th scope="row"><%:账号状态%></th><td><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></td></tr>
+					</tbody>
+				</table>
 			</div>
 
 			<div id="qidian-service-operations" class="cbi-section">
@@ -121,7 +118,9 @@
 			if (field) {
 				var label = field.querySelector(".cbi-value-title");
 				if (label) label.remove();
-				serviceActionFields.appendChild(field);
+				if (moved) serviceActionFields.appendChild(document.createTextNode(" "));
+				serviceActionFields.appendChild(button);
+				field.remove();
 				moved += 1;
 			}
 		});
@@ -215,6 +214,6 @@
 
 <style>
 .qidian-service-page [hidden] { display: none !important; }
-.qidian-service-page textarea#qidian-panel-log { box-sizing: border-box; max-width: 100%; resize: vertical; }
+.qidian-service-page textarea#qidian-panel-log { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 22em; resize: vertical; }
 .qidian-service-page code { overflow-wrap: anywhere; }
 </style>

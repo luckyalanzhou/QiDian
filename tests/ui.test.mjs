@@ -168,7 +168,8 @@ test('topbar version badge shows release details and the unified action refreshe
   assert.equal(w.document.querySelector('#releaseLink').textContent,'Release');
   assert.equal(w.document.querySelector('#refreshVersion'),null);
   assert.equal(w.document.querySelector('#installVersion'),null);
-  assert.equal(progress.parentElement.classList.contains('version-dialog-foot'),true);
+  assert.equal(progress.parentElement.classList.contains('version-dialog-body'),true);
+  assert.ok(w.document.querySelector('#releaseNotes').compareDocumentPosition(progress)&w.Node.DOCUMENT_POSITION_FOLLOWING,'release notes appear before the update progress and live log');
   assert.ok(progress.compareDocumentPosition(actions)&w.Node.DOCUMENT_POSITION_FOLLOWING,'progress and live log sit above the Release and update actions');
   assert.equal(w.document.querySelector('#updateProgressTrack').nextElementSibling.className,'update-progress-log-panel','the live log panel sits directly below the progress bar');
   assert.equal(w.document.querySelector('#updateProgressTrack').nextElementSibling.querySelector('pre').id,'updateProgressLog');
@@ -214,12 +215,12 @@ test('the unified update action remains available when current and reports a com
   assert.equal(w.document.querySelector('#updateProgressTrack').getAttribute('aria-valuenow'),'100');
   dom.window.close();
 });
-test('mobile version details stay in a compact centered panel', async () => {
+test('version details stack version rows and reserve space for notes and live update logs', async () => {
   const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
   assert.match(styles, /@media\(max-width:560px\)\{#versionInfoOverlay\{align-items:center;/);
-  assert.match(styles, /\.release-notes\{min-height:42px;font-size:13\.5px/);
-  assert.match(styles, /\.update-progress-log\{min-height:34px;max-height:min\(12svh,88px\)/);
-  assert.doesNotMatch(styles, /\.release-notes\{[^}]*max-height/,'release notes use the dialog body scroll instead of a nested scrollbar');
+  assert.match(styles, /\.version-pair\{grid-template-columns:minmax\(0,1fr\);gap:0\}/);
+  assert.match(styles, /\.release-notes\{min-height:clamp\(140px,24svh,190px\);max-height:min\(28svh,210px\)/);
+  assert.match(styles, /\.update-progress-log\{min-height:64px;max-height:min\(18svh,132px\)/);
 });
 test('release notes use readable Markdown blocks, suppress generated release commit noise, and treat embedded HTML as text', () => {
   const dom=new JSDOM('<div id="notes"></div>',{url:'https://qidian.example/'}),container=dom.window.document.querySelector('#notes');

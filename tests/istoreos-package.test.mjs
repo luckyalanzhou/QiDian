@@ -240,12 +240,17 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(service, /<div class="cbi-section">[\s\S]*?<h3><%:服务状态%><\/h3>/);
   assert.match(service, /class="cbi-value-title"/);
   assert.match(service, /id="qidian-service-operations" class="cbi-section"/);
-  assert.match(service, /serviceActionFields\.appendChild\(field\)/);
+  assert.match(service, /<table class="table cbi-section-table">[\s\S]*?<%:访问端口%>[\s\S]*?<%:Docker 数据目录%>[\s\S]*?<%:账号状态%>[\s\S]*?<\/table>/, 'show service details in LuCI table rows like Docker management pages');
+  assert.doesNotMatch(service, /<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%>/, 'do not squeeze read-only service details into editable CBI rows');
+  assert.match(service, /serviceActionFields\.appendChild\(button\)/);
+  assert.match(service, /if \(moved\) serviceActionFields\.appendChild\(document\.createTextNode\(" "\)\)/);
+  assert.match(service, /field\.remove\(\)/, 'remove empty CBI rows after grouping the native action buttons');
   assert.match(service, /if \(label\) label\.remove\(\)/, 'hide redundant CBI field titles for action buttons');
   assert.doesNotMatch(service, /cbi-section-descr"><%:卸载仅移除容器/);
   assert.doesNotMatch(service, /cbi-value-title"><%:运行状态%>|cbi-value-title"><%:网页入口%>/);
   assert.doesNotMatch(service, /<details|<summary|qidian-modal|仅在需要重置密码时展开/);
   assert.match(service, /qidian-data-path/);
+  assert.match(styles, /textarea#qidian-panel-log \{ box-sizing: border-box; width: 100%; max-width: 100%; min-height: 22em;/);
   assert.match(service, /name\$="\.' \+ suffix/);
   assert.match(service, /name\$="\._remove"/);
   assert.match(service, /window\.confirm\("卸载栖点服务？此操作会移除容器/);
