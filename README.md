@@ -75,6 +75,7 @@ pnpm build
 
 | 文档 | 内容 |
 |---|---|
+| [项目组成说明](docs/project-map.md) | 项目分层、目录职责和典型请求流转 |
 | [部署指南](docs/deployment.md) | OpenWrt、iStoreOS、Docker 安装、迁移、更新和诊断 |
 | [架构说明](docs/architecture.md) | 前后端、鉴权、数据保存与更新机制 |
 | [需求与边界](docs/requirements.md) | 产品功能、隐私边界和验收要求 |
