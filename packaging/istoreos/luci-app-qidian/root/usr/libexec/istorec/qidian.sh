@@ -381,6 +381,13 @@ prepare() {
 	[ "$port" -ge 1 ] 2>/dev/null && [ "$port" -le 65535 ] 2>/dev/null || fail '端口必须为 1 至 65535。'
 	registration_enabled=$(uci -q get qidian.main.registration_enabled 2>/dev/null || true)
 	case "$registration_enabled" in 1|true) registration_enabled=true ;; *) registration_enabled=false ;; esac
+	trust_proxy_enabled=$(uci -q get qidian.main.trust_proxy_enabled 2>/dev/null || true)
+	case "$trust_proxy_enabled" in 1|true) trust_proxy_enabled=true ;; *) trust_proxy_enabled=false ;; esac
+	trusted_proxy_ip=$(uci -q get qidian.main.trusted_proxy_ip 2>/dev/null || true)
+	if [ "$trust_proxy_enabled" = true ]; then
+		[ -n "$trusted_proxy_ip" ] || fail '启用反向代理信任前，请填写直接连接栖点容器的代理 IP。'
+		case "$trusted_proxy_ip" in *[!a-fA-F0-9:.]*) fail '反向代理 IP 格式无效。' ;; esac
+	fi
 
 	data_dir=$(uci -q get qidian.main.data_path 2>/dev/null || true)
 	legacy_data=$(sed -n 's/^QIDIAN_DATA_PATH=//p' "$ENV_FILE" 2>/dev/null | tail -n 1)
@@ -422,6 +429,8 @@ prepare() {
 	set_env APP_BIND_ADDRESS 0.0.0.0
 	set_env APP_PORT "$port"
 	set_env REGISTRATION_ENABLED "$registration_enabled"
+	set_env TRUST_PROXY "$trust_proxy_enabled"
+	set_env TRUSTED_PROXY_IPS "$trusted_proxy_ip"
 	app_version=$(cat /etc/qidian-version 2>/dev/null || printf '0.0.0')
 	printf '%s\n' "$app_version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || fail '安装包版本号无效。'
 	set_env QIDIAN_VERSION "$app_version"

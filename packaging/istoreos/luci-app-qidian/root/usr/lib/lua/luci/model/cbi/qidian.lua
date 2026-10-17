@@ -59,6 +59,16 @@ local registration = s:taboption("advanced", Flag, "registration_enabled", trans
 registration.default = "0"
 registration.rmempty = false
 
+local trust_proxy = s:taboption("advanced", Flag, "trust_proxy_enabled", translate("信任反向代理"))
+trust_proxy.default = "0"
+trust_proxy.rmempty = false
+
+local trusted_proxy_ip = s:taboption("advanced", Value, "trusted_proxy_ip", translate("反向代理 IP"))
+trusted_proxy_ip.datatype = "ipaddr"
+trusted_proxy_ip.rmempty = true
+trusted_proxy_ip:depends("trust_proxy_enabled", "1")
+trusted_proxy_ip.description = translate("填写直接连接栖点容器的代理地址；启用反代时必填。")
+
 local image = s:taboption("advanced", DummyValue, "image_display", translate("Docker 镜像"))
 image.default = "luckyalanzhou/qidian:latest"
 

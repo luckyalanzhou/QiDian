@@ -4,11 +4,11 @@
 <% local log = sys.exec("tail -c 65536 /tmp/qidian-operation.log 2>/dev/null") %>
 <% local log_endpoint = luci.dispatcher.build_url("admin/services/qidian/log-data") %>
 
-<div class="cbi-value">
-	<div class="cbi-value-title"><%:操作状态%></div>
-	<div class="cbi-value-field"><strong id="qidian-log-state-text"><% if busy then %><%:执行中%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:上次操作成功%><% else %><%:暂无操作记录%><% end %></strong> <time id="qidian-log-updated" hidden></time></div>
-</div>
-<div class="cbi-value">
+<table class="table cbi-section-table qidian-log-status">
+	<tbody><tr><th scope="row"><%:操作状态%></th><td><strong id="qidian-log-state-text"><% if busy then %><%:执行中%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:上次操作成功%><% else %><%:暂无操作记录%><% end %></strong> <time id="qidian-log-updated" hidden></time></td></tr></tbody>
+</table>
+
+<div class="cbi-value qidian-log-output">
 	<div class="cbi-value-title"><label for="qidian-panel-log"><%:操作输出%></label></div>
 	<div class="cbi-value-field"><textarea id="qidian-panel-log" class="cbi-input-textarea" rows="18" readonly spellcheck="false" wrap="off"><% if log == "" then %><%:暂无日志。%><% else %><%=util.pcdata(log)%><% end %></textarea></div>
 </div>
@@ -85,5 +85,8 @@
 </script>
 
 <style>
-textarea#qidian-panel-log { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 22em; resize: vertical; }
+.cbi-value.qidian-log-output { display: block; }
+.qidian-log-output .cbi-value-title { display: block; float: none; width: auto; margin: 0 0 .5em; text-align: left; }
+.qidian-log-output .cbi-value-field { display: block; float: none; width: 100%; max-width: none; margin: 0; }
+textarea#qidian-panel-log { display: block; box-sizing: border-box; width: 100% !important; max-width: none !important; min-width: 0; min-height: 32em; resize: vertical; }
 </style>
