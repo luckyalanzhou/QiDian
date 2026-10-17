@@ -171,6 +171,7 @@ export function sanitizeMarkdownDocument(document, schema, safeUrl) {
     if (node.type === 'orderedList') {
       attrs.start = Number.isInteger(sourceAttrs.start) && sourceAttrs.start >= 1 && sourceAttrs.start <= 10000 ? sourceAttrs.start : null;
     }
+    if (node.type === 'taskItem') attrs.checked = sourceAttrs.checked === true;
     if (node.type === 'tableCell' || node.type === 'tableHeader') {
       attrs.colspan = Number.isInteger(sourceAttrs.colspan) && sourceAttrs.colspan >= 1 && sourceAttrs.colspan <= 20 ? sourceAttrs.colspan : 1;
       attrs.rowspan = Number.isInteger(sourceAttrs.rowspan) && sourceAttrs.rowspan >= 1 && sourceAttrs.rowspan <= 20 ? sourceAttrs.rowspan : 1;

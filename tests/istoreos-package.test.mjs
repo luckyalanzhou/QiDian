@@ -179,7 +179,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(model, /trusted_proxy_ip\.datatype = "ipaddr"/);
   assert.match(model, /trusted_proxy_ip:depends\("trust_proxy_enabled", "1"\)/);
   assert.doesNotMatch(model, /remove\.description\s*=/, 'keep the uninstall data-retention warning in one place before confirmation');
-  assert.ok(model.indexOf('local install = s:taboption("basic", Button') < model.indexOf('local port = s:taboption("basic", Value'), 'put the primary install/update action before less-frequent settings');
+  assert.ok(model.indexOf('local port = s:taboption("basic", Value') < model.indexOf('local install = s:taboption("basic", Button'), 'show deployment settings before the install/update action');
   assert.doesNotMatch(model, /data_path_display/, 'show the detected Docker data directory once in the service overview');
   assert.match(manager, /account-status\) account_status/);
   assert.match(manager, /set_env REGISTRATION_ENABLED/);
@@ -251,12 +251,12 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(model, /m:section\(NamedSection, "main", "qidian", translate\("部署设置"\)\)/);
   assert.doesNotMatch(model, /\bs\.description\s*=/, 'avoid repeating field guidance above the deployment form');
   assert.match(model, /s:tab\("basic", translate\("基本设置"\)\)/);
-  assert.match(model, /s:tab\("advanced", translate\("高级设置"\)\)/);
+  assert.doesNotMatch(model, /s:tab\("advanced"/);
   assert.match(model, /s:tab\("logs", translate\("日志"\)\)/);
   assert.match(model, /s:tab\("maintenance", translate\("更新"\)\)/);
   assert.match(model, /s:taboption\("basic", Button, "_install"/);
   assert.match(model, /s:taboption\("maintenance", Button, "_check_update"/);
-  assert.match(model, /s:taboption\("advanced", DummyValue, "_account_tools"/);
+  assert.match(model, /s:taboption\("basic", DummyValue, "_account_tools"/);
   assert.match(model, /_account_tools", translate\("管理员密码重置"\)/);
   assert.match(model, /account\.template = "qidian\/account-tools"/);
   assert.match(model, /s:taboption\("logs", Button, "_clear_logs", translate\("日志"\)\)/);

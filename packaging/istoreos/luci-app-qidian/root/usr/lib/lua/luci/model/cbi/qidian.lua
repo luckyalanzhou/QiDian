@@ -32,7 +32,6 @@ local function button(option, title, style, action)
 end
 
 s:tab("basic", translate("基本设置"))
-s:tab("advanced", translate("高级设置"))
 s:tab("logs", translate("日志"))
 s:tab("maintenance", translate("更新"))
 
@@ -47,32 +46,32 @@ else
 	environment.default = translate("Docker 与 Compose 已就绪")
 end
 
-local install = s:taboption("basic", Button, "_install", translate("部署"))
-button(install, translate("安装 / 更新"), "apply", "install")
-
 local port = s:taboption("basic", Value, "http_port", translate("访问端口"))
 port.datatype = "port"
 port.default = "9908"
 port.rmempty = false
 
-local registration = s:taboption("advanced", Flag, "registration_enabled", translate("允许创建其他账号"))
+local registration = s:taboption("basic", Flag, "registration_enabled", translate("允许创建其他账号"))
 registration.default = "0"
 registration.rmempty = false
 
-local trust_proxy = s:taboption("advanced", Flag, "trust_proxy_enabled", translate("信任反向代理"))
+local trust_proxy = s:taboption("basic", Flag, "trust_proxy_enabled", translate("信任反向代理"))
 trust_proxy.default = "0"
 trust_proxy.rmempty = false
 
-local trusted_proxy_ip = s:taboption("advanced", Value, "trusted_proxy_ip", translate("反向代理 IP"))
+local trusted_proxy_ip = s:taboption("basic", Value, "trusted_proxy_ip", translate("反向代理 IP"))
 trusted_proxy_ip.datatype = "ipaddr"
 trusted_proxy_ip.rmempty = true
 trusted_proxy_ip:depends("trust_proxy_enabled", "1")
 trusted_proxy_ip.description = translate("填写直接连接栖点容器的代理地址；启用反代时必填。")
 
-local image = s:taboption("advanced", DummyValue, "image_display", translate("Docker 镜像"))
+local image = s:taboption("basic", DummyValue, "image_display", translate("Docker 镜像"))
 image.default = "luckyalanzhou/qidian:latest"
 
-local account = s:taboption("advanced", DummyValue, "_account_tools", translate("管理员密码重置"))
+local install = s:taboption("basic", Button, "_install", translate("部署"))
+button(install, translate("安装 / 更新"), "apply", "install")
+
+local account = s:taboption("basic", DummyValue, "_account_tools", translate("管理员密码重置"))
 account.template = "qidian/account-tools"
 
 local clear_logs = s:taboption("logs", Button, "_clear_logs", translate("日志"))

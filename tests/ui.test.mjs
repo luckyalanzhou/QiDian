@@ -11,7 +11,7 @@ import { createRecycleBinView } from '../src/recycle-bin.js';
 import { createTrashEntry, pruneExpiredTrash, restoreTrashEntry, TRASH_RETENTION_MS } from '../src/trash-data.js';
 import { renderReleaseNotes } from '../src/release-notes.js';
 import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from '../src/paste.js';
-import { qidianSchema } from '../src/markdown.js';
+import { parseQidianMarkdown, qidianSchema } from '../src/markdown.js';
 const loadMarkdownTools = async () => import('../src/markdown.js');
 const empty = { categories: ['开发'], noteTypes:[{id:'note',name:'普通笔记'},{id:'clip',name:'网页收藏'},{id:'command',name:'命令速查'},{id:'issue',name:'故障排查'}], notes: [], theme:'light', pasteMode:'rich' };
 test('vault validation defaults legacy data to an empty trash and validates stored items', () => {
@@ -655,6 +655,41 @@ test('new notes stay in the private draft box until published', async () => {
   assert.equal(w.document.querySelector('#main .about-note'),null,'routine publication status is not displayed');
   dom.window.close();
 });
+test('an untouched empty new note is discarded instead of entering the draft box', async () => {
+  const { dom, w, saves } = await mount();
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  assert.equal(w.document.querySelector('#sideCore [data-nav="drafts"] .count').textContent,'0');
+  w.document.querySelector('#sideCore [data-nav="drafts"]').click();
+  assert.match(w.document.querySelector('#main').textContent,/暂无草稿/);
+  assert.equal(w.document.querySelector('#main .note-card'),null);
+  assert.ok(saves.every(snapshot=>snapshot.notes.length===0),'no empty placeholder is written to the vault');
+  dom.window.close();
+});
+test('untouched command and troubleshooting templates are not mistaken for written drafts', async () => {
+  for (const type of ['command','issue']) {
+    const { dom, w, saves } = await mount();
+    w.document.querySelector('#sideCore [data-nav="all"]').click();
+    w.document.querySelector(`[data-type-nav="${type}"]`).click();
+    w.document.querySelector('[data-new="note"]').click();
+    w.document.querySelector('#sideCore [data-nav="drafts"]').click();
+    assert.match(w.document.querySelector('#main').textContent,/暂无草稿/,`${type} template is only a starter, not authored content`);
+    assert.ok(saves.every(snapshot=>snapshot.notes.length===0));
+    dom.window.close();
+  }
+});
+test('a new draft is removed when its actual content is cleared before leaving', async () => {
+  const { dom, w, saves } = await mount();
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const title=w.document.querySelector('#editTitle');title.value='临时内容';title.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await new Promise(resolve=>setTimeout(resolve,300));
+  assert.equal(saves.at(-1).notes[0].title,'临时内容');
+  title.value='';title.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await new Promise(resolve=>setTimeout(resolve,300));
+  w.document.querySelector('#sideCore [data-nav="drafts"]').click();
+  assert.match(w.document.querySelector('#main').textContent,/暂无草稿/);
+  assert.ok(saves.at(-1).notes.length===0,'clearing all content removes the draft from the saved vault');
+  dom.window.close();
+});
 test('deleted notes remain recoverable for 30 days and can be restored from the recycle bin', async () => {
   const note={id:'trash-note',title:'待还原笔记',type:'note',category:'开发',tags:[],body:'<p>保留正文</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
   const {dom,w,saves}=await mount({...structuredClone(empty),notes:[note]});
@@ -670,6 +705,26 @@ test('deleted notes remain recoverable for 30 days and can be restored from the 
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(saves.at(-1).notes[0].id,'trash-note');
   assert.deepEqual(saves.at(-1).trash,[]);
+  dom.window.close();
+});
+test('editor more menu moves the current note and its unsaved edits to the recycle bin', async () => {
+  const note={id:'edit-delete',title:'正在编辑',type:'note',category:'开发',tags:[],body:'<p>旧正文</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
+  const {dom,w,saves}=await mount({...structuredClone(empty),notes:[note]});
+  w.document.querySelector('#sideCore [data-nav="all"]').click();
+  w.document.querySelector('[data-open="edit-delete"]').click();
+  w.document.querySelector('#editDoc').click();
+  assert.ok(w.document.querySelector('.document-more #deleteEditorNote'));
+  w.currentEditor.commands.setContent('<p>未保存的最新正文</p>');
+  w.confirm=()=>false;
+  w.document.querySelector('#deleteEditorNote').click();
+  assert.ok(w.document.querySelector('#editorSurface'),'cancel keeps the editor open');
+  w.confirm=()=>true;
+  w.document.querySelector('#deleteEditorNote').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.deepEqual(saves.at(-1).notes,[]);
+  assert.match(saves.at(-1).trash[0].item.body,/未保存的最新正文/);
+  assert.equal(w.document.querySelector('#editorSurface'),null,'return to the note list after deletion');
+  assert.doesNotMatch(w.document.querySelector('#main').textContent,/正在编辑/);
   dom.window.close();
 });
 test('emptying the recycle bin requires confirmation but never requires or starts a backup', async () => {
@@ -1269,7 +1324,59 @@ test('table toolbar can add and remove rows and columns inside a selected table'
   assert.equal(w.currentEditor.view.dom.querySelector('tr').children.length, 2);
   w.document.querySelector('[data-table-action="deleteRow"]').click();
   assert.equal(w.currentEditor.view.dom.querySelectorAll('tr').length, 2);
+  const deleteTable = w.document.querySelector('[data-table-action="deleteTable"]');
+  assert.equal(deleteTable.disabled, false);
+  deleteTable.click();
+  assert.equal(w.currentEditor.view.dom.querySelector('table'), null, 'delete the whole active table');
   dom.window.close();
+});
+test('table insert button creates a table in a blank new note', async () => {
+  const { dom, w } = await mount();
+  try {
+    w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+    assert.equal(w.currentEditor.view.dom.querySelector('table'),null);
+    w.document.querySelector('#editorToolbar [data-insert="table"]').click();
+    assert.equal(w.currentEditor.view.dom.querySelectorAll('table tr').length,3);
+    assert.equal(w.currentEditor.view.dom.querySelectorAll('table tr:first-child th, table tr:first-child td').length,2);
+    assert.equal(w.document.querySelector('.table-tools').hidden,false,'show table controls immediately after insertion');
+    assert.equal(w.document.querySelector('[data-table-action="deleteRow"]').disabled,false);
+  } finally { dom.window.close(); }
+});
+test('contextual editor action removes only the active command block', async () => {
+  const { dom, w } = await mount();
+  try {
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const editor=w.currentEditor;
+  editor.commands.setContent('<p>保留在前</p><pre><code>docker ps</code></pre><p>保留在后</p>');
+  const deleteCode=w.document.querySelector('[data-editor-action="delete-code-block"]');
+  assert.equal(deleteCode.parentElement.hidden,true,'hide code actions outside a command block');
+  let codePosition=-1;
+  editor.state.doc.descendants((node,pos)=>{if(node.isText&&node.text==='docker ps')codePosition=pos});
+  assert.notEqual(codePosition,-1);
+  editor.commands.setTextSelection({from:codePosition+2,to:codePosition+2});
+  assert.equal(deleteCode.hidden,false);
+  assert.equal(deleteCode.disabled,false);
+  deleteCode.click();
+  assert.doesNotMatch(editor.getHTML(),/<pre[\s>]/);
+  assert.match(editor.getHTML(),/保留在前/);
+  assert.match(editor.getHTML(),/保留在后/);
+  } finally { dom.window.close(); }
+});
+test('deleting the final table row or column removes the table instead of leaving an undeletable cell', async () => {
+  for (const { rows, cols, action } of [
+    { rows: 1, cols: 2, action: 'deleteRow' },
+    { rows: 2, cols: 1, action: 'deleteColumn' },
+  ]) {
+    const { dom, w } = await mount();
+    try {
+      w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+      w.currentEditor.chain().focus().insertTable({ rows, cols, withHeaderRow: false }).run();
+      const button=w.document.querySelector(`[data-table-action="${action}"]`);
+      assert.equal(button.disabled,false);
+      button.click();
+      assert.equal(w.currentEditor.view.dom.querySelector('table'),null,`remove the table when ${action} would remove its last dimension`);
+    } finally { dom.window.close(); }
+  }
 });
 test('editor offers undo, redo, inline code, clear formatting and link removal while writing', async () => {
   const { dom, w } = await mount();
@@ -1876,4 +1983,50 @@ test('editor groups secondary tools and metadata without losing code, table or f
  assert.ok(w.document.querySelector('#editorToolbar>[data-insert="table"]'));assert.ok(w.document.querySelector('.document-more #exportHtml'));dom.window.close();
  const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
  assert.match(styles,/\.editor-extra-panel\{width:min\(280px,calc\(100vw - 32px\)\);min-width:min\(280px,calc\(100vw - 32px\)\);max-width:calc\(100vw - 32px\)/,'the mobile More menu has a stable width and remains within the viewport');
+});
+
+test('editor task lists toggle and persist checked state in the note HTML',async t=>{
+ const {dom,w,saves}=await mount();t.after(()=>dom.window.close());w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ w.currentEditor.commands.setContent('<p>先做这件事</p>');w.document.querySelector('[data-fmt="toggleTaskList"]').click();
+ const list=w.currentEditor.view.dom.querySelector('ul[data-type="taskList"]');assert.ok(list);assert.equal(list.querySelectorAll('li[data-type="taskItem"]').length,1);
+ const checkbox=list.querySelector('input[type="checkbox"]');checkbox.checked=true;checkbox.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.match(w.currentEditor.getHTML(),/data-checked="true"/,'completion state is serialized into the note body');
+ await new Promise(resolve=>setTimeout(resolve,300));assert.match(saves.at(-1).notes[0].body,/data-checked="true"/,'the sanitized saved HTML keeps the checked state');
+});
+
+test('Markdown task lists retain checked states and inline formatting',()=>{
+ const parsed=parseQidianMarkdown('- [x] 已完成 **重点**\n- [ ] 待处理');
+ const safe=sanitizeMarkdownDocument(parsed,qidianSchema,value=>/^https?:\/\//i.test(value));
+ const document=qidianSchema.nodeFromJSON(safe);document.check();
+ const list=document.child(0);assert.equal(list.type.name,'taskList');assert.equal(list.childCount,2);assert.equal(list.child(0).attrs.checked,true);assert.equal(list.child(1).attrs.checked,false);
+ assert.equal(list.child(0).textContent,'已完成 重点');let boldFound=false;list.child(0).descendants(node=>{if(node.isText&&node.text==='重点'&&node.marks.some(mark=>mark.type.name==='bold'))boldFound=true});assert.ok(boldFound);
+});
+
+test('editor outline follows headings and in-note search cycles through cross-format matches',async t=>{
+ const {dom,w}=await mount();t.after(()=>dom.window.close());w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ w.currentEditor.commands.setContent('<h2>章节一</h2><p>定<strong>位</strong>成功</p><h3>章节二</h3><p>再次定位</p>');
+ const outline=w.document.querySelectorAll('.right-rail .editor-outline-links [data-outline-index]');assert.equal(outline.length,2);assert.equal(outline[1].textContent,'章节二');outline[1].click();assert.ok(w.currentEditor.state.selection.from>1,'selecting an outline item jumps into its heading');
+ const input=w.document.querySelector('#editorFindInput');input.value='定位';input.dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(w.document.querySelector('#editorFindCount').textContent,'1 / 2');
+ w.document.querySelector('#editorFindNext').click();assert.equal(w.document.querySelector('#editorFindCount').textContent,'2 / 2');
+ dom.window.close();
+});
+
+test('editor paragraph actions reorder, duplicate and delete the selected paragraph',async t=>{
+ const {dom,w}=await mount();t.after(()=>dom.window.close());w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ const editor=w.currentEditor;editor.commands.setContent('<p>第一段</p><p>第二段</p>');editor.commands.setTextSelection(9);
+ const textOrder=()=>Array.from(editor.state.doc.content.content,node=>node.textContent);
+ w.document.querySelector('[data-block-action="moveUp"]').click();assert.deepEqual(textOrder(),['第二段','第一段']);editor.commands.setTextSelection(2);
+ w.document.querySelector('[data-block-action="duplicate"]').click();assert.deepEqual(textOrder(),['第二段','第二段','第一段']);
+ w.document.querySelector('[data-block-action="delete"]').click();assert.deepEqual(textOrder(),['第二段','第一段']);
+});
+
+test('editor converts selected TSV and Markdown rows into editable tables',async t=>{
+ const {dom,w}=await mount();t.after(()=>dom.window.close());w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ const editor=w.currentEditor;editor.commands.setContent('<p>| 名称 | 网址 |</p><p>| --- | --- |</p><p>| 栖点 | https://example.com |</p>');editor.commands.setTextSelection({from:1,to:editor.state.doc.content.size-1});
+ const convert=w.document.querySelector('[data-editor-action="convert-table"]');const selected=editor.state.selection.content().content;assert.equal(convert.disabled,false,selected.textBetween(0,selected.size,'\n'));convert.click();assert.equal(editor.state.doc.child(0).type.name,'table');assert.equal(editor.state.doc.child(0).childCount,2);assert.equal(editor.state.doc.child(0).child(1).textContent,'栖点https://example.com');
+});
+
+test('table Tab navigation creates a row after the final cell and Shift-Tab moves back',async t=>{
+ const {dom,w}=await mount();t.after(()=>dom.window.close());Object.defineProperty(globalThis,'KeyboardEvent',{configurable:true,value:w.KeyboardEvent});w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ const editor=w.currentEditor;editor.chain().focus().insertTable({rows:2,cols:2,withHeaderRow:true}).run();editor.commands.setTextSelection(18);editor.commands.keyboardShortcut('Tab');assert.equal(editor.state.doc.child(0).childCount,3);editor.commands.keyboardShortcut('Shift-Tab');assert.equal(editor.state.doc.child(0).childCount,3);
 });

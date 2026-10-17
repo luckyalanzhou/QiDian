@@ -138,6 +138,9 @@
 
 .table-tools{display:inline-flex;align-items:center;gap:1px;padding-left:3px;border-left:1px solid var(--line)}
 .table-tools .tool-btn{font-size:10px;min-width:30px;padding-inline:4px}
+.paragraph-tools{display:inline-flex;align-items:center;gap:3px;padding-left:7px;margin-left:3px;border-left:1px solid var(--line)}
+.paragraph-tools[hidden]{display:none}
+.paragraph-tools .tool-btn{font-size:11px;padding-inline:7px}
 .editor-core-actions{display:inline-flex;align-items:center;gap:2px;padding-left:3px;border-left:1px solid var(--line)}
 .editor-core-actions .tool-btn{min-width:31px;padding-inline:5px}
 .editor-core-actions [data-editor-action="clear-format"]{font-size:11px;font-weight:700;letter-spacing:-.5px}
@@ -145,6 +148,8 @@
 .tool-btn:disabled{opacity:.38;cursor:not-allowed}
 .callout-delete:not(:disabled){color:#b42332}
 .callout-delete:not(:disabled):hover{background:#feecef;color:#991b1b}
+.contextual-delete:not(:disabled){color:#b42332}
+.contextual-delete:not(:disabled):hover{background:#feecef;color:#991b1b}
 .tool-btn[aria-pressed="true"]{background:var(--accent2);color:var(--accent-text)}
 .editor-surface .ProseMirror-selectednode{outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent);border-radius:4px}
 .editor-surface table .selectedCell:after{background:color-mix(in srgb,var(--accent) 18%,transparent)}
@@ -567,3 +572,28 @@ body.booting > :not(#loginGate){display:none!important}
 .note-list .note-item-menu{top:10px;right:10px}
 .note-list>.empty{grid-column:1/-1}
 @media(max-width:1000px){.note-list{grid-template-columns:minmax(0,1fr)}}
+
+/* Editor search, outline and task lists */
+.editor-find{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel2)}
+.editor-find[hidden]{display:none}
+.editor-find input{width:min(360px,65%);min-width:0;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);padding:7px 10px;outline:none}
+.editor-find input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent2)}
+.editor-find span{min-width:58px;color:var(--sub);font-size:11px;text-align:center}
+.editor-find button{width:30px;height:30px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);cursor:pointer}
+.editor-outline-mobile{display:none}
+.editor-outline-links{display:grid;gap:4px}
+.editor-outline-link{display:block;width:100%;padding:6px 8px;border:0;border-left:2px solid transparent;border-radius:0 6px 6px 0;background:transparent;color:var(--sub);text-align:left;font:inherit;font-size:12px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editor-outline-link:hover{border-left-color:var(--accent);background:var(--accent2);color:var(--accent-text)}
+.editor-outline-link.level-1,.editor-outline-link.level-2{font-weight:700;color:var(--text)}
+.editor-outline-link.level-3{padding-left:16px}.editor-outline-link.level-4,.editor-outline-link.level-5,.editor-outline-link.level-6{padding-left:24px}
+.editor-surface ul.task-list{list-style:none;padding-left:0}
+.editor-surface .task-item{display:flex;align-items:flex-start;gap:9px;list-style:none;margin:.35em 0}
+.editor-surface .task-checkbox{flex:0 0 auto;width:16px;height:16px;margin:.38em 0 0;accent-color:var(--accent);cursor:pointer}
+.editor-surface .task-item-content{min-width:0;flex:1}
+.editor-surface .task-item[data-checked="true"] .task-item-content{color:var(--sub);text-decoration:line-through}
+.doc-content ul.task-list{list-style:none;padding-left:0}
+.doc-content ul.task-list>li[data-type="taskItem"]{position:relative;padding-left:27px;list-style:none}
+.doc-content ul.task-list>li[data-type="taskItem"]::before{position:absolute;left:2px;top:.35em;display:grid;width:15px;height:15px;place-items:center;border:1.5px solid var(--line);border-radius:4px;color:white;content:""}
+.doc-content ul.task-list>li[data-type="taskItem"][data-checked="true"]::before{border-color:var(--accent);background:var(--accent);content:"✓";font-size:11px;font-weight:800}
+.doc-content ul.task-list>li[data-type="taskItem"][data-checked="true"]{color:var(--sub);text-decoration:line-through}
+@media(max-width:960px){.editor-outline-mobile{display:block;margin:8px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.editor-outline-mobile>summary{cursor:pointer;color:var(--sub);font-size:12px}.editor-outline-mobile[open] .editor-outline-links{margin-top:8px}}

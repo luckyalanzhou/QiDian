@@ -9,6 +9,7 @@ import Superscript from '@tiptap/extension-superscript';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
+import { liftListItem, splitListItem, wrapInList } from '@tiptap/pm/schema-list';
 
 const allowedStyle = (element, names) => names.map(name => {
   const value = element.style.getPropertyValue(name).trim();
@@ -185,6 +186,108 @@ const QidianTableCell = TableCell.extend({
   },
 });
 
+const TaskList = Node.create({
+  name: 'taskList',
+  group: 'block',
+  content: 'taskItem+',
+  defining: true,
+  parseHTML: () => [{ tag: 'ul[data-type="taskList"]' }],
+  renderHTML: ({ HTMLAttributes }) => ['ul', { ...HTMLAttributes, 'data-type': 'taskList', class: 'task-list' }, 0],
+  markdownTokenizer: {
+    name: 'taskList',
+    level: 'block',
+    start: source => /^ {0,3}[-+*]\s+\[[ xX]\]/m.exec(source)?.index ?? -1,
+    tokenize: (source, _tokens, lexer) => {
+      const lines = source.split('\n'), items = [];
+      let consumed = 0;
+      while (consumed < lines.length) {
+        const match = lines[consumed].match(/^ {0,3}[-+*]\s+\[([ xX])\]\s*(.*)$/);
+        if (!match) break;
+        items.push({ checked: match[1].toLowerCase() === 'x', tokens: lexer.inlineTokens(match[2]) });
+        consumed++;
+      }
+      if (!items.length) return undefined;
+      const raw = lines.slice(0, consumed).join('\n') + (consumed < lines.length ? '\n' : '');
+      return { type: 'taskList', raw, items };
+    },
+  },
+  parseMarkdown: (token, helpers) => ({
+    type: 'taskList',
+    content: token.items.map(item => ({
+      type: 'taskItem',
+      attrs: { checked: !!item.checked },
+      content: helpers.parseChildren([{ type: 'paragraph', tokens: item.tokens || [] }]),
+    })),
+  }),
+  renderMarkdown: (node, helpers) => `${(node.content || []).map(item => `- [${item.attrs?.checked ? 'x' : ' '}] ${(helpers.renderChildren(item.content || []) || '').trim().replace(/\n+/g, ' ')}`).join('\n')}\n\n`,
+  addCommands() {
+    return {
+      toggleTaskList: () => ({ state, dispatch }) => {
+        const taskListType = state.schema.nodes.taskList;
+        const taskItemType = state.schema.nodes.taskItem;
+        const {$from} = state.selection;
+        let depth = $from.depth;
+        while (depth > 0 && $from.node(depth).type !== taskListType) depth--;
+        const command = depth > 0 ? liftListItem(taskItemType) : wrapInList(taskListType);
+        if (!dispatch) return command(state);
+        return command(state, transaction => dispatch(transaction.setMeta('scrollIntoView', false)));
+      },
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => splitListItem(this.name),
+      Tab: () => this.editor.commands.sinkListItem?.(this.name) || false,
+      'Shift-Tab': () => this.editor.commands.liftListItem?.(this.name) || false,
+    };
+  },
+});
+
+const TaskItem = Node.create({
+  name: 'taskItem',
+  content: 'paragraph block*',
+  defining: true,
+  addAttributes() {
+    return { checked: { default: false, parseHTML: element => element.getAttribute('data-checked') === 'true', renderHTML: attributes => ({ 'data-checked': String(!!attributes.checked) }) } };
+  },
+  parseHTML: () => [{ tag: 'li[data-type="taskItem"]' }],
+  renderHTML: ({ HTMLAttributes }) => ['li', { ...HTMLAttributes, 'data-type': 'taskItem' }, 0],
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      const document = editor.view.dom.ownerDocument;
+      const dom = document.createElement('li');
+      dom.className = 'task-item';
+      dom.setAttribute('data-type', 'taskItem');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'task-checkbox';
+      checkbox.setAttribute('aria-label', '标记任务完成');
+      checkbox.contentEditable = 'false';
+      const contentDOM = document.createElement('div');
+      contentDOM.className = 'task-item-content';
+      dom.append(checkbox, contentDOM);
+      checkbox.addEventListener('change', () => {
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: checkbox.checked }));
+      });
+      return {
+        dom,
+        contentDOM,
+        update(updated) {
+          if (updated.type !== node.type) return false;
+          node = updated;
+          checkbox.checked = !!updated.attrs.checked;
+          dom.dataset.checked = String(!!updated.attrs.checked);
+          return true;
+        },
+        stopEvent: event => event.target === checkbox,
+        ignoreMutation: mutation => mutation.type === 'attributes' && mutation.target === checkbox,
+      };
+    };
+  },
+});
+
 const TextIndent = Extension.create({
   name: 'qidianTextIndent',
   addGlobalAttributes() {
@@ -227,5 +330,7 @@ export const qidianEditorExtensions = [
   TableRow,
   TableHeader,
   QidianTableCell,
+  TaskList,
+  TaskItem,
 ];
 
