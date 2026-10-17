@@ -171,7 +171,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(model, /translate\("运行依赖"\)/);
   assert.match(model, /Flag, "registration_enabled"/);
   assert.doesNotMatch(model, /remove\.description\s*=/, 'keep the uninstall data-retention warning in one place before confirmation');
-  assert.ok(model.indexOf('local install = s:option(Button') < model.indexOf('local port = s:option(Value'), 'put the primary install/update action before less-frequent settings');
+  assert.ok(model.indexOf('local install = s:taboption("basic", Button') < model.indexOf('local port = s:taboption("basic", Value'), 'put the primary install/update action before less-frequent settings');
   assert.doesNotMatch(model, /data_path_display/, 'show the detected Docker data directory once in the service overview');
   assert.match(manager, /account-status\) account_status/);
   assert.match(manager, /set_env REGISTRATION_ENABLED/);
@@ -190,12 +190,12 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /check-update-worker/);
   assert.match(manager, /cp "\$0" "\$worker"/);
   assert.doesNotMatch(manager, /docker volume rm|rm -rf "\$data_dir/);
-  assert.match(model, /s:option\(Button, "_check_update", translate\("软件更新"\)\)/);
+  assert.match(model, /s:taboption\("maintenance", Button, "_check_update", translate\("软件更新"\)\)/);
   assert.match(model, /button\(updates, translate\("检查更新"\), "apply", "check-update"\)/);
   assert.match(model, /button\(start, translate\("启动服务"\), "apply", "start"\)/);
   assert.match(model, /button\(stop, translate\("停止服务"\), "reset", "stop"\)/);
   assert.match(model, /button\(remove, translate\("卸载服务"\), "remove", "remove"\)/);
-  assert.match(model, /检查 LuCI 管理插件和 Docker 镜像；发现更新时自动更新对应组件。/);
+  assert.match(model, /检查管理插件与 Docker 镜像；发现更新时自动更新对应组件。/);
   assert.doesNotMatch(manager, /docker build/);
 });
 
@@ -222,25 +222,31 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   const controller = await read(`${base}controller/qidian.lua`);
   const model = await read(`${base}model/cbi/qidian.lua`);
   const service = await read(`${base}view/qidian/status.htm`);
+  const account = await read(`${base}view/qidian/account-tools.htm`);
+  const logs = await read(`${base}view/qidian/logs.htm`);
   const styles = service.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+  const logStyles = logs.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
 
   assert.match(controller, /entry\(\{"admin", "services", "qidian"\}, cbi\("qidian"\)/);
   assert.doesNotMatch(controller, /"qidian", "logs"/);
   assert.match(controller, /"qidian", "log-data"}, call\("log_data"\)/);
-  assert.match(service, /class="cbi-tabcontainer"/);
-  assert.match(service, /data-tab="service" data-tab-title="<%:服务%>"/);
-  assert.match(service, /data-tab="config" data-tab-title="<%:部署与配置%>"/);
-  assert.match(service, /data-tab="logs" data-tab-title="<%:日志%>"/);
-  assert.match(service, /initial_tab = busy and "logs"/);
-  assert.match(service, /id="qidian-panel-config"/);
-  assert.match(service, /addEventListener\("cbi-tab-active"/);
-  assert.match(service, /installConfigSlot\.appendChild\(installSection\)/);
   assert.match(model, /m:section\(NamedSection, "main", "qidian", translate\("部署设置"\)\)/);
   assert.doesNotMatch(model, /\bs\.description\s*=/, 'avoid repeating field guidance above the deployment form');
-  assert.match(service, /<div class="cbi-section">[\s\S]*?<h3><%:服务状态%><\/h3>/);
+  assert.match(model, /s:tab\("basic", translate\("基本设置"\)\)/);
+  assert.match(model, /s:tab\("advanced", translate\("高级设置"\)\)/);
+  assert.match(model, /s:tab\("logs", translate\("日志"\)\)/);
+  assert.match(model, /s:tab\("maintenance", translate\("更新维护"\)\)/);
+  assert.match(model, /s:taboption\("basic", Button, "_install"/);
+  assert.match(model, /s:taboption\("maintenance", Button, "_check_update"/);
+  assert.match(model, /s:taboption\("advanced", DummyValue, "_account_tools"/);
+  assert.match(model, /_account_tools", translate\("管理员密码重置"\)/);
+  assert.match(model, /account\.template = "qidian\/account-tools"/);
+  assert.match(model, /s:taboption\("logs", DummyValue, "_operation_log"/);
+  assert.match(model, /logs\.template = "qidian\/logs"/);
+  assert.match(service, /class="cbi-section qidian-overview"/);
+  assert.match(service, /<h3><%:服务概览%><\/h3>/);
   assert.match(service, /class="cbi-value-title"/);
-  assert.match(service, /id="qidian-service-operations" class="cbi-section"/);
-  assert.match(service, /<table class="table cbi-section-table">[\s\S]*?<%:访问端口%>[\s\S]*?<%:Docker 数据目录%>[\s\S]*?<%:账号状态%>[\s\S]*?<\/table>/, 'show service details in LuCI table rows like Docker management pages');
+  assert.match(service, /<table class="table cbi-section-table">[\s\S]*?<%:服务状态%>[\s\S]*?<%:管理插件版本%>[\s\S]*?<%:Docker 镜像版本%>[\s\S]*?<%:访问端口%>[\s\S]*?<%:Docker 数据目录%>[\s\S]*?<%:账号状态%>[\s\S]*?<\/table>/, 'show compact service information in native LuCI table rows');
   assert.doesNotMatch(service, /<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%>/, 'do not squeeze read-only service details into editable CBI rows');
   assert.match(service, /serviceActionFields\.appendChild\(button\)/);
   assert.match(service, /if \(moved\) serviceActionFields\.appendChild\(document\.createTextNode\(" "\)\)/);
@@ -250,45 +256,53 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.doesNotMatch(service, /cbi-value-title"><%:运行状态%>|cbi-value-title"><%:网页入口%>/);
   assert.doesNotMatch(service, /<details|<summary|qidian-modal|仅在需要重置密码时展开/);
   assert.match(service, /qidian-data-path/);
-  assert.match(styles, /textarea#qidian-panel-log \{ box-sizing: border-box; width: 100%; max-width: 100%; min-height: 22em;/);
   assert.match(service, /name\$="\.' \+ suffix/);
   assert.match(service, /name\$="\._remove"/);
   assert.match(service, /window\.confirm\("卸载栖点服务？此操作会移除容器/);
-  assert.match(service, /id="qidian-account-tools" class="cbi-section"/);
-  assert.match(service, /tail -c 65536/);
-  assert.match(service, /if \(busy\) pollLog\(\)/);
   assert.match(service, /<%:打开栖点%>/);
   assert.doesNotMatch(service, /打开栖点并创建管理员/);
-  assert.match(service, /docker exec -it qidian node server\/reset-password\.mjs/);
-  assert.match(service, /navigator\.clipboard/);
   assert.match(service, /栖点服务运行中/);
-  assert.match(service, /操作日志/);
-  assert.match(service, /上次操作成功/);
-  assert.match(service, /暂无操作记录/);
-  assert.match(service, /管理员密码重置/);
   assert.match(service, /知识库数据、附件、证书和配置会保留/);
-  assert.match(service, /部署服务后可在此打开栖点/);
-  assert.doesNotMatch(service, /操作已完成|等待操作|正在部署栖点|部署已完成|安装 \/ 更新过程|请保持页面打开|最近一次操作的实时输出/);
-  assert.match(service, /window\.setTimeout\(pollLog, 1800\)/);
-  assert.match(service, /qidian-log-state-text/);
-  assert.match(service, /id="qidian-log-updated"/);
-  assert.match(service, /panelFollowLog/);
-  assert.match(service, /class="cbi-input-textarea" rows="18" readonly/);
-  assert.match(service, /class="cbi-button cbi-button-apply"/);
-  assert.match(service, /if \(panelFollowLog\) panelLog\.scrollTop = panelLog\.scrollHeight/);
   assert.doesNotMatch(styles, /\b(background|color|grid|border-radius|border-color|border-width|@media|@keyframes)\b|display:\s*flex/i, 'the page leaves layout and colors to the active LuCI theme');
   assert.doesNotMatch(service, /syncArgonPalette|argon\/css\/dark|--qidian-(?:ink|surface|blue)|display:grid/);
-  assert.match(service, /if \(pageActions\) pageActions\.hidden = name !== "config"/);
   assert.match(service, /id="qidian-copy-path"/);
+  assert.match(account, /id="qidian-account-tools"/);
+  assert.match(account, /docker exec -it qidian node server\/reset-password\.mjs/);
+  assert.match(account, /navigator\.clipboard/);
+  assert.doesNotMatch(account, /在 OpenWrt 终端运行命令/);
+  assert.match(model, /_operation_log", translate\("操作日志"\)/);
+  assert.match(logs, /tail -c 65536/);
+  assert.match(logs, /var operationBusy = <%=busy and "true" or "false"%>/);
+  assert.match(logs, /cbi-tabmenu li\[data-tab="logs"\] a/);
+  assert.match(logs, /if \(operationBusy\) \{\s*pollLog\(\);\s*activateLogTab\(\);/);
+  assert.match(logs, /window\.setTimeout\(pollLog, 1800\)/);
+  assert.match(logs, /qidian-log-state-text/);
+  assert.match(logs, /id="qidian-log-updated"/);
+  assert.match(logs, /followLog/);
+  assert.match(logs, /class="cbi-input-textarea" rows="18" readonly/);
+  assert.match(logs, /class="cbi-button cbi-button-apply"/);
+  assert.match(logs, /if \(followLog\) panelLog\.scrollTop = panelLog\.scrollHeight/);
+  assert.match(logStyles, /textarea#qidian-panel-log \{ box-sizing: border-box; width: 100%; max-width: 100%; min-height: 22em;/);
+  assert.doesNotMatch(logStyles, /\b(background|color|grid|border-radius|border-color|border-width|@media|@keyframes)\b|display:\s*flex/i);
+  assert.doesNotMatch(logs, /操作已完成|等待操作|正在部署栖点|部署已完成|安装 \/ 更新过程|请保持页面打开|最近一次操作的实时输出/);
   const inlineScript = service.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
   assert.ok(inlineScript, 'LuCI view includes its in-page interaction script');
   const renderedScript = inlineScript
     .replaceAll('<%=util.pcdata(port)%>', '9908')
     .replaceAll('<%=busy and "true" or "false"%>', 'false')
-    .replaceAll('<%=initial_tab%>', 'service')
-    .replaceAll('<%=util.pcdata(account_status)%>', 'ready')
     .replaceAll('<%=log_endpoint%>', '/admin/services/qidian/log-data');
   assert.doesNotThrow(() => new Function(renderedScript), 'LuCI inline JavaScript parses after template interpolation');
+
+  const logScript = logs.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
+  assert.ok(logScript, 'LuCI log tab includes its live-output behavior');
+  const renderedLogScript = logScript
+    .replaceAll('<%=log_endpoint%>', '/admin/services/qidian/log-data')
+    .replaceAll('<%=busy and "true" or "false"%>', 'false');
+  assert.doesNotThrow(() => new Function(renderedLogScript), 'LuCI log-tab script parses after template interpolation');
+
+  const accountScript = account.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];
+  assert.ok(accountScript, 'advanced settings include administrator password reset');
+  assert.doesNotThrow(() => new Function(accountScript), 'LuCI account-tools script parses');
 
   const updater = await read('../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh');
   assert.match(updater, /while \[ ! -f "\$result_file" \]/);

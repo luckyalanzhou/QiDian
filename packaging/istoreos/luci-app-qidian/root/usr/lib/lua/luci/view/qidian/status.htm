@@ -1,115 +1,41 @@
 <% local sys = require "luci.sys"; local util = require "luci.util" %>
 <% local state = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh status 2>/dev/null")) %>
+<% local result = util.trim(sys.exec("cat /tmp/qidian-operation.result 2>/dev/null")) %>
 <% local account_status = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh account-status 2>/dev/null")) %>
 <% local port = util.trim(sys.exec("uci -q get qidian.main.http_port 2>/dev/null")); if port == "" then port = "9908" end %>
 <% local data_path = util.trim(sys.exec("uci -q get qidian.main.data_path 2>/dev/null")) %>
 <% local has_data_path = data_path ~= "" %>
 <% if data_path == "" then local docker_root = util.trim(sys.exec("docker info --format '{{.DockerRootDir}}' 2>/dev/null")); if docker_root:sub(1, 1) == "/" and docker_root ~= "/" then data_path = docker_root:gsub("/$", "") .. "/volumes/qidian/data"; has_data_path = true else data_path = translate("等待 Docker 启动后检测") end end %>
 <% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
-<% local initial_tab = busy and "logs" or (state == "running" and "service" or "config") %>
-<% local result = util.trim(sys.exec("cat /tmp/qidian-operation.result 2>/dev/null")) %>
-<% local log = sys.exec("tail -c 65536 /tmp/qidian-operation.log 2>/dev/null") %>
+<% local plugin_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null")); if plugin_version == "" then plugin_version = translate("尚未安装") end %>
+<% local app_version = util.trim(sys.exec("docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p'")); if app_version == "" then app_version = translate("尚未部署") end %>
+<% local initial_status = busy and "操作进行中" or (state == "running" and "栖点服务运行中" or (state == "error" and "Docker 服务不可用" or (result == "failed" and "上次操作失败" or "服务未启动"))) %>
 <% local log_endpoint = luci.dispatcher.build_url("admin/services/qidian/log-data") %>
 
-<div class="qidian-service-page">
-	<div class="cbi-tabcontainer">
-		<div id="qidian-panel-service" data-tab="service" data-tab-title="<%:服务%>" <% if initial_tab == "service" then %>data-tab-active="true"<% end %>>
-			<div class="cbi-section">
-				<h3><%:服务状态%></h3>
-				<div class="cbi-section-descr"><strong id="qidian-service-title"><% if busy then %><%:操作进行中%><% elseif state == "running" then %><%:栖点服务运行中%><% elseif state == "error" then %><%:Docker 服务不可用%><% elseif result == "failed" then %><%:上次操作失败%><% else %><%:服务未启动%><% end %></strong><div id="qidian-service-description" <% if not busy and state == "running" and account_status ~= "setup_required" then %>hidden<% end %>><% if busy then %><%:请在日志页查看实时进度。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:请查看日志末尾的错误信息。%><% elseif state ~= "running" then %><%:部署服务后可在此打开栖点。%><% end %></div></div>
-				<div id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></div>
-			</div>
-
-			<div class="cbi-section">
-				<h3><%:服务信息%></h3>
-				<table class="table cbi-section-table">
-					<tbody>
-						<tr><th scope="row"><%:访问端口%></th><td><strong><%=util.pcdata(port)%></strong></td></tr>
-						<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code> <button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></td></tr>
-						<tr><th scope="row"><%:账号状态%></th><td><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></td></tr>
-					</tbody>
-				</table>
-			</div>
-
-			<div id="qidian-service-operations" class="cbi-section">
-				<h3><%:服务操作%></h3>
-				<div id="qidian-service-action-fields"></div>
-			</div>
-
-			<div id="qidian-account-tools" class="cbi-section" <% if state ~= "running" or account_status ~= "ready" then %>hidden<% end %>>
-				<h3><%:管理员密码重置%></h3>
-				<div class="cbi-section-descr"><%:在 OpenWrt 终端运行命令，按提示输入账号；输入 Y 确认或 N 取消，然后输入两次新密码。%></div>
-				<div class="cbi-value"><div class="cbi-value-title"><%:重置密码命令%></div><div class="cbi-value-field"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code> <button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制命令%></button><div id="qidian-copy-message" role="status" aria-live="polite"></div></div></div>
-			</div>
-		</div>
-
-		<div id="qidian-panel-config" data-tab="config" data-tab-title="<%:部署与配置%>" <% if initial_tab == "config" then %>data-tab-active="true"<% end %>>
-			<div id="qidian-install-config-slot"></div>
-		</div>
-
-		<div id="qidian-panel-logs" class="cbi-section" data-tab="logs" data-tab-title="<%:日志%>" <% if initial_tab == "logs" then %>data-tab-active="true"<% end %>>
-			<h3><%:操作日志%></h3>
-			<div class="cbi-section-descr"><%:部署、更新和服务操作记录；操作期间自动刷新。%></div>
-			<div class="cbi-value">
-				<div class="cbi-value-title"><%:操作状态%></div>
-				<div class="cbi-value-field"><strong id="qidian-log-state-text"><% if busy then %><%:执行中%><% elseif result == "failed" then %><%:上次操作失败%><% elseif result == "success" then %><%:上次操作成功%><% else %><%:暂无操作记录%><% end %></strong> <time id="qidian-log-updated" hidden></time></div>
-			</div>
-			<div class="cbi-value">
-				<div class="cbi-value-title"><label for="qidian-panel-log"><%:操作输出%></label></div>
-				<div class="cbi-value-field"><textarea id="qidian-panel-log" class="cbi-input-textarea" rows="18" readonly spellcheck="false" wrap="off"><% if log == "" then %><%:暂无日志。%><% else %><%=util.pcdata(log)%><% end %></textarea></div>
-			</div>
-			<div class="cbi-value">
-				<div class="cbi-value-title"><%:日志操作%></div>
-				<div class="cbi-value-field"><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button> <button id="qidian-log-refresh" class="cbi-button cbi-button-apply" type="button"><%:刷新日志%></button> <span><%:最多显示最近 64 KB。%></span></div>
-			</div>
-		</div>
-	</div>
+<div class="cbi-section qidian-overview">
+	<h3><%:服务概览%></h3>
+	<table class="table cbi-section-table">
+		<tbody>
+			<tr><th scope="row"><%:服务状态%></th><td><strong id="qidian-service-title"><%=util.pcdata(initial_status)%></strong> <span id="qidian-service-description"><% if busy then %><%:请查看日志了解操作进度。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:请查看日志末尾的错误信息。%><% end %></span></td></tr>
+			<tr><th scope="row"><%:管理插件版本%></th><td><strong id="qidian-plugin-version"><%=util.pcdata(plugin_version)%></strong></td></tr>
+			<tr><th scope="row"><%:Docker 镜像版本%></th><td><strong id="qidian-image-version"><%=util.pcdata(app_version)%></strong></td></tr>
+			<tr><th scope="row"><%:访问端口%></th><td><strong><%=util.pcdata(port)%></strong></td></tr>
+			<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code> <button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></td></tr>
+			<tr><th scope="row"><%:账号状态%></th><td><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></td></tr>
+		</tbody>
+	</table>
+	<div id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></div>
+	<div id="qidian-service-operations" class="cbi-value"><div class="cbi-value-title"><%:服务控制%></div><div id="qidian-service-action-fields" class="cbi-value-field"></div></div>
 </div>
 
 <script>
 (function () {
 	var port = "<%=util.pcdata(port)%>";
-	var busy = <%=busy and "true" or "false"%>;
-	var initialTab = "<%=initial_tab%>";
-	var accountStatus = "<%=util.pcdata(account_status)%>";
 	var endpoint = "<%=log_endpoint%>";
-	var servicePage = document.querySelector(".qidian-service-page");
-	var panelLog = document.getElementById("qidian-panel-log");
-	var previousLog = panelLog.value;
-	var servicePanel = document.getElementById("qidian-panel-service");
-	var configPanel = document.getElementById("qidian-panel-config");
-	var logsPanel = document.getElementById("qidian-panel-logs");
 	var openRow = document.getElementById("qidian-open-row");
-	var accountState = document.getElementById("qidian-account-state");
-	var accountTools = document.getElementById("qidian-account-tools");
-	var serviceActions = document.getElementById("qidian-service-operations");
 	var serviceActionFields = document.getElementById("qidian-service-action-fields");
-	var installConfigSlot = document.getElementById("qidian-install-config-slot");
-	var updatedAt = document.getElementById("qidian-log-updated");
-	var panelFollowLog = true;
-	function moveInstallConfig() {
-		var installButton = document.querySelector('input[type="submit"][name$="._install"]');
-		var installSection = installButton && installButton.closest(".cbi-section");
-		if (installSection && installConfigSlot && !installConfigSlot.contains(installSection)) installConfigSlot.appendChild(installSection);
-	}
-	function activatePanel(name) {
-		if (name === "config") moveInstallConfig();
-		var pageActions = document.querySelector(".cbi-page-actions");
-		if (pageActions) pageActions.hidden = name !== "config";
-		if (name === "logs") {
-			if (panelFollowLog) panelLog.scrollTop = panelLog.scrollHeight;
-			pollLog();
-		}
-	}
-	servicePanel.addEventListener("cbi-tab-active", function () { activatePanel("service"); });
-	configPanel.addEventListener("cbi-tab-active", function () { activatePanel("config"); });
-	logsPanel.addEventListener("cbi-tab-active", function () { activatePanel("logs"); });
-	document.getElementById("qidian-log-refresh").addEventListener("click", pollLog);
-	document.getElementById("qidian-log-bottom").addEventListener("click", function () { panelLog.scrollTop = panelLog.scrollHeight; });
-	panelLog.addEventListener("scroll", function () { panelFollowLog = isAtBottom(panelLog); });
-	panelLog.scrollTop = panelLog.scrollHeight;
-	panelFollowLog = true;
-	document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
+	var serviceActions = document.getElementById("qidian-service-operations");
+	var busy = <%=busy and "true" or "false"%>;
 	function organizeServiceActions() {
 		var moved = 0;
 		["_start", "_stop", "_remove"].forEach(function (suffix) {
@@ -126,14 +52,12 @@
 		});
 		serviceActions.hidden = moved === 0;
 	}
-	function initializePanels() {
-		moveInstallConfig();
+	function initialize() {
 		organizeServiceActions();
-		var selectedPanel = servicePage.querySelector('.cbi-tabcontainer > [data-tab-active="true"]');
-		activatePanel(selectedPanel ? selectedPanel.getAttribute("data-tab") : initialTab);
+		document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
 	}
-	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initializePanels, { once: true });
-	else initializePanels();
+	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
+	else initialize();
 	document.addEventListener("click", function (event) {
 		var removeButton = event.target && event.target.closest ? event.target.closest('input[type="submit"][name$="._remove"]') : null;
 		if (removeButton && !window.confirm("卸载栖点服务？此操作会移除容器，知识库数据、附件、证书和配置会保留。")) {
@@ -149,11 +73,6 @@
 		};
 		if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(function () { onResult(true); }).catch(fallback); else fallback();
 	}
-	document.getElementById("qidian-copy-reset").addEventListener("click", function () {
-		copyText(document.getElementById("qidian-reset-command").textContent, function (copied) {
-			document.getElementById("qidian-copy-message").textContent = copied ? "命令已复制" : "复制失败，请手动选择命令";
-		});
-	});
 	document.getElementById("qidian-copy-path").addEventListener("click", function () {
 		var button = this;
 		copyText(document.getElementById("qidian-data-path").textContent, function (copied) {
@@ -161,59 +80,28 @@
 			window.setTimeout(function () { button.textContent = "复制路径"; }, 1600);
 		});
 	});
-	function isAtBottom(element) {
-		return element.scrollHeight - element.scrollTop <= element.clientHeight + 32;
-	}
-	function renderStatus(data) {
-		var title = document.getElementById("qidian-service-title");
-		var description = document.getElementById("qidian-service-description");
-		if (data.busy) {
-			title.textContent = "操作进行中";
-			description.textContent = "请在日志页查看实时进度。";
-		} else if (data.state === "running") {
-			title.textContent = "栖点服务运行中";
-			description.textContent = data.accountStatus === "setup_required" ? "首次访问时创建管理员账号。" : "";
-		} else if (data.result === "failed" || data.state === "error") {
-			title.textContent = data.state === "error" ? "Docker 服务不可用" : "上次操作失败";
-			description.textContent = data.state === "error" ? "请检查 Docker 服务状态。" : "请查看日志末尾的错误信息。";
-		} else {
-			title.textContent = "服务未启动";
-			description.textContent = "部署服务后可在此打开栖点。";
-		}
-		description.hidden = description.textContent.trim() === "";
-		openRow.hidden = data.busy || data.state !== "running";
-		if (!openRow.hidden) document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
-		accountStatus = data.accountStatus || accountStatus;
-		accountState.textContent = accountStatus === "setup_required" ? "管理员待创建" : accountStatus === "ready" ? "管理员已创建" : "启动后检测";
-		accountTools.hidden = data.state !== "running" || accountStatus !== "ready";
-		document.getElementById("qidian-log-state-text").textContent = data.busy ? "执行中" : data.result === "failed" ? "上次操作失败" : data.result === "success" ? "上次操作成功" : "暂无操作记录";
-	}
-	function pollLog() {
+	function refreshStatus() {
 		fetch(endpoint, { credentials: "same-origin", cache: "no-store" }).then(function (response) {
-			if (!response.ok) throw new Error("log request failed");
+			if (!response.ok) throw new Error("status request failed");
 			return response.json();
 		}).then(function (data) {
-			if (data.log !== previousLog) {
-				panelLog.value = data.log || "暂无日志。";
-				previousLog = panelLog.value;
-				if (panelFollowLog) panelLog.scrollTop = panelLog.scrollHeight;
-			}
-			var refreshed = new Date();
-			updatedAt.dateTime = refreshed.toISOString();
-			updatedAt.textContent = "更新于 " + refreshed.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-			updatedAt.hidden = false;
-			renderStatus(data);
-			if (data.busy) window.setTimeout(pollLog, 1800);
-		}).catch(function () {
-			window.setTimeout(pollLog, 3500);
-		});
+			var title = document.getElementById("qidian-service-title");
+			var description = document.getElementById("qidian-service-description");
+			if (data.busy) { title.textContent = "操作进行中"; description.textContent = "请查看日志了解操作进度。"; }
+			else if (data.state === "running") { title.textContent = "栖点服务运行中"; description.textContent = data.accountStatus === "setup_required" ? "首次访问时创建管理员账号。" : ""; }
+			else if (data.state === "error" || data.result === "failed") { title.textContent = data.state === "error" ? "Docker 服务不可用" : "上次操作失败"; description.textContent = data.state === "error" ? "请检查 Docker 服务状态。" : "请查看日志末尾的错误信息。"; }
+			else { title.textContent = "服务未启动"; description.textContent = ""; }
+			description.hidden = description.textContent === "";
+			openRow.hidden = data.busy || data.state !== "running";
+			document.getElementById("qidian-account-state").textContent = data.accountStatus === "setup_required" ? "管理员待创建" : data.accountStatus === "ready" ? "管理员已创建" : "启动后检测";
+			busy = data.busy;
+			if (busy) window.setTimeout(refreshStatus, 1800);
+		}).catch(function () { window.setTimeout(refreshStatus, 3500); });
 	}
-	if (busy) pollLog();
+	if (busy) refreshStatus();
 })();
 </script>
 
 <style>
-.qidian-service-page [hidden] { display: none !important; }
-.qidian-service-page textarea#qidian-panel-log { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 22em; resize: vertical; }
-.qidian-service-page code { overflow-wrap: anywhere; }
+.qidian-overview code { overflow-wrap: anywhere; }
 </style>
