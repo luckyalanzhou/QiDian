@@ -157,7 +157,9 @@ test('generic Docker install uses a device-managed named volume and has no host 
 test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge data', async () => {
   const model = await read('../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/model/cbi/qidian.lua');
   const manager = await read('../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian.sh');
+  const installer = await read('../packaging/istoreos/install.sh');
   const controller = await read('../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/controller/qidian.lua');
+  const applyTrigger = await read('../packaging/istoreos/luci-app-qidian/root/usr/share/ucitrack/luci-app-qidian.json');
 
   assert.match(controller, /admin", "services", "qidian/);
   assert.match(model, /port\.default = "9908"/);
@@ -183,6 +185,13 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /set_env REGISTRATION_ENABLED/);
   assert.match(manager, /set_env TRUST_PROXY "\$trust_proxy_enabled"/);
   assert.match(manager, /set_env TRUSTED_PROXY_IPS "\$trusted_proxy_ip"/);
+  assert.match(manager, /apply-config\)\s*if ! docker info/);
+  assert.match(manager, /docker image inspect "\$IMAGE_REPOSITORY:latest"/);
+  assert.match(manager, /compose up -d --no-build --force-recreate qidian/);
+  assert.match(manager, /apply-config\|install\|upgrade\|start\|stop\|remove\) run_operation/);
+  assert.match(applyTrigger, /"config":\s*"qidian"/);
+  assert.match(applyTrigger, /"exec":\s*"\/usr\/libexec\/istorec\/qidian\.sh apply-config"/);
+  assert.match(installer, /\/etc\/init\.d\/ucitrack restart \|\| \/etc\/init\.d\/ucitrack start/);
   assert.match(manager, /启用反向代理信任前，请填写直接连接栖点容器的代理 IP/);
   assert.match(manager, /IMAGE_REPOSITORY=docker\.io\/luckyalanzhou\/qidian/);
   assert.match(manager, /set_env QIDIAN_IMAGE "\$IMAGE_REPOSITORY:latest"/);
@@ -296,16 +305,19 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(logs, /cbi-tabmenu li\[data-tab="logs"\] a/);
   assert.match(logs, /if \(operationBusy\) \{\s*pollLog\(\);\s*activateLogTab\(\);/);
   assert.match(logs, /window\.setTimeout\(pollLog, 1800\)/);
-  assert.match(logs, /qidian-log-state-text/);
-  assert.match(logs, /class="table cbi-section-table qidian-log-status"[\s\S]*?<th scope="row"><%:操作状态%><\/th><td><strong id="qidian-log-state-text"/);
   assert.match(logs, /function updateOverview\(data\)/);
   assert.match(logs, /updateOverview\(data\)/);
   assert.match(logs, /startButton\.disabled = data\.busy \|\| data\.state === "running"/);
   assert.match(logs, /stopButton\.disabled = data\.busy \|\| data\.state !== "running"/);
-  assert.match(logs, /id="qidian-log-updated"/);
   assert.match(logs, /followLog/);
   assert.match(logs, /class="cbi-input-textarea" rows="18" readonly/);
   assert.match(logs, /class="cbi-value qidian-log-output"/);
+  assert.doesNotMatch(logs, /操作输出/);
+  assert.match(logs, /id="qidian-panel-log"[^>]*aria-label="<%:日志内容%>"/);
+  assert.doesNotMatch(logs, /操作状态|qidian-log-state-text|qidian-log-updated/);
+  assert.match(logs, /id="qidian-log-toolbar"/);
+  assert.match(logs, /name\$="\._clear_logs"/);
+  assert.match(logs, /\.qidian-log-toolbar \.cbi-value-title \{ display: none; \}/);
   assert.match(logStyles, /\.cbi-value\.qidian-log-output \{ display: block; \}/);
   assert.match(logStyles, /\.qidian-log-output \.cbi-value-field \{ display: block; float: none; width: 100%; max-width: none; margin: 0; \}/);
   assert.match(logStyles, /width: 100% !important; max-width: none !important; min-width: 0; min-height: 32em/);

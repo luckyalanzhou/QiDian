@@ -70,6 +70,12 @@ elif ! uci -q get qidian.main.registration_enabled >/dev/null 2>&1; then
   uci commit qidian
 fi
 
+# Register the LuCI Save & Apply hook immediately; it runs apply-config only
+# after OpenWrt applies a committed qidian configuration change.
+if [ -x /etc/init.d/ucitrack ]; then
+	/etc/init.d/ucitrack restart || /etc/init.d/ucitrack start || fail '无法注册 LuCI 配置应用钩子。'
+fi
+
 # Move updater state into the configured Docker data directory before restarting its agent.
 /usr/libexec/istorec/qidian.sh prepare-control
 

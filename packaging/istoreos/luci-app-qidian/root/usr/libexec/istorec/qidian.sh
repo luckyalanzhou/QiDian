@@ -488,6 +488,23 @@ run_operation() {
 	trap 'exit 1' HUP INT TERM
 
 	case "$action" in
+		apply-config)
+			if ! docker info >/dev/null 2>&1; then
+				fail 'Docker 服务尚未启动，配置已保存；启动 Docker 后请重新保存并应用。'
+			fi
+			if ! docker inspect --type container qidian >/dev/null 2>&1; then
+				printf '配置已保存；栖点尚未部署，设置将在部署时应用。\n'
+				return 0
+			fi
+			if ! docker image inspect "$IMAGE_REPOSITORY:latest" >/dev/null 2>&1; then
+				fail "本地未找到栖点镜像 $IMAGE_REPOSITORY:latest；请先点击安装 / 更新。"
+			fi
+			printf '正在应用栖点容器配置…\n'
+			prepare
+			cd "$INSTALL_DIR"
+			compose up -d --no-build --force-recreate qidian
+			printf '配置已应用，栖点容器已重建。\n'
+			;;
 		install|upgrade)
 			printf '正在检查 Docker 与数据目录…\n'
 			prepare
@@ -549,6 +566,6 @@ case "${1:-status}" in
 		trap 'rm -f "$UPDATE_WORKER_PATH" /tmp/qidian-operation.queued' EXIT
 		run_operation check-update
 		;;
-	install|upgrade|start|stop|remove) run_operation "$1" ;;
+	apply-config|install|upgrade|start|stop|remove) run_operation "$1" ;;
 	*) fail "未知操作：$1" ;;
 esac
