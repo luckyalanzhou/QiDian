@@ -231,6 +231,9 @@ test('version details stack version rows and reserve space for notes and live up
   assert.match(styles, /\.release-notes\{min-height:clamp\(80px,14svh,120px\);max-height:min\(22svh,150px\)/);
   assert.match(styles, /\.update-progress-log\{[^}]*min-height:150px/);
   assert.match(styles, /\.update-progress-log\{min-height:110px/);
+  assert.match(styles, /\.update-progress\{flex:2 1 0;min-height:clamp\(270px,36vh,380px\)\}/,'the progress card reserves a substantially larger share of desktop dialog height');
+  assert.match(styles, /\.update-progress-log\{min-height:190px\}/,'desktop live logs have enough height to inspect several lines at once');
+  assert.match(styles, /\.update-progress-log\{min-height:140px\}/,'mobile live logs stay usable without crowding the fixed dialog actions');
 });
 test('release notes use readable Markdown blocks, suppress generated release commit noise, and treat embedded HTML as text', () => {
   const dom=new JSDOM('<div id="notes"></div>',{url:'https://qidian.example/'}),container=dom.window.document.querySelector('#notes');
