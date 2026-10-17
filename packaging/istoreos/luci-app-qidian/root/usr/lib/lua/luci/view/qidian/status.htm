@@ -4,23 +4,19 @@
 <% local account_status = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh account-status 2>/dev/null")) %>
 <% local port = util.trim(sys.exec("uci -q get qidian.main.http_port 2>/dev/null")); if port == "" then port = "9908" end %>
 <% local data_path = util.trim(sys.exec("uci -q get qidian.main.data_path 2>/dev/null")) %>
-<% local has_data_path = data_path ~= "" %>
-<% if data_path == "" then local docker_root = util.trim(sys.exec("docker info --format '{{.DockerRootDir}}' 2>/dev/null")); if docker_root:sub(1, 1) == "/" and docker_root ~= "/" then data_path = docker_root:gsub("/$", "") .. "/volumes/qidian/data"; has_data_path = true else data_path = translate("等待 Docker 启动后检测") end end %>
+<% if data_path == "" then local docker_root = util.trim(sys.exec("docker info --format '{{.DockerRootDir}}' 2>/dev/null")); if docker_root:sub(1, 1) == "/" and docker_root ~= "/" then data_path = docker_root:gsub("/$", "") .. "/volumes/qidian/data" else data_path = translate("等待 Docker 启动后检测") end end %>
 <% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
 <% local plugin_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null")); if plugin_version == "" then plugin_version = translate("尚未安装") end %>
 <% local app_version = util.trim(sys.exec("docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p'")); if app_version == "" then app_version = translate("尚未部署") end %>
 <% local initial_status = busy and "操作进行中" or (state == "running" and "栖点服务运行中" or (state == "error" and "Docker 服务不可用" or (result == "failed" and "上次操作失败" or "服务未启动"))) %>
-<% local log_endpoint = luci.dispatcher.build_url("admin/services/qidian/log-data") %>
 
 <div class="cbi-section qidian-overview">
 	<h3><%:服务概览%></h3>
 	<table class="table cbi-section-table">
 		<tbody>
-			<tr><th scope="row"><%:服务状态%></th><td><strong id="qidian-service-title"><%=util.pcdata(initial_status)%></strong> <span id="qidian-service-description"><% if busy then %><%:请查看日志了解操作进度。%><% elseif state == "running" and account_status == "setup_required" then %><%:首次访问时创建管理员账号。%><% elseif state == "error" then %><%:请检查 Docker 服务状态。%><% elseif result == "failed" then %><%:请查看日志末尾的错误信息。%><% end %></span></td></tr>
-			<tr><th scope="row"><%:管理插件版本%></th><td><strong id="qidian-plugin-version"><%=util.pcdata(plugin_version)%></strong></td></tr>
-			<tr><th scope="row"><%:Docker 镜像版本%></th><td><strong id="qidian-image-version"><%=util.pcdata(app_version)%></strong></td></tr>
-			<tr><th scope="row"><%:访问端口%></th><td><strong><%=util.pcdata(port)%></strong></td></tr>
-			<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code> <button type="button" id="qidian-copy-path" class="cbi-button" <% if not has_data_path then %>hidden<% end %>><%:复制路径%></button></td></tr>
+			<tr><th scope="row"><%:服务状态%></th><td><strong id="qidian-service-title"><%=util.pcdata(initial_status)%></strong></td></tr>
+			<tr><th scope="row"><%:版本%></th><td><%:管理插件%> <strong id="qidian-plugin-version"><%=util.pcdata(plugin_version)%></strong> · <%:Docker 镜像%> <strong id="qidian-image-version"><%=util.pcdata(app_version)%></strong></td></tr>
+			<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code></td></tr>
 			<tr><th scope="row"><%:账号状态%></th><td><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></td></tr>
 		</tbody>
 	</table>
@@ -31,11 +27,9 @@
 <script>
 (function () {
 	var port = "<%=util.pcdata(port)%>";
-	var endpoint = "<%=log_endpoint%>";
 	var openRow = document.getElementById("qidian-open-row");
 	var serviceActionFields = document.getElementById("qidian-service-action-fields");
 	var serviceActions = document.getElementById("qidian-service-operations");
-	var busy = <%=busy and "true" or "false"%>;
 	function organizeServiceActions() {
 		var moved = 0;
 		["_start", "_stop", "_remove"].forEach(function (suffix) {
@@ -55,6 +49,15 @@
 	function initialize() {
 		organizeServiceActions();
 		document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
+		var status = document.getElementById("qidian-service-title").textContent.trim();
+		var busy = status === "操作进行中";
+		var running = status === "栖点服务运行中";
+		var startButton = document.querySelector('input[type="submit"][name$="._start"]');
+		var stopButton = document.querySelector('input[type="submit"][name$="._stop"]');
+		var removeButton = document.querySelector('input[type="submit"][name$="._remove"]');
+		if (startButton) startButton.disabled = busy || running;
+		if (stopButton) stopButton.disabled = busy || !running;
+		if (removeButton) removeButton.disabled = busy;
 	}
 	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
 	else initialize();
@@ -65,40 +68,6 @@
 			event.stopImmediatePropagation();
 		}
 	}, true);
-	function copyText(value, onResult) {
-		var fallback = function () {
-			var field = document.createElement("textarea"); field.value = value; field.setAttribute("readonly", ""); field.style.position = "fixed"; field.style.opacity = "0"; document.body.appendChild(field); field.select();
-			var copied = false; try { copied = document.execCommand("copy"); } catch (error) {} document.body.removeChild(field);
-			onResult(copied);
-		};
-		if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(function () { onResult(true); }).catch(fallback); else fallback();
-	}
-	document.getElementById("qidian-copy-path").addEventListener("click", function () {
-		var button = this;
-		copyText(document.getElementById("qidian-data-path").textContent, function (copied) {
-			button.textContent = copied ? "已复制" : "复制失败";
-			window.setTimeout(function () { button.textContent = "复制路径"; }, 1600);
-		});
-	});
-	function refreshStatus() {
-		fetch(endpoint, { credentials: "same-origin", cache: "no-store" }).then(function (response) {
-			if (!response.ok) throw new Error("status request failed");
-			return response.json();
-		}).then(function (data) {
-			var title = document.getElementById("qidian-service-title");
-			var description = document.getElementById("qidian-service-description");
-			if (data.busy) { title.textContent = "操作进行中"; description.textContent = "请查看日志了解操作进度。"; }
-			else if (data.state === "running") { title.textContent = "栖点服务运行中"; description.textContent = data.accountStatus === "setup_required" ? "首次访问时创建管理员账号。" : ""; }
-			else if (data.state === "error" || data.result === "failed") { title.textContent = data.state === "error" ? "Docker 服务不可用" : "上次操作失败"; description.textContent = data.state === "error" ? "请检查 Docker 服务状态。" : "请查看日志末尾的错误信息。"; }
-			else { title.textContent = "服务未启动"; description.textContent = ""; }
-			description.hidden = description.textContent === "";
-			openRow.hidden = data.busy || data.state !== "running";
-			document.getElementById("qidian-account-state").textContent = data.accountStatus === "setup_required" ? "管理员待创建" : data.accountStatus === "ready" ? "管理员已创建" : "启动后检测";
-			busy = data.busy;
-			if (busy) window.setTimeout(refreshStatus, 1800);
-		}).catch(function () { window.setTimeout(refreshStatus, 3500); });
-	}
-	if (busy) refreshStatus();
 })();
 </script>
 
