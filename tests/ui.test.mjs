@@ -229,7 +229,8 @@ test('version details stack version rows and reserve space for notes and live up
   assert.match(styles, /\.update-progress-log\{[^}]*overflow:auto/,'only the live log content scrolls');
   assert.doesNotMatch(styles, /\.version-dialog-body\{[^}]*overflow:auto|\.release-notes\{[^}]*overflow:auto/);
   assert.match(styles, /\.release-notes\{min-height:clamp\(80px,14svh,120px\);max-height:min\(22svh,150px\)/);
-  assert.match(styles, /\.update-progress-log\{[^}]*min-height:48px/);
+  assert.match(styles, /\.update-progress-log\{[^}]*min-height:150px/);
+  assert.match(styles, /\.update-progress-log\{min-height:110px/);
 });
 test('release notes use readable Markdown blocks, suppress generated release commit noise, and treat embedded HTML as text', () => {
   const dom=new JSDOM('<div id="notes"></div>',{url:'https://qidian.example/'}),container=dom.window.document.querySelector('#notes');
