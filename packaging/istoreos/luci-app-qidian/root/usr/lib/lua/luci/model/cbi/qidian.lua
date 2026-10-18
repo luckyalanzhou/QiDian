@@ -33,7 +33,6 @@ end
 
 s:tab("basic", translate("基本设置"))
 s:tab("logs", translate("日志"))
-s:tab("maintenance", translate("更新"))
 
 local environment = s:taboption("basic", DummyValue, "environment_display", translate("运行依赖"))
 if not docker_ready then
@@ -68,11 +67,14 @@ trusted_proxy_ip.description = translate("填写直接连接栖点容器的代�
 local image = s:taboption("basic", DummyValue, "image_display", translate("Docker 镜像"))
 image.default = "luckyalanzhou/qidian:latest"
 
-local install = s:taboption("basic", Button, "_install", translate("部署"))
-button(install, translate("安装 / 更新"), "apply", "install")
-
 local account = s:taboption("basic", DummyValue, "_account_tools", translate("管理员密码重置"))
 account.template = "qidian/account-tools"
+
+local install = s:taboption("basic", Button, "_install", "")
+button(install, translate("部署服务"), "apply", "install")
+
+local updates = s:taboption("basic", Button, "_check_update", "")
+button(updates, translate("检查并更新"), "apply", "check-update")
 
 local clear_logs = s:taboption("logs", Button, "_clear_logs", translate("日志"))
 clear_logs.inputtitle = translate("清空日志")
@@ -83,9 +85,6 @@ end
 
 local logs = s:taboption("logs", DummyValue, "_operation_log", translate("操作日志"))
 logs.template = "qidian/logs"
-
-local updates = s:taboption("maintenance", Button, "_check_update", translate("软件更新"))
-button(updates, translate("检查并更新"), "apply", "check-update")
 
 local start = s:taboption("basic", Button, "_start", translate("服务控制"))
 button(start, translate("启动服务"), "apply", "start")

@@ -53,6 +53,10 @@
 		if (startButton) startButton.disabled = data.busy || data.state === "running";
 		if (stopButton) stopButton.disabled = data.busy || data.state !== "running";
 		if (removeButton) removeButton.disabled = data.busy;
+		["_install", "_check_update"].forEach(function (suffix) {
+			var button = document.querySelector('input[type="submit"][name$=".' + suffix + '"]');
+			if (button) button.disabled = data.busy;
+		});
 	}
 	function pollLog() {
 		fetch(endpoint, { credentials: "same-origin", cache: "no-store" }).then(function (response) {

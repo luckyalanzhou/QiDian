@@ -1,8 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { JSDOM } from 'jsdom';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
+
+test('LuCI version action retains its native form submission and follows operation state', async () => {
+  const base = '../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/view/qidian/';
+  const service = await read(`${base}status.htm`);
+  const logs = await read(`${base}logs.htm`);
+  const render = (template) => template
+    .replaceAll('<%=util.pcdata(initial_status)%>', '操作进行中')
+    .replaceAll('<%=util.pcdata(port)%>', '9908')
+    .replaceAll('<%=busy and "true" or "false"%>', 'true')
+    .replaceAll('<%=log_endpoint%>', '/log-data')
+    .replace(/<%:([^%]+)%>/g, '$1')
+    .replace(/<%[\s\S]*?%>/g, '');
+  const script = (template) => render(template.match(/<script>([\s\S]*?)<\/script>/)[1]);
+  const controls = ['_start', '_stop', '_remove', '_install', '_check_update', '_clear_logs'].map(name =>
+    `<div class="cbi-value" id="row${name}"><div class="cbi-value-title">Label</div><div class="cbi-value-field"><input type="submit" name="cbid.qidian.main.${name}" value="${name}"></div></div>`
+  ).join('');
+  const dom = new JSDOM(`<form>${render(service)}<div class="basic-tab">${controls}</div>${render(logs)}</form>`, {
+    url: 'http://router.example/cgi-bin/luci/admin/services/qidian', runScripts: 'outside-only'
+  });
+  try {
+    const { window } = dom, { document } = window;
+    const update = document.querySelector('[name$="._check_update"]');
+    const deploy = document.querySelector('[name$="._install"]');
+    window.eval(script(service));
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    assert.equal(document.querySelector('#qidian-version-actions input'), update);
+    assert.equal(update.form, document.querySelector('form'));
+    assert.equal(update.name, 'cbid.qidian.main._check_update');
+    assert.equal(document.getElementById('row_check_update'), null, 'remove the empty basic-settings row');
+    assert.ok(deploy.closest('.basic-tab'), 'deployment remains with the settings');
+    assert.equal(update.disabled, true);
+    assert.equal(deploy.disabled, true);
+    const scheduled = [];
+    window.setTimeout = callback => scheduled.push(callback);
+    window.fetch = async () => ({ ok: true, json: async () => ({
+      busy: false, state: 'running', result: 'success', accountStatus: 'ready', log: '更新完成'
+    }) });
+    window.eval(script(logs));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(update.disabled, false, 're-enable update after the operation finishes');
+    assert.equal(deploy.disabled, false);
+    assert.equal(document.querySelector('[name$="._start"]').disabled, true);
+    assert.equal(document.querySelector('[name$="._stop"]').disabled, false);
+    assert.equal(document.getElementById('qidian-panel-log').value, '更新完成');
+  } finally {
+    dom.window.close();
+  }
+});
 
 test('iStoreOS run payload stays lightweight and contains persistent manager UI and Compose files', async () => {
   const builder = await read('../packaging/istoreos/build-run.sh');
@@ -208,7 +257,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /check-update-worker/);
   assert.match(manager, /cp "\$0" "\$worker"/);
   assert.doesNotMatch(manager, /docker volume rm|rm -rf "\$data_dir/);
-  assert.match(model, /s:taboption\("maintenance", Button, "_check_update", translate\("软件更新"\)\)/);
+  assert.match(model, /s:taboption\("basic", Button, "_check_update", ""\)/);
   assert.match(model, /button\(updates, translate\("检查并更新"\), "apply", "check-update"\)/);
   assert.match(model, /button\(start, translate\("启动服务"\), "apply", "start"\)/);
   assert.match(model, /button\(stop, translate\("停止服务"\), "reset", "stop"\)/);
@@ -253,9 +302,10 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(model, /s:tab\("basic", translate\("基本设置"\)\)/);
   assert.doesNotMatch(model, /s:tab\("advanced"/);
   assert.match(model, /s:tab\("logs", translate\("日志"\)\)/);
-  assert.match(model, /s:tab\("maintenance", translate\("更新"\)\)/);
+  assert.doesNotMatch(model, /s:tab\("maintenance"/);
   assert.match(model, /s:taboption\("basic", Button, "_install"/);
-  assert.match(model, /s:taboption\("maintenance", Button, "_check_update"/);
+  assert.match(model, /s:taboption\("basic", Button, "_check_update"/);
+  assert.match(model, /button\(install, translate\("部署服务"\), "apply", "install"\)/);
   assert.match(model, /s:taboption\("basic", DummyValue, "_account_tools"/);
   assert.match(model, /_account_tools", translate\("管理员密码重置"\)/);
   assert.match(model, /account\.template = "qidian\/account-tools"/);

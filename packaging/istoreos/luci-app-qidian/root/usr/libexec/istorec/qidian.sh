@@ -562,7 +562,7 @@ run_operation() {
 				return 0
 			fi
 			if ! docker image inspect "$IMAGE_REPOSITORY:latest" >/dev/null 2>&1; then
-				fail "本地未找到栖点镜像 $IMAGE_REPOSITORY:latest；请先点击安装 / 更新。"
+				fail "本地未找到栖点镜像 $IMAGE_REPOSITORY:latest；请先点击部署服务。"
 			fi
 			printf '正在应用栖点容器配置…\n'
 			prepare

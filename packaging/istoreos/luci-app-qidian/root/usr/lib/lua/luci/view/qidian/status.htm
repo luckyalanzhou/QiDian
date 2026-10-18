@@ -15,7 +15,7 @@
 	<table class="table cbi-section-table">
 		<tbody>
 			<tr><th scope="row"><%:服务状态%></th><td><strong id="qidian-service-title"><%=util.pcdata(initial_status)%></strong></td></tr>
-			<tr><th scope="row"><%:版本%></th><td><%:管理插件%> <strong id="qidian-plugin-version"><%=util.pcdata(plugin_version)%></strong> · <%:Docker 镜像%> <strong id="qidian-image-version"><%=util.pcdata(app_version)%></strong></td></tr>
+			<tr><th scope="row"><%:版本%></th><td><%:管理插件%> <strong id="qidian-plugin-version"><%=util.pcdata(plugin_version)%></strong> · <%:Docker 镜像%> <strong id="qidian-image-version"><%=util.pcdata(app_version)%></strong> <span id="qidian-version-actions"></span></td></tr>
 			<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code></td></tr>
 			<tr><th scope="row"><%:账号状态%></th><td><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></td></tr>
 			<tr id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><th scope="row"><%:网页入口%></th><td><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></td></tr>
@@ -48,6 +48,12 @@
 	}
 	function initialize() {
 		organizeServiceActions();
+		var updateButton = document.querySelector('input[type="submit"][name$="._check_update"]');
+		var updateField = updateButton && updateButton.closest(".cbi-value");
+		if (updateField) {
+			document.getElementById("qidian-version-actions").appendChild(updateButton);
+			updateField.remove();
+		}
 		document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
 		var status = document.getElementById("qidian-service-title").textContent.trim();
 		var busy = status === "操作进行中";
@@ -58,6 +64,10 @@
 		if (startButton) startButton.disabled = busy || running;
 		if (stopButton) stopButton.disabled = busy || !running;
 		if (removeButton) removeButton.disabled = busy;
+		["_install", "_check_update"].forEach(function (suffix) {
+			var button = document.querySelector('input[type="submit"][name$=".' + suffix + '"]');
+			if (button) button.disabled = busy;
+		});
 	}
 	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
 	else initialize();

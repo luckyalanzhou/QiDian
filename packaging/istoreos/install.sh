@@ -87,7 +87,7 @@ if [ -x /etc/init.d/qidian-updater ]; then
 fi
 
 printf '\n栖点 iStoreOS 管理界面已安装。\n'
-printf '打开 iStoreOS「管理 → 服务 → 栖点知识库」，检查端口和 Docker 数据目录后点击“安装 / 更新”。\n'
+printf '打开 iStoreOS「管理 → 服务 → 栖点知识库」，检查端口和 Docker 数据目录后点击“部署服务”。\n'
 printf '默认访问端口：9908（HTTP）。首次部署时会读取本设备的 Docker Root Dir，再创建独立数据目录。\n'
 printf '此步骤只安装管理页和设备管理文件；Docker 成品镜像会在 LuCI 部署时按版本拉取。\n'
 printf '不会删除或覆盖已有数据库、附件或环境配置。\n'

@@ -18,7 +18,7 @@
 | 兼容的 OpenWrt | 下载相同 `.run`，在设备终端以 root 校验并执行 |
 | Linux、NAS、服务器 | 使用下方 Docker Compose 命令启动 |
 
-iStoreOS / OpenWrt 需要 Docker、Docker Compose、UCI、LuCI CBI 和 `jsonfilter`。安装 `.run` 后进入 **服务 → 栖点知识库**，点击 **安装 / 更新**。镜像支持 `amd64`、`arm64`；校验及部署步骤见[部署指南](docs/deployment.md)。
+iStoreOS / OpenWrt 需要 Docker、Docker Compose、UCI、LuCI CBI 和 `jsonfilter`。安装 `.run` 后进入 **服务 → 栖点知识库**，点击 **部署服务**。镜像支持 `amd64`、`arm64`；校验及部署步骤见[部署指南](docs/deployment.md)。
 
 ### Docker Compose
 
