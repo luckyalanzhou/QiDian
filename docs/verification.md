@@ -2,13 +2,9 @@
 
 本文记录当前仓库可以重复执行的验证范围。源码测试、浏览器测试、Docker 运行和路由器实机属于不同层级，不能互相替代。
 
-## 自动化命令
+## 自动化验证
 
-```powershell
-pnpm check
-pnpm test
-pnpm build
-```
+GitHub Actions 执行源码检查、测试、前端构建和 Docker 验证。
 
 2026-10-16 数据事务、附件维护与发布流程优化后的验证结果：
 
@@ -17,8 +13,6 @@ pnpm build
 | `pnpm check` | 通过 | 递归检查 `src/`、`server/`、`scripts/` 和 `tests/` 下 42 个 JavaScript / MJS 文件 |
 | `pnpm test` | 183/183 通过 | SQLite、账号、事务确认、附件回收、编辑器、书签、更新代理、`.run` 发布配置与 LuCI 管理脚本 |
 | `pnpm build` | 通过 | Vite 生产资源构建，最大编辑器扩展块 460.82 kB（gzip 145.53 kB） |
-
-`pnpm check` 和 `pnpm build` 在普通工作区环境完成。完整测试中的本机 HTTP 回环与 Git Bash 子进程会被 Windows 沙箱限制，因此在获准的本机测试环境运行；源码、测试数据和命令保持不变。
 
 编辑器扩展已使用动态导入，当前生产块低于 Vite 的 500 kB 提示阈值。是否继续拆分应以真实设备的首次打开时间和缓存命中数据为依据。
 

@@ -87,8 +87,8 @@ GitHub Actions 的 `istoreos-release.yml` 是手动触发的正式发布工作�
 
 - `scripts/release-version.mjs`：按选择的版本级别计算或恢复发布版本。
 - `scripts/check-sources.mjs`：检查 JavaScript / MJS 源码。
-- `scripts/preview.mjs`、`scripts/sqlite-adapter.mjs`：运行本地 SQLite 服务预览所需的适配与启动逻辑。
-- `pnpm-lock.yaml`、`pnpm-workspace.yaml`、`package.json`：依赖锁定、包管理配置、版本来源和常用开发命令。
+- `scripts/sqlite-adapter.mjs`：SQLite 查询适配。
+- `pnpm-lock.yaml`、`pnpm-workspace.yaml`、`package.json`：依赖锁定、包管理配置和版本来源。
 
 普通推送到 `main` 不等于发布；镜像、`.run` 和 Release 由手动发布工作流交付。具体操作和设备端升级步骤见[iStoreOS / OpenWrt 安装包说明](../packaging/istoreos/README.md)。
 
@@ -110,19 +110,7 @@ GitHub Actions 的 `istoreos-release.yml` 是手动触发的正式发布工作�
 ## 一次典型请求如何经过这些部分
 
 1. 用户在浏览器打开 `index.html`，前端加载笔记或书签页面。
-2. `src/cloud.js` 通过同源 `/api/` 请求 Node.js 服务端；本地开发模式使用浏览器开发数据。
+2. `src/cloud.js` 通过同源 `/api/` 请求 Node.js 服务端。
 3. `server/auth.js` 和 `server/api.js` 校验会话、请求及账号权限。
 4. 服务端读取或更新 SQLite，并根据请求处理附件或快照。
 5. 若用户从 LuCI 发起设备升级，LuCI 管理页经受限请求与状态目录协调宿主更新代理；代理分别更新管理文件和容器镜像，知识库数据仍留在持久化目录。
-
-## 常用本地命令
-
-```sh
-pnpm install --frozen-lockfile
-pnpm dev
-pnpm test
-pnpm check
-pnpm build
-```
-
-Node.js、pnpm 版本和 SQLite 本地预览方式见[README 本地开发](../README.md#本地开发)与[验证说明](verification.md)。

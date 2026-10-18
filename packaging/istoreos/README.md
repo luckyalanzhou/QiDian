@@ -30,27 +30,6 @@ sh '栖点-<版本>.run'
 - `luci-app-qidian/root/`：LuCI 页面、服务管理脚本和受限更新代理。
 - 构建时生成的 `version`：与 `package.json` 当前版本一致。
 
-## 本地构建
-
-需要 Node.js 22 或更高版本、pnpm 11、Bash 和 `makeself`：
-
-```sh
-pnpm install --frozen-lockfile
-pnpm check
-pnpm test
-pnpm build
-pnpm package:istoreos
-```
-
-输出文件：
-
-```text
-artifacts/istoreos/qidian-<版本>.run
-artifacts/istoreos/qidian-<版本>.run.sha256
-```
-
-`build-run.sh` 检查版本号，只复制 LuCI 与设备管理文件，再生成自解压安装包并计算 SHA-256。
-
 ## 正式发布
 
 GitHub Actions 工作流 `iStoreOS Docker release` 只能手动触发：
