@@ -73,6 +73,74 @@ compose_setup() {
 	fi
 }
 
+# Capture ownership before pulling a mutable tag; afterwards the old image can
+# be dangling. Never prune global Docker resources or force-remove an image.
+image_is_qidian_owned() (
+	image_refs=$(docker image inspect --format '{{range .RepoTags}}{{println .}}{{end}}{{range .RepoDigests}}{{println .}}{{end}}' "$1" 2>/dev/null) || return 1
+	[ -n "$image_refs" ] || [ "${2:-}" = allow-empty ] || return 1
+	for image_ref in $image_refs; do
+		case "$image_ref" in
+			docker.io/luckyalanzhou/qidian:*|luckyalanzhou/qidian:*|docker.io/luckyalanzhou/qidian@sha256:*|luckyalanzhou/qidian@sha256:*) ;;
+			*) return 1 ;;
+		esac
+	done
+)
+
+owned_image_id() (
+	image_id=$(docker image inspect --format '{{.Id}}' "$1" 2>/dev/null) || return 1
+	printf '%s\n' "$image_id" | grep -Eq '^sha256:[a-f0-9]{64}$' || return 1
+	image_is_qidian_owned "$image_id" || return 1
+	printf '%s\n' "$image_id"
+)
+
+remember_replaced_images() {
+	previous_container_image=$(docker inspect --type container --format '{{.Image}}' qidian 2>/dev/null || true)
+	previous_container_image=$(owned_image_id "$previous_container_image" || true)
+	previous_target_image=$(owned_image_id "$1" || true)
+}
+
+wait_for_ready_image() (
+	expected_image=$1
+	attempt=0
+	while [ "$attempt" -lt 60 ]; do
+		container_health=$(docker inspect --type container --format '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}} {{.Image}}' qidian 2>/dev/null || true)
+		[ "$container_health" = "running healthy $expected_image" ] && return 0
+		attempt=$((attempt + 1))
+		sleep 2
+	done
+	printf '新容器未通过健康检查，保留旧镜像。\n' >&2
+	return 1
+)
+
+cleanup_replaced_images() (
+	# Cleanup is best effort: a Docker inspection/removal failure must not turn
+	# a successful deployment into an update failure.
+	current_image=$1
+	printf '%s\n' "$current_image" | grep -Eq '^sha256:[a-f0-9]{64}$' || return 0
+	for old_image in "${previous_container_image:-}" "${previous_target_image:-}"; do
+		[ -n "$old_image" ] && [ "$old_image" != "$current_image" ] || continue
+		[ "$old_image" != "${cleaned_image:-}" ] || continue
+		cleaned_image=$old_image
+		image_is_qidian_owned "$old_image" allow-empty || continue
+		image_users=$(docker container ls -aq --filter "ancestor=$old_image" 2>/dev/null) || continue
+		[ -z "$image_users" ] || { printf '旧镜像仍被其他容器引用，已保留。\n'; continue; }
+		old_tags=$(docker image inspect --format '{{range .RepoTags}}{{println .}}{{end}}' "$old_image" 2>/dev/null) || continue
+		# Refuse a newly added foreign tag, too.
+		image_is_qidian_owned "$old_image" allow-empty || continue
+		printf '正在清理栖点旧镜像 %s…\n' "$old_image"
+		for old_tag in $old_tags; do
+			case "$old_tag" in docker.io/luckyalanzhou/qidian:*|luckyalanzhou/qidian:*) ;; *) continue ;; esac
+			tag_image=$(docker image inspect --format '{{.Id}}' "$old_tag" 2>/dev/null) || continue
+			[ "$tag_image" = "$old_image" ] || continue
+			docker image rm --no-prune "$old_tag" || printf '旧镜像标签未能清理，已保留：%s\n' "$old_tag"
+		done
+		if docker image inspect "$old_image" >/dev/null 2>&1; then
+			docker image rm --no-prune "$old_image" || printf '旧镜像未能清理，已保留：%s\n' "$old_image"
+		fi
+	done
+	return 0
+)
+
 is_version() {
 	printf '%s\n' "$1" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 }
@@ -221,19 +289,15 @@ check_and_apply_updates() {
 			image_name=$IMAGE_REPOSITORY:$latest_version
 			set_env QIDIAN_IMAGE "$image_name"
 			printf '正在拉取 Docker 镜像 %s…\n' "$image_name"
+			remember_replaced_images "$image_name"
 			if docker pull "$image_name"; then
+				deployed_image=$(docker image inspect --format '{{.Id}}' "$image_name") || return 1
 				cd "$INSTALL_DIR"
 				if [ "$container_state" = running ]; then
 					if compose up -d --no-build --force-recreate qidian; then
-						attempt=0
-						while [ "$attempt" -lt 60 ]; do
-							state=$(docker inspect --format '{{.State.Status}}' qidian 2>/dev/null || true)
-							updated_version=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p')
-							if [ "$state" = running ] && [ "$updated_version" = "$latest_version" ]; then break; fi
-							attempt=$((attempt + 1))
-							sleep 2
-						done
-						if [ "$attempt" -lt 60 ]; then
+						updated_version=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p')
+						if wait_for_ready_image "$deployed_image" && [ "$updated_version" = "$latest_version" ]; then
+							cleanup_replaced_images "$deployed_image"
 							printf 'Docker 镜像已更新到 %s，栖点服务运行正常。\n' "$latest_version"
 						else
 							printf '镜像已拉取，但新容器未能在等待时间内确认运行。\n'
@@ -248,6 +312,7 @@ check_and_apply_updates() {
 						updated_version=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p')
 						if [ "$updated_version" = "$latest_version" ]; then
 							printf 'Docker 镜像和容器已更新到 %s；服务保持停止状态。\n' "$latest_version"
+							printf '服务未启动验证，保留旧镜像。\n'
 						else
 							printf '镜像已拉取，但停止状态的容器未能确认更新。\n'
 							update_failed=1
@@ -513,9 +578,13 @@ run_operation() {
 			fi
 			printf '正在拉取适合当前设备架构的栖点成品镜像（端口 %s）…\n' "$(uci -q get qidian.main.http_port)"
 			image_name=$IMAGE_REPOSITORY:latest
+			remember_replaced_images "$image_name"
 			docker pull "$image_name"
+			deployed_image=$(docker image inspect --format '{{.Id}}' "$image_name")
 			cd "$INSTALL_DIR"
 			compose up -d --no-build --force-recreate qidian
+			wait_for_ready_image "$deployed_image" || fail '栖点容器未就绪，旧镜像已保留。'
+			cleanup_replaced_images "$deployed_image"
 			if [ "${QIDIAN_UPDATE_WORKER:-0}" != 1 ] && [ -x /etc/init.d/qidian-updater ]; then
 				/etc/init.d/qidian-updater enable
 				/etc/init.d/qidian-updater restart || /etc/init.d/qidian-updater start
