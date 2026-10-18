@@ -56,6 +56,10 @@
 		["_install", "_check_update"].forEach(function (suffix) {
 			var button = document.querySelector('input[type="submit"][name$=".' + suffix + '"]');
 			if (button) button.disabled = data.busy;
+			if (button && suffix === "_install" && !data.busy && data.result === "success" && (data.state === "running" || data.state === "stopped")) {
+				var field = button.closest(".cbi-value");
+				if (field) field.hidden = true;
+			}
 		});
 	}
 	function pollLog() {

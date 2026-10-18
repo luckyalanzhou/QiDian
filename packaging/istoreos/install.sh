@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-fail() { printf '栖点管理界面安装失败：%s\n' "$*" >&2; exit 1; }
+fail() { printf '栖点安装失败：%s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || fail '请在 iStoreOS 软件商店中以管理员身份安装，或使用 root 执行此安装包。'
 
@@ -16,6 +16,30 @@ command -v uci >/dev/null 2>&1 || fail '未检测到设备 UCI 配置工具。'
 command -v jsonfilter >/dev/null 2>&1 || fail '缺少 jsonfilter，请先通过设备软件包管理器安装后重试。'
 [ -d /usr/lib/lua/luci/controller ] || fail '未检测到 LuCI 控制器目录，请先安装 LuCI。'
 [ -d /usr/lib/lua/luci/model/cbi ] || fail '当前系统没有 LuCI CBI 管理界面，无法提供服务配置页。'
+
+# Online updaters already own both operation locks and deploy once themselves.
+# A manual installer owns the operation lock across file installation and deployment.
+INSTALL_LOCK_OWNED=0
+if [ "${QIDIAN_UPDATE_WORKER:-0}" != 1 ]; then
+	[ ! -d /tmp/qidian-web-update.lock ] && [ ! -f /tmp/qidian-operation.queued ] || fail '另一项更新正在执行，请稍后重试。'
+	mkdir /tmp/qidian-operation.lock 2>/dev/null || fail '另一项操作正在执行，请稍后重试。'
+	INSTALL_LOCK_OWNED=1
+	finish_install() {
+		install_result=$?
+		trap - EXIT HUP INT TERM
+		if [ "$install_result" -ne 0 ]; then
+			touch /tmp/qidian-deployment.failed
+			printf 'failed\n' > /tmp/qidian-operation.result
+			[ -s /tmp/qidian-operation.log ] || printf '安装未完成，请查看安装器输出后重试。\n' > /tmp/qidian-operation.log
+		fi
+		rmdir /tmp/qidian-operation.lock 2>/dev/null || true
+		exit "$install_result"
+	}
+	trap finish_install EXIT
+	trap 'exit 1' HUP INT TERM
+	: > /tmp/qidian-operation.log
+	printf 'running\n' > /tmp/qidian-operation.result
+fi
 
 HAD_CONFIG=false
 [ ! -f /etc/config/qidian ] || HAD_CONFIG=true
@@ -81,13 +105,17 @@ fi
 
 if [ -x /etc/init.d/qidian-updater ]; then
 	/etc/init.d/qidian-updater enable
-	if [ "${QIDIAN_UPDATE_WORKER:-0}" != 1 ]; then
-		/etc/init.d/qidian-updater restart || /etc/init.d/qidian-updater start
-	fi
 fi
 
-printf '\n栖点 iStoreOS 管理界面已安装。\n'
-printf '打开 iStoreOS「管理 → 服务 → 栖点知识库」，检查端口和 Docker 数据目录后点击“部署服务”。\n'
-printf '默认访问端口：9908（HTTP）。首次部署时会读取本设备的 Docker Root Dir，再创建独立数据目录。\n'
-printf '此步骤只安装管理页和设备管理文件；Docker 成品镜像会在 LuCI 部署时按版本拉取。\n'
-printf '不会删除或覆盖已有数据库、附件或环境配置。\n'
+if [ "$INSTALL_LOCK_OWNED" = 1 ]; then
+	printf '管理界面已安装，正在部署栖点…\n'
+	printf 'running\n' > /tmp/qidian-operation.result
+	if QIDIAN_INSTALL_LOCK_HELD=1 /usr/libexec/istorec/qidian.sh install-package 2>&1 | tee /tmp/qidian-operation.log; then
+		[ "$(cat /tmp/qidian-operation.result 2>/dev/null)" = success ] || fail '管理界面已保留；请在 LuCI 查看日志，解决问题后点击“重试部署”。'
+		printf '安装完成，可在 LuCI 查看服务状态。\n'
+	else
+		fail '部署日志写入失败，请在 LuCI 查看状态后重试。'
+	fi
+else
+	printf '管理插件已更新，容器由当前更新任务统一处理。\n'
+fi

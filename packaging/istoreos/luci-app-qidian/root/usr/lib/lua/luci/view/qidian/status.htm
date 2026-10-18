@@ -8,6 +8,7 @@
 <% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
 <% local plugin_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null")); if plugin_version == "" then plugin_version = translate("尚未安装") end %>
 <% local app_version = util.trim(sys.exec("docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p'")); if app_version == "" then app_version = translate("尚未部署") end %>
+<% local version_text = plugin_version == app_version and plugin_version or (translate("管理插件") .. " " .. plugin_version .. " · " .. translate("镜像") .. " " .. app_version) %>
 <% local initial_status = busy and "操作进行中" or (state == "running" and "栖点服务运行中" or (state == "error" and "Docker 服务不可用" or (result == "failed" and "上次操作失败" or "服务未启动"))) %>
 
 <div class="cbi-section qidian-overview">
@@ -15,7 +16,7 @@
 	<table class="table cbi-section-table">
 		<tbody>
 			<tr><th scope="row"><%:服务状态%></th><td><strong id="qidian-service-title"><%=util.pcdata(initial_status)%></strong></td></tr>
-			<tr><th scope="row"><%:版本%></th><td><%:管理插件%> <strong id="qidian-plugin-version"><%=util.pcdata(plugin_version)%></strong> · <%:Docker 镜像%> <strong id="qidian-image-version"><%=util.pcdata(app_version)%></strong> <span id="qidian-version-actions"></span></td></tr>
+			<tr><th scope="row"><%:版本%></th><td><span id="qidian-version-text"><%=util.pcdata(version_text)%></span><span id="qidian-version-actions"></span></td></tr>
 			<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code></td></tr>
 			<tr><th scope="row"><%:账号状态%></th><td><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></td></tr>
 			<tr id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><th scope="row"><%:网页入口%></th><td><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></td></tr>
@@ -71,16 +72,33 @@
 	}
 	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
 	else initialize();
+	var confirmedRemoval = false;
 	document.addEventListener("click", function (event) {
 		var removeButton = event.target && event.target.closest ? event.target.closest('input[type="submit"][name$="._remove"]') : null;
-		if (removeButton && !window.confirm("卸载栖点服务？此操作会移除容器，知识库数据、附件、证书和配置会保留。")) {
-			event.preventDefault();
-			event.stopImmediatePropagation();
+		if (!removeButton) return;
+		if (confirmedRemoval) {
+			confirmedRemoval = false;
+			return;
 		}
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		ui.showModal(_("确认卸载服务"), [
+			E("p", {}, _("卸载会移除栖点容器，但会保留知识库数据、附件、证书和配置。")),
+			E("div", { "class": "right" }, [
+				E("button", { "class": "btn", "click": function () { ui.hideModal(); } }, _("取消")),
+				E("button", { "class": "btn cbi-button-negative", "click": function () {
+					ui.hideModal();
+					confirmedRemoval = true;
+					removeButton.click();
+				} }, _("卸载服务"))
+			])
+		]);
 	}, true);
 })();
 </script>
 
 <style>
 .qidian-overview code { overflow-wrap: anywhere; }
+.qidian-overview #qidian-version-text, .qidian-overview #qidian-version-actions { display: inline-block; vertical-align: middle; }
+.qidian-overview #qidian-version-actions { margin-inline-start: 1em; }
 </style>

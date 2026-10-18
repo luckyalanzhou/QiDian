@@ -8,6 +8,7 @@ IMAGE_REPOSITORY=docker.io/luckyalanzhou/qidian
 RELEASE_REPOSITORY=luckyalanzhou/qidian
 LOCK_DIR=/tmp/qidian-operation.lock
 WEB_UPDATE_LOCK=/tmp/qidian-web-update.lock
+DEPLOY_FAILED=/tmp/qidian-deployment.failed
 UPDATE_WORK_DIR=
 UPDATE_WORKER_PATH=
 QIDIAN_PACKAGE_UPDATED=false
@@ -112,6 +113,20 @@ wait_for_ready_image() (
 	return 1
 )
 
+recreate_container() {
+	previous_state=$1
+	expected_image=$2
+	if [ -n "$previous_state" ] && [ "$previous_state" != running ]; then
+		compose create --force-recreate qidian || return 1
+		actual_image=$(docker inspect --type container --format '{{.Image}}' qidian 2>/dev/null) || return 1
+		[ "$actual_image" = "$expected_image" ] || { printf '容器镜像不匹配，保留旧镜像。\n'; return 1; }
+		printf '容器已更新，服务保持停止；旧镜像保留。\n'
+	else
+		compose up -d --no-build --force-recreate qidian || return 1
+		wait_for_ready_image "$expected_image" || return 1
+	fi
+}
+
 cleanup_replaced_images() (
 	# Cleanup is best effort: a Docker inspection/removal failure must not turn
 	# a successful deployment into an update failure.
@@ -144,6 +159,15 @@ cleanup_replaced_images() (
 is_version() {
 	printf '%s\n' "$1" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 }
+
+verify_image_version() (
+	required_version=$2
+	image_version=$(docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$1" 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p')
+	if ! is_version "$required_version" || [ "$image_version" != "$required_version" ]; then
+		printf '镜像版本与目标版本 %s 不一致（镜像：%s），保留现有容器，请稍后重试。\n' "$required_version" "${image_version:-未知}" >&2
+		return 1
+	fi
+)
 
 numeric_component_is_newer() {
 	new_component=$1
@@ -286,11 +310,11 @@ check_and_apply_updates() {
 	if [ "$image_needs_update" = true ]; then
 		printf '正在准备 Docker 数据目录和 Compose 配置…\n'
 		if prepare; then
-			image_name=$IMAGE_REPOSITORY:$latest_version
-			set_env QIDIAN_IMAGE "$image_name"
+			image_name=$IMAGE_REPOSITORY:latest
 			printf '正在拉取 Docker 镜像 %s…\n' "$image_name"
 			remember_replaced_images "$image_name"
-			if docker pull "$image_name"; then
+			if docker pull "$image_name" && verify_image_version "$image_name" "$latest_version"; then
+				set_env QIDIAN_IMAGE "$image_name"
 				deployed_image=$(docker image inspect --format '{{.Id}}' "$image_name") || return 1
 				cd "$INSTALL_DIR"
 				if [ "$container_state" = running ]; then
@@ -298,32 +322,38 @@ check_and_apply_updates() {
 						updated_version=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p')
 						if wait_for_ready_image "$deployed_image" && [ "$updated_version" = "$latest_version" ]; then
 							cleanup_replaced_images "$deployed_image"
+							rm -f "$DEPLOY_FAILED"
 							printf 'Docker 镜像已更新到 %s，栖点服务运行正常。\n' "$latest_version"
 						else
 							printf '镜像已拉取，但新容器未能在等待时间内确认运行。\n'
+							touch "$DEPLOY_FAILED"
 							update_failed=1
 						fi
 					else
 						printf '镜像已拉取，但容器重建失败。\n'
+						touch "$DEPLOY_FAILED"
 						update_failed=1
 					fi
 				else
 					if compose create --force-recreate qidian; then
 						updated_version=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p')
 						if [ "$updated_version" = "$latest_version" ]; then
+							rm -f "$DEPLOY_FAILED"
 							printf 'Docker 镜像和容器已更新到 %s；服务保持停止状态。\n' "$latest_version"
 							printf '服务未启动验证，保留旧镜像。\n'
 						else
 							printf '镜像已拉取，但停止状态的容器未能确认更新。\n'
+							touch "$DEPLOY_FAILED"
 							update_failed=1
 						fi
 					else
 						printf '镜像已拉取，但停止状态的容器重建失败。\n'
+						touch "$DEPLOY_FAILED"
 						update_failed=1
 					fi
 				fi
 			else
-				printf 'Docker 镜像拉取失败。\n'
+				printf 'Docker 镜像拉取或版本校验失败，现有容器未替换。\n'
 				update_failed=1
 			fi
 		else
@@ -427,6 +457,20 @@ set_env() {
 	fi
 }
 
+configured_image() (
+	saved_image=$(sed -n 's/^QIDIAN_IMAGE=//p' "$ENV_FILE" 2>/dev/null | tail -n 1)
+	[ -n "$saved_image" ] || saved_image=$IMAGE_REPOSITORY:latest
+	case "$saved_image" in
+		"$IMAGE_REPOSITORY":*|luckyalanzhou/qidian:*)
+			saved_tag=${saved_image##*:}
+			[ "$saved_tag" = latest ] || is_version "$saved_tag" || return 1
+			;;
+		sha256:*) printf '%s\n' "$saved_image" | grep -Eq '^sha256:[a-f0-9]{64}$' || return 1 ;;
+		*) return 1 ;;
+	esac
+	printf '%s\n' "$saved_image"
+)
+
 prepare() {
 	[ "$(id -u)" -eq 0 ] || fail '请使用 OpenWrt 管理员身份操作。'
 	[ -f "$COMPOSE_FILE" ] || fail '缺少 Compose 配置；请重新安装栖点管理包。'
@@ -499,7 +543,8 @@ prepare() {
 	app_version=$(cat /etc/qidian-version 2>/dev/null || printf '0.0.0')
 	printf '%s\n' "$app_version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || fail '安装包版本号无效。'
 	set_env QIDIAN_VERSION "$app_version"
-	set_env QIDIAN_IMAGE "$IMAGE_REPOSITORY:latest"
+	image_name=$(configured_image) || fail '镜像配置无效，未修改现有容器。'
+	set_env QIDIAN_IMAGE "$image_name"
 	set_env QIDIAN_UPDATE_REQUEST_PATH "$request_dir"
 	set_env QIDIAN_UPDATE_STATUS_PATH "$status_dir"
 	set_config data_path "$data_dir"
@@ -512,6 +557,8 @@ run_operation() {
 	lock_owned=0
 	if [ "${QIDIAN_UPDATE_WORKER:-0}" = 1 ]; then
 		[ -d "$WEB_UPDATE_LOCK" ] && [ -d "$LOCK_DIR" ] || fail '网页更新锁已失效，已停止设备操作。'
+	elif [ "${QIDIAN_INSTALL_LOCK_HELD:-0}" = 1 ]; then
+		[ -d "$LOCK_DIR" ] && [ ! -d "$WEB_UPDATE_LOCK" ] || fail '安装锁已失效，已停止部署。'
 	else
 		if [ -d "$WEB_UPDATE_LOCK" ]; then
 			fail '网页在线更新正在执行，请稍后再试。'
@@ -522,6 +569,7 @@ run_operation() {
 		fi
 		lock_owned=1
 	fi
+	unset QIDIAN_INSTALL_LOCK_HELD
 	rm -f /tmp/qidian-operation.queued
 	printf 'running\n' > /tmp/qidian-operation.result
 	finish_operation() {
@@ -544,6 +592,11 @@ run_operation() {
 		else
 			printf 'failed\n' > /tmp/qidian-operation.result
 		fi
+		case "$action" in
+			install|upgrade|install-package)
+				if [ "$result" -eq 0 ]; then rm -f "$DEPLOY_FAILED"; else touch "$DEPLOY_FAILED"; fi
+				;;
+		esac
 		rm -f /tmp/qidian-operation.queued
 		[ -z "$UPDATE_WORKER_PATH" ] || rm -f "$UPDATE_WORKER_PATH"
 		[ "$lock_owned" = 1 ] && rmdir "$LOCK_DIR" 2>/dev/null || true
@@ -561,35 +614,50 @@ run_operation() {
 				printf '配置已保存；栖点尚未部署，设置将在部署时应用。\n'
 				return 0
 			fi
-			if ! docker image inspect "$IMAGE_REPOSITORY:latest" >/dev/null 2>&1; then
-				fail "本地未找到栖点镜像 $IMAGE_REPOSITORY:latest；请先点击部署服务。"
-			fi
+			deployment_state=$(docker inspect --type container --format '{{.State.Status}}' qidian) || fail '无法读取容器状态。'
+			deployed_image=$(docker inspect --type container --format '{{.Image}}' qidian) || fail '无法读取容器镜像。'
+			docker image inspect "$deployed_image" >/dev/null 2>&1 || fail '当前容器镜像不可用，请先检查更新。'
 			printf '正在应用栖点容器配置…\n'
 			prepare
+			set_env QIDIAN_IMAGE "$deployed_image"
 			cd "$INSTALL_DIR"
-			compose up -d --no-build --force-recreate qidian
+			recreate_container "$deployment_state" "$deployed_image" || fail '容器配置应用失败，请查看日志。'
 			printf '配置已应用，栖点容器已重建。\n'
 			;;
-		install|upgrade)
+		install|upgrade|install-package)
 			printf '正在检查 Docker 与数据目录…\n'
+			deployment_state=$(docker inspect --type container --format '{{.State.Status}}' qidian 2>/dev/null || true)
 			prepare
 			if [ "${QIDIAN_UPDATE_WORKER:-0}" = 1 ]; then
 				exec >> "$status_dir/update.log" 2>&1
 			fi
 			printf '正在拉取适合当前设备架构的栖点成品镜像（端口 %s）…\n' "$(uci -q get qidian.main.http_port)"
 			image_name=$IMAGE_REPOSITORY:latest
+			if [ "$action" = install-package ]; then
+				deployment_version=$(cat /etc/qidian-version 2>/dev/null || true)
+				is_version "$deployment_version" || fail '安装包版本无效，已停止部署。'
+				image_name=$IMAGE_REPOSITORY:$deployment_version
+			fi
 			remember_replaced_images "$image_name"
 			docker pull "$image_name"
+			if [ "$action" = install-package ]; then
+				verify_image_version "$image_name" "$deployment_version" || fail '安装包对应的镜像版本校验失败。'
+			elif [ "${QIDIAN_UPDATE_WORKER:-0}" = 1 ]; then
+				target_version=${QIDIAN_TARGET_VERSION:-$(cat /etc/qidian-version 2>/dev/null || true)}
+				verify_image_version "$image_name" "$target_version" || fail 'latest 镜像尚未同步到目标版本。'
+			fi
+			set_env QIDIAN_IMAGE "$image_name"
 			deployed_image=$(docker image inspect --format '{{.Id}}' "$image_name")
 			cd "$INSTALL_DIR"
-			compose up -d --no-build --force-recreate qidian
-			wait_for_ready_image "$deployed_image" || fail '栖点容器未就绪，旧镜像已保留。'
-			cleanup_replaced_images "$deployed_image"
+			recreate_container "$deployment_state" "$deployed_image" || fail '容器部署失败，旧镜像已保留。'
+			if [ -z "$deployment_state" ] || [ "$deployment_state" = running ]; then
+				cleanup_replaced_images "$deployed_image"
+			fi
 			if [ "${QIDIAN_UPDATE_WORKER:-0}" != 1 ] && [ -x /etc/init.d/qidian-updater ]; then
 				/etc/init.d/qidian-updater enable
 				/etc/init.d/qidian-updater restart || /etc/init.d/qidian-updater start
 			fi
-			printf '\n栖点已安装并启动。\n'
+			printf '\n栖点部署完成。\n'
 			printf '访问端口：%s（HTTP）\n' "$(uci -q get qidian.main.http_port)"
 			printf '数据目录：%s\n' "$(uci -q get qidian.main.data_path)"
 			printf '请允许 OpenWrt 网关 TCP %s 入站，并按需配置路由器端口转发。\n' "$(uci -q get qidian.main.http_port)"
@@ -635,6 +703,6 @@ case "${1:-status}" in
 		trap 'rm -f "$UPDATE_WORKER_PATH" /tmp/qidian-operation.queued' EXIT
 		run_operation check-update
 		;;
-	apply-config|install|upgrade|start|stop|remove) run_operation "$1" ;;
+	apply-config|install|upgrade|install-package|start|stop|remove) run_operation "$1" ;;
 	*) fail "未知操作：$1" ;;
 esac

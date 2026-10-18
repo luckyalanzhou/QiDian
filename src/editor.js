@@ -13,6 +13,7 @@ export function createQidianEditor({ element, content = '', onUpdate, onSelectio
         class: 'editor-surface doc-content',
         'aria-label': '笔记正文',
         spellcheck: 'true',
+        'data-placeholder': '开始输入内容，或直接粘贴网页文字、表格和图片...',
       },
       handlePaste: handlePasteEvent,
     },

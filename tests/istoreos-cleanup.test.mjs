@@ -16,7 +16,8 @@ docker() {
     'inspect --type')
       case "$*" in
         *State.Health*) printf 'running %s %s\\n' "\${HEALTH:-healthy}" "\${CONTAINER_IMAGE:-$NEW_IMAGE}" ;;
-        *) printf '%s\\n' "$OLD_IMAGE" ;;
+        *State.Status*) printf '%s\\n' "\${PREVIOUS_STATE-running}" ;;
+        *) if [ "\${RECREATED:-0}" = 1 ]; then printf '%s\\n' "$NEW_IMAGE"; else printf '%s\\n' "$OLD_IMAGE"; fi ;;
       esac ;;
     'image inspect')
       [ "\${INSPECT_ERROR:-0}" != 1 ] || return 1
@@ -130,10 +131,10 @@ test('manager never prunes Docker resources or removes volumes, networks, or con
 });
 
 test('installation cleans after pull, recreation and health verification, and never after either failure', () => {
-  const install = source.slice(source.indexOf('\n\t\tinstall|upgrade)') + '\n\t\tinstall|upgrade)'.length,
+  const install = source.slice(source.indexOf('\n\t\tinstall|upgrade|install-package)') + '\n\t\tinstall|upgrade|install-package)'.length,
     source.indexOf('\n\t\t\tif [ "${QIDIAN_UPDATE_WORKER:-0}" != 1 ]')).replaceAll('\r\n', '\n');
   assert.match(install, /docker pull/);
-  for (const [failure, expectedStatus] of [['', 0], ['PULL_ERROR=1', 10], ['COMPOSE_ERROR=1', 11], ['HEALTH=unhealthy', 1]]) {
+  for (const [failure, expectedStatus, cleans] of [['', 0, true], ['PREVIOUS_STATE=', 0, true], ['PREVIOUS_STATE=exited', 0, false], ['PULL_ERROR=1', 10, false], ['COMPOSE_ERROR=1', 1, false], ['HEALTH=unhealthy', 1, false]]) {
     const result = run(`
 ${failure}
 docker_original=$(declare -f docker | sed '1s/docker/docker_original/')
@@ -146,17 +147,95 @@ docker() {
   else docker_original "$@"; fi
 }
 prepare() { :; }
+set_env() { :; }
 uci() { printf '9908\\n'; }
-compose() { printf 'RECREATE\\n'; [ "\${COMPOSE_ERROR:-0}" != 1 ] || return 11; }
+compose() { printf 'RECREATE %s\\n' "$*"; [ "\${COMPOSE_ERROR:-0}" != 1 ] || return 11; RECREATED=1; }
 INSTALL_DIR=.
+action=install
 ${install}
 `);
     assert.equal(result.status, expectedStatus, result.stderr);
-    if (expectedStatus) assert.doesNotMatch(result.stdout, /^REMOVE /m);
+    if (!cleans) assert.doesNotMatch(result.stdout, /^REMOVE /m);
     else {
       assert.match(result.stdout, /^REMOVE /m);
       assert.ok(result.stdout.indexOf('PULL') < result.stdout.indexOf('RECREATE'));
       assert.ok(result.stdout.indexOf('RECREATE') < result.stdout.indexOf('REMOVE'));
+    }
+    if (failure === 'PREVIOUS_STATE=exited') {
+      assert.match(result.stdout, /RECREATE create --force-recreate qidian/);
+      assert.doesNotMatch(result.stdout, /RECREATE up/);
+    }
+  }
+});
+
+test('Save and Apply keeps the current image and stopped state without pulling or cleaning images', () => {
+  const apply = source.slice(source.indexOf('\n\t\tapply-config)') + '\n\t\tapply-config)'.length,
+    source.indexOf('\n\t\tinstall|upgrade|install-package)')).replace(/\n\t\t\t;;\s*$/, '').replaceAll('\r\n', '\n');
+  for (const state of ['running', 'exited']) {
+    const result = run(`
+PREVIOUS_STATE=${state}
+NEW_IMAGE=$OLD_IMAGE
+docker_original=$(declare -f docker | sed '1s/docker/docker_original/')
+eval "$docker_original"
+docker() { if [ "$1" = info ]; then return 0; else docker_original "$@"; fi; }
+prepare() { :; }
+set_env() { printf 'ENV %s=%s\\n' "$1" "$2"; }
+compose() { printf 'COMPOSE %s\\n' "$*"; RECREATED=1; }
+INSTALL_DIR=.
+${apply}
+`);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, new RegExp(`ENV QIDIAN_IMAGE=${oldImage}`));
+    assert.match(result.stdout, state === 'exited' ? /COMPOSE create --force-recreate qidian/ : /COMPOSE up -d --no-build --force-recreate qidian/);
+    assert.doesNotMatch(result.stdout, /REMOVE|PULL/);
+  }
+});
+
+test('stored image configuration preserves version pins and rejects unrelated images', () => {
+  for (const value of ['docker.io/luckyalanzhou/qidian:0.0.19', 'luckyalanzhou/qidian:latest', oldImage, 'other/app:latest']) {
+    const result = run(`
+SAVED_IMAGE='${value}'
+ENV_FILE=/unused-test-file
+sed() { printf '%s\\n' "$SAVED_IMAGE"; }
+configured_image
+`);
+    assert.equal(result.status, value === 'other/app:latest' ? 1 : 0, result.stderr);
+    if (!result.status) assert.equal(result.stdout.trim(), value);
+  }
+});
+
+test('online image updates pull latest and reject an unsynchronized image before replacing a container', () => {
+  const install = source.slice(source.indexOf('\n\t\tinstall|upgrade|install-package)') + '\n\t\tinstall|upgrade|install-package)'.length,
+    source.indexOf('\n\t\t\tif [ "${QIDIAN_UPDATE_WORKER:-0}" != 1 ]'))
+    .replaceAll('\r\n', '\n').replace('exec >> "$status_dir/update.log" 2>&1', ':');
+  for (const version of ['0.0.20', '0.0.19', 'unknown']) {
+    const result = run(`
+QIDIAN_UPDATE_WORKER=1
+QIDIAN_TARGET_VERSION=0.0.20
+PULLED_VERSION=${version}
+docker_original=$(declare -f docker | sed '1s/docker/docker_original/')
+eval "$docker_original"
+docker() {
+  case "$*" in
+    'pull '*) printf 'PULL %s\\n' "$2"; PULLED=1 ;;
+    'image inspect '*Config.Env*) printf 'QIDIAN_VERSION=%s\\n' "$PULLED_VERSION" ;;
+    *) docker_original "$@" ;;
+  esac
+}
+prepare() { :; }
+set_env() { printf 'ENV %s=%s\\n' "$1" "$2"; }
+uci() { printf '9908\\n'; }
+compose() { printf 'RECREATE %s\\n' "$*"; RECREATED=1; }
+INSTALL_DIR=.
+action=install
+${install}
+`);
+    assert.equal(result.status, version === '0.0.20' ? 0 : 1, result.stderr);
+    assert.match(result.stdout, /PULL docker.io\/luckyalanzhou\/qidian:latest/);
+    if (version === '0.0.20') assert.match(result.stdout, /RECREATE up/);
+    else {
+      assert.doesNotMatch(result.stdout, /RECREATE|REMOVE|ENV QIDIAN_IMAGE=/);
+      assert.match(result.stderr, /版本.*不一致/);
     }
   }
 });

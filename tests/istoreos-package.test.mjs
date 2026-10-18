@@ -45,12 +45,61 @@ test('LuCI version action retains its native form submission and follows operati
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(update.disabled, false, 're-enable update after the operation finishes');
     assert.equal(deploy.disabled, false);
+    assert.equal(deploy.closest('.cbi-value').hidden, true, 'hide retry after deployment succeeds');
     assert.equal(document.querySelector('[name$="._start"]').disabled, true);
     assert.equal(document.querySelector('[name$="._stop"]').disabled, false);
     assert.equal(document.getElementById('qidian-panel-log').value, '更新完成');
   } finally {
     dom.window.close();
   }
+});
+
+test('LuCI uninstall asks in a LuCI modal and submits only after confirmation', async () => {
+  const service = await read('../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/view/qidian/status.htm');
+  const rendered = service
+    .replaceAll('<%=util.pcdata(initial_status)%>', '栖点服务运行中')
+    .replaceAll('<%=util.pcdata(port)%>', '9908')
+    .replaceAll('<%=busy and "true" or "false"%>', 'false')
+    .replace(/<%:([^%]+)%>/g, '$1')
+    .replace(/<%[\s\S]*?%>/g, '');
+  const script = rendered.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const dom = new JSDOM(`<form>${rendered}<div class="basic-tab"><div class="cbi-value"><div class="cbi-value-field"><input type="submit" name="cbid.qidian.main._remove"></div></div></div></form>`, { runScripts:'outside-only' });
+  try {
+    const { window } = dom, { document } = window;
+    let modalTitle = '', modal = null, submits = 0;
+    window._ = text => text;
+    window.E = (tag, attributes = {}, children = []) => {
+      const element = document.createElement(tag);
+      for (const [name, value] of Object.entries(attributes)) {
+        if (name === 'click') element.addEventListener('click', value);
+        else element.setAttribute(name, value);
+      }
+      for (const child of Array.isArray(children) ? children : [children]) {
+        if (child) element.append(child.nodeType ? child : document.createTextNode(child));
+      }
+      return element;
+    };
+    window.ui = {
+      showModal(title, children) { modalTitle = title; modal = document.createElement('section'); modal.setAttribute('role','dialog'); modal.append(...children); document.body.append(modal); },
+      hideModal() { modal?.remove(); modal = null; }
+    };
+    document.querySelector('form').addEventListener('submit', event => { event.preventDefault(); submits++; });
+    window.eval(script);
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    const remove = document.querySelector('[name$="._remove"]');
+    remove.click();
+    assert.equal(modalTitle, '确认卸载服务');
+    assert.equal(modal.getAttribute('role'), 'dialog');
+    assert.match(modal.textContent, /保留知识库数据、附件、证书和配置/);
+    assert.equal(submits, 0, 'opening the modal must not submit the uninstall form');
+    modal.querySelector('.btn:not(.cbi-button-negative)').click();
+    assert.equal(modal, null, 'cancel closes the modal');
+    assert.equal(submits, 0, 'cancel leaves the service installed');
+    remove.click();
+    modal.querySelector('.cbi-button-negative').click();
+    assert.equal(submits, 1, 'confirm submits the existing LuCI action exactly once');
+    assert.equal(modal, null);
+  } finally { dom.window.close(); }
 });
 
 test('iStoreOS run payload stays lightweight and contains persistent manager UI and Compose files', async () => {
@@ -138,7 +187,7 @@ test('the iStoreOS self-extracting installer installs the LuCI manager and recor
   assert.doesNotMatch(installer, /qidian-package-manager|docker build|compose up|rm -rf/i);
 });
 
-test('reinstall preserves LuCI config and never starts or removes note data', async () => {
+test('reinstall preserves LuCI config and delegates deployment without removing note data', async () => {
   const installer = await read('../packaging/istoreos/install.sh');
   assert.match(installer, /HAD_CONFIG=false/);
   assert.match(installer, /HAD_ENV=false/);
@@ -220,31 +269,34 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.doesNotMatch(manager, /docker volume rm|rm -rf "\$data_dir/);
   assert.match(manager, /control_dir=\$data_dir\/\.qidian-update-control/);
   assert.match(manager, /mv -f "\$old_dir\/\$filename"/);
-  assert.match(model, /Docker 与 Compose 已就绪/);
-  assert.match(model, /translate\("运行依赖"\)/);
+  assert.doesNotMatch(model, /Docker 与 Compose 已就绪|translate\("运行依赖"\)/);
+  assert.match(model, /if not docker_ready or not compose_ready then/);
+  assert.match(model, /if needs_deployment then/);
+  assert.match(model, /button\(install, translate\("重试部署"\), "apply", "install-package"\)/);
   assert.match(model, /Flag, "registration_enabled"/);
   assert.match(model, /Flag, "trust_proxy_enabled"/);
   assert.match(model, /Value, "trusted_proxy_ip"/);
   assert.match(model, /trusted_proxy_ip\.datatype = "ipaddr"/);
   assert.match(model, /trusted_proxy_ip:depends\("trust_proxy_enabled", "1"\)/);
   assert.doesNotMatch(model, /remove\.description\s*=/, 'keep the uninstall data-retention warning in one place before confirmation');
-  assert.ok(model.indexOf('local port = s:taboption("basic", Value') < model.indexOf('local install = s:taboption("basic", Button'), 'show deployment settings before the install/update action');
+  assert.ok(model.indexOf('local port = s:taboption("basic", Value') < model.indexOf('local install = s:taboption("basic", Button'), 'show settings before the deployment retry');
   assert.doesNotMatch(model, /data_path_display/, 'show the detected Docker data directory once in the service overview');
   assert.match(manager, /account-status\) account_status/);
   assert.match(manager, /set_env REGISTRATION_ENABLED/);
   assert.match(manager, /set_env TRUST_PROXY "\$trust_proxy_enabled"/);
   assert.match(manager, /set_env TRUSTED_PROXY_IPS "\$trusted_proxy_ip"/);
   assert.match(manager, /apply-config\)\s*if ! docker info/);
-  assert.match(manager, /docker image inspect "\$IMAGE_REPOSITORY:latest"/);
+  assert.match(manager, /docker image inspect "\$deployed_image"/);
   assert.match(manager, /compose up -d --no-build --force-recreate qidian/);
-  assert.match(manager, /apply-config\|install\|upgrade\|start\|stop\|remove\) run_operation/);
+  assert.match(manager, /apply-config\|install\|upgrade\|install-package\|start\|stop\|remove\) run_operation/);
   assert.match(applyTrigger, /"config":\s*"qidian"/);
   assert.match(applyTrigger, /"exec":\s*"\/usr\/libexec\/istorec\/qidian\.sh apply-config"/);
   assert.match(installer, /\/etc\/init\.d\/ucitrack restart \|\| \/etc\/init\.d\/ucitrack start/);
   assert.match(manager, /启用反向代理信任前，请填写直接连接栖点容器的代理 IP/);
   assert.match(manager, /IMAGE_REPOSITORY=docker\.io\/luckyalanzhou\/qidian/);
-  assert.match(manager, /set_env QIDIAN_IMAGE "\$IMAGE_REPOSITORY:latest"/);
-  assert.match(manager, /image_name=\$IMAGE_REPOSITORY:\$latest_version/);
+  assert.match(manager, /set_env QIDIAN_IMAGE "\$image_name"/);
+  assert.match(manager, /image_name=\$IMAGE_REPOSITORY:latest/);
+  assert.match(manager, /verify_image_version "\$image_name" "\$latest_version"/);
   assert.match(manager, /docker pull "\$image_name"/);
   assert.match(manager, /check-update\)\s*check_and_apply_updates/);
   assert.match(manager, /version_is_newer "\$latest_version" "\$installed_plugin_version"/);
@@ -258,7 +310,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /cp "\$0" "\$worker"/);
   assert.doesNotMatch(manager, /docker volume rm|rm -rf "\$data_dir/);
   assert.match(model, /s:taboption\("basic", Button, "_check_update", ""\)/);
-  assert.match(model, /button\(updates, translate\("检查并更新"\), "apply", "check-update"\)/);
+  assert.match(model, /button\(updates, translate\("检查更新"\), "apply", "check-update"\)/);
   assert.match(model, /button\(start, translate\("启动服务"\), "apply", "start"\)/);
   assert.match(model, /button\(stop, translate\("停止服务"\), "reset", "stop"\)/);
   assert.match(model, /button\(remove, translate\("卸载服务"\), "remove", "remove"\)/);
@@ -279,7 +331,7 @@ test('Docker service and LuCI use HTTP 9908 without requiring certificates', asy
   assert.match(compose, /QIDIAN_IMAGE:\?请先在LuCI执行安装或更新/);
   assert.doesNotMatch(compose, /TLS_CERT_PATH|TLS_KEY_PATH|certs\//);
   assert.doesNotMatch(manager, /openssl req|QIDIAN_CERT_PATH|QIDIAN_KEY_PATH/);
-  assert.match(installer, /默认访问端口：9908（HTTP）/);
+  assert.match(installer, /QIDIAN_INSTALL_LOCK_HELD=1 \/usr\/libexec\/istorec\/qidian\.sh install-package/);
   assert.ok(view.includes('href="http://localhost:'));
   assert.ok(view.includes('"http://" + window.location.hostname'));
 });
@@ -305,7 +357,7 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.doesNotMatch(model, /s:tab\("maintenance"/);
   assert.match(model, /s:taboption\("basic", Button, "_install"/);
   assert.match(model, /s:taboption\("basic", Button, "_check_update"/);
-  assert.match(model, /button\(install, translate\("部署服务"\), "apply", "install"\)/);
+  assert.match(model, /button\(install, translate\("重试部署"\), "apply", "install-package"\)/);
   assert.match(model, /s:taboption\("basic", DummyValue, "_account_tools"/);
   assert.match(model, /_account_tools", translate\("管理员密码重置"\)/);
   assert.match(model, /account\.template = "qidian\/account-tools"/);
@@ -319,7 +371,10 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(service, /class="cbi-section qidian-overview"/);
   assert.match(service, /<h3><%:服务概览%><\/h3>/);
   assert.match(service, /class="cbi-value-title"/);
-  assert.match(service, /<table class="table cbi-section-table">[\s\S]*?<%:服务状态%>[\s\S]*?<%:版本%>[\s\S]*?<%:管理插件%>[\s\S]*?<%:Docker 镜像%>[\s\S]*?<%:Docker 数据目录%>[\s\S]*?<%:账号状态%>[\s\S]*?<\/table>/, 'show concise service information in native LuCI table rows');
+  assert.match(service, /<table class="table cbi-section-table">[\s\S]*?<%:服务状态%>[\s\S]*?<%:版本%>[\s\S]*?id="qidian-version-text"[\s\S]*?id="qidian-version-actions"[\s\S]*?<%:Docker 数据目录%>[\s\S]*?<%:账号状态%>[\s\S]*?<\/table>/, 'show concise service information in native LuCI table rows');
+  assert.match(service, /local version_text = plugin_version == app_version and plugin_version or/);
+  assert.match(service, /<span id="qidian-version-text"><%=util.pcdata\(version_text\)%><\/span>/);
+  assert.doesNotMatch(service, /<strong id="qidian-(?:plugin|image)-version"/);
   assert.doesNotMatch(service, /<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%>/, 'do not squeeze read-only service details into editable CBI rows');
   assert.match(service, /serviceActionFields\.appendChild\(button\)/);
   assert.match(service, /if \(startButton\) startButton\.disabled = busy \|\| running/);
@@ -335,12 +390,14 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(service, /name\$="\.' \+ suffix/);
   assert.match(service, /name\$="\._remove"/);
   assert.doesNotMatch(service, /refreshStatus|fetch\(endpoint/, 'poll service state through the same request as the live log');
-  assert.match(service, /window\.confirm\("卸载栖点服务？此操作会移除容器/);
+  assert.match(service, /ui\.showModal\(_\("确认卸载服务"\)/);
+  assert.match(service, /卸载会移除栖点容器，但会保留知识库数据、附件、证书和配置/);
+  assert.doesNotMatch(service, /window\.confirm\s*\(/, 'service removal uses the LuCI modal instead of the browser dialog');
   assert.match(service, /<%:打开栖点%>/);
   assert.match(service, /<tr id="qidian-open-row"[\s\S]*?<th scope="row"><%:网页入口%><\/th><td><a id="qidian-open"/);
   assert.doesNotMatch(service, /打开栖点并创建管理员/);
   assert.match(service, /栖点服务运行中/);
-  assert.match(service, /知识库数据、附件、证书和配置会保留/);
+  assert.match(service, /卸载会移除栖点容器，但会保留知识库数据、附件、证书和配置/);
   assert.doesNotMatch(styles, /\b(background|color|grid|border-radius|border-color|border-width|@media|@keyframes)\b|display:\s*flex/i, 'the page leaves layout and colors to the active LuCI theme');
   assert.doesNotMatch(service, /syncArgonPalette|argon\/css\/dark|--qidian-(?:ink|surface|blue)|display:grid/);
   assert.match(service, /<%:Docker 数据目录%><\/th><td><code id="qidian-data-path">/);

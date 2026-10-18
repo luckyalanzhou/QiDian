@@ -1,5 +1,5 @@
 
-:root{--bg:#f7f8fc;--panel:#fff;--panel2:#f4f6fb;--text:#232b3d;--sub:#718098;--line:#e7eaf1;--accent:#5261cf;--accent2:#ebeeff;--accent-text:#4352bb;--green:#1b9977;--yellow:#fff8e9;--shadow:0 16px 48px rgba(37,48,94,.06);--r:17px;--rail:254px;font-synthesis:none}
+:root{--bg:#f7f8fc;--panel:#fff;--panel2:#f4f6fb;--text:#232b3d;--sub:#5f6f87;--line:#e7eaf1;--accent:#5261cf;--accent2:#ebeeff;--accent-text:#4352bb;--green:#1b9977;--yellow:#fff8e9;--shadow:0 16px 48px rgba(37,48,94,.06);--r:17px;--rail:254px;font-synthesis:none}
 :root[data-theme="dark"]{--bg:#10141f;--panel:#1a2030;--panel2:#232b3c;--text:#e6eaf5;--sub:#9aa8c0;--line:#30394b;--accent:#98a5ff;--accent2:#303960;--accent-text:#bbc5ff;--green:#66d2ae;--yellow:#352d1c;--shadow:0 16px 45px rgba(0,0,0,.19)}
 *{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;text-size-adjust:100%}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;-webkit-font-smoothing:antialiased}button,input,textarea,select{font:inherit}button{cursor:pointer}a{color:var(--accent-text);text-decoration:none}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,[contenteditable]:focus-visible{outline:3px solid #a9aff6;outline-offset:2px}
 .ico{display:inline-flex;width:19px;height:19px;vertical-align:middle;align-items:center;justify-content:center;flex:0 0 auto}.ico svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
@@ -570,7 +570,7 @@ body.booting > :not(#loginGate){display:none!important}
 .reader-shell .outline a.toc-level-5,.reader-shell .outline a.toc-level-6{padding-left:36px;font-size:10px}
 .note-page-layout{width:100%;max-width:1480px;margin-inline:auto}
 .note-page-layout .note-page-search{width:100%;max-width:none}
-.note-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:14px}
+.note-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:stretch;gap:14px}
 .note-list .note-card{min-width:0;min-height:168px;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:none}
 .note-list .note-card:hover{background:var(--panel);border-color:color-mix(in srgb,var(--accent) 34%,var(--line));box-shadow:var(--shadow)}
 .note-list .note-card-open{display:flex;flex-direction:column;min-height:100%;padding-right:38px}
@@ -603,4 +603,5 @@ body.booting > :not(#loginGate){display:none!important}
 .doc-content ul.task-list>li[data-type="taskItem"]::before{position:absolute;left:2px;top:.35em;display:grid;width:15px;height:15px;place-items:center;border:1.5px solid var(--line);border-radius:4px;color:white;content:""}
 .doc-content ul.task-list>li[data-type="taskItem"][data-checked="true"]::before{border-color:var(--accent);background:var(--accent);content:"✓";font-size:11px;font-weight:800}
 .doc-content ul.task-list>li[data-type="taskItem"][data-checked="true"]{color:var(--sub);text-decoration:line-through}
-@media(max-width:960px){.editor-outline-mobile{display:block;margin:8px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.editor-outline-mobile>summary{cursor:pointer;color:var(--sub);font-size:12px}.editor-outline-mobile[open] .editor-outline-links{margin-top:8px}}
+@media(max-width:1150px){.note-shell:has(.editor-card){grid-template-columns:minmax(0,1fr);gap:18px}.note-shell:has(.editor-card)>.edit-inspector{display:none}.editor-outline-mobile{display:block;margin:8px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.editor-outline-mobile>summary{cursor:pointer;color:var(--sub);font-size:12px}.editor-outline-mobile[open] .editor-outline-links{margin-top:8px}}
+.action-dialog{width:min(460px,100%);max-height:min(90vh,640px)}.action-dialog .dialog-body{padding-top:20px;padding-bottom:12px}.action-dialog-message{margin:0;color:var(--text);line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}.action-dialog .form-label:not([hidden]){margin-top:20px}.action-dialog .form-text:not([hidden]){margin:8px 0 0}.action-dialog .primary-btn.danger-btn{background:#c3545d;color:#fff}.action-dialog :focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}

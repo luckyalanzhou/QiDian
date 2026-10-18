@@ -146,7 +146,7 @@ run_update() {
 	append_log '管理文件已更新；等待 10 秒后拉取成品镜像并重启栖点服务以应用新版本…'
 	sleep 10
 	append_log '正在拉取适合当前设备架构的成品镜像并重启 Docker 容器…'
-	if ! QIDIAN_UPDATE_WORKER=1 /usr/libexec/istorec/qidian.sh install; then
+	if ! QIDIAN_UPDATE_WORKER=1 QIDIAN_TARGET_VERSION="$version" /usr/libexec/istorec/qidian.sh install; then
 		append_log 'Docker 镜像拉取或启动失败，已停止更新。'
 		exit 1
 	fi

@@ -9,7 +9,7 @@ import Superscript from '@tiptap/extension-superscript';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
-import { liftListItem, splitListItem, wrapInList } from '@tiptap/pm/schema-list';
+import { liftListItem, sinkListItem, splitListItem, wrapInList } from '@tiptap/pm/schema-list';
 
 const allowedStyle = (element, names) => names.map(name => {
   const value = element.style.getPropertyValue(name).trim();
@@ -234,13 +234,6 @@ const TaskList = Node.create({
       },
     };
   },
-  addKeyboardShortcuts() {
-    return {
-      Enter: () => splitListItem(this.name),
-      Tab: () => this.editor.commands.sinkListItem?.(this.name) || false,
-      'Shift-Tab': () => this.editor.commands.liftListItem?.(this.name) || false,
-    };
-  },
 });
 
 const TaskItem = Node.create({
@@ -252,6 +245,13 @@ const TaskItem = Node.create({
   },
   parseHTML: () => [{ tag: 'li[data-type="taskItem"]' }],
   renderHTML: ({ HTMLAttributes }) => ['li', { ...HTMLAttributes, 'data-type': 'taskItem' }, 0],
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => splitListItem(this.type)(this.editor.state, transaction => this.editor.view.dispatch(transaction)),
+      Tab: () => sinkListItem(this.type)(this.editor.state, transaction => this.editor.view.dispatch(transaction)),
+      'Shift-Tab': () => liftListItem(this.type)(this.editor.state, transaction => this.editor.view.dispatch(transaction)),
+    };
+  },
   addNodeView() {
     return ({ node, editor, getPos }) => {
       const document = editor.view.dom.ownerDocument;

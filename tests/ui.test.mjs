@@ -76,7 +76,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.pruneAssets = async () => { initialOptions.assetPrunes=(initialOptions.assetPrunes||0)+1; return { removed:0, bytes:0 }; };
   w.download = () => {};
   w.restoreIgnoredDraft = async () => ({ data: structuredClone(vault), conflict:false });
-  w.hasUnsaved = () => false; w.scrollTo = () => {}; w.confirm = () => true;
+  w.hasUnsaved = () => false; w.scrollTo = () => {}; w.confirm = () => { throw new Error('native confirm is not allowed'); }; w.prompt = () => { throw new Error('native prompt is not allowed'); };
   const appSource = (await readFile(new URL('../src/app.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
@@ -645,6 +645,7 @@ test('new notes stay in the private draft box until published', async () => {
   assert.equal(w.document.querySelector('.doc-meta .pill').textContent,'编辑笔记');
   const title = w.document.querySelector('#editTitle'); title.value = '只在后台的草稿'; title.dispatchEvent(new w.Event('input',{ bubbles:true }));
   w.document.querySelector('#backDoc').click();
+  w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));
   w.document.querySelector('#backDoc').click();
   assert.doesNotMatch(w.document.querySelector('#main').textContent, /只在后台的草稿/);
   w.document.querySelector('#sideCore [data-nav="all"]').click();w.document.querySelector('[data-nav="drafts"]').click();
@@ -693,11 +694,32 @@ test('a new draft is removed when its actual content is cleared before leaving',
   assert.ok(saves.at(-1).notes.length===0,'clearing all content removes the draft from the saved vault');
   dom.window.close();
 });
+test('deleting a cleared new note leaves the editor after its empty draft was removed', async () => {
+  const { dom, w, saves } = await mount();
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const title=w.document.querySelector('#editTitle');title.value='临时内容';title.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await new Promise(resolve=>setTimeout(resolve,300));
+  title.value='';title.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await new Promise(resolve=>setTimeout(resolve,300));
+  assert.equal(saves.at(-1).notes.length,0,'clearing the draft removes it from the vault');
+  w.document.querySelector('#deleteEditorNote').click();
+  const confirmation=w.document.querySelector('#actionDialogOverlay');
+  assert.equal(confirmation.classList.contains('open'),true);
+  assert.match(w.document.querySelector('#actionDialogMessage').textContent,/不会进入回收站/,'an empty detached draft is confirmed as a discard, not a recycle-bin move');
+  w.document.querySelector('#actionDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(w.document.querySelector('#editorSurface'),null,'confirm exits the detached empty editor');
+  assert.equal(saves.at(-1).notes.length,0);
+  assert.equal(saves.at(-1).trash.length,0,'an empty note is not added to the recycle bin');
+  dom.window.close();
+});
 test('deleted notes remain recoverable for 30 days and can be restored from the recycle bin', async () => {
   const note={id:'trash-note',title:'待还原笔记',type:'note',category:'开发',tags:[],body:'<p>保留正文</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
   const {dom,w,saves}=await mount({...structuredClone(empty),notes:[note]});
   w.document.querySelector('#sideCore [data-nav="all"]').click();
   w.document.querySelector('[data-note-delete="trash-note"]').click();
+  assert.equal(w.document.querySelector('#actionDialogOverlay').classList.contains('open'),true);
+  w.document.querySelector('#actionDialogConfirm').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(saves.at(-1).notes,[]);
   assert.equal(saves.at(-1).trash[0].item.id,'trash-note');
@@ -718,11 +740,13 @@ test('editor more menu moves the current note and its unsaved edits to the recyc
   w.document.querySelector('#editDoc').click();
   assert.ok(w.document.querySelector('.document-more #deleteEditorNote'));
   w.currentEditor.commands.setContent('<p>未保存的最新正文</p>');
-  w.confirm=()=>false;
   w.document.querySelector('#deleteEditorNote').click();
+  assert.equal(w.document.querySelector('#actionDialogOverlay').classList.contains('open'),true);
+  w.document.querySelector('#actionDialogCancel').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.ok(w.document.querySelector('#editorSurface'),'cancel keeps the editor open');
-  w.confirm=()=>true;
   w.document.querySelector('#deleteEditorNote').click();
+  w.document.querySelector('#actionDialogConfirm').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.deepEqual(saves.at(-1).notes,[]);
   assert.match(saves.at(-1).trash[0].item.body,/未保存的最新正文/);
@@ -753,6 +777,7 @@ test('destructive actions remain visible when the Docker transaction is not conf
   const {dom,w}=await mount({...structuredClone(empty),notes:[note]},{commitError:'Docker 服务端保存失败'});
   w.document.querySelector('#sideCore [data-nav="all"]').click();
   w.document.querySelector('[data-note-delete="unsaved-delete"]').click();
+  w.document.querySelector('#actionDialogConfirm').click();
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(w.document.querySelector('#main').textContent,/不能误报删除/,'failed deletion rolls the optimistic view back');
   assert.match(w.document.querySelector('#toast').textContent,/Docker 服务端保存失败/);
@@ -808,7 +833,7 @@ test('legacy Markdown notes render as formatted content and the outline contains
   assert.equal(w.document.querySelector('.right-rail .outline a').classList.contains('sub'),false,'the first section is not indented as a subsection');
   assert.deepEqual([...w.document.querySelectorAll('.mobile-toc .outline a')].map(link=>link.textContent),['安装'],'the mobile outline mirrors the same headings');
   const styles=await readFile(new URL('../src/styles.css',import.meta.url),'utf8');
-  assert.match(styles,/\.note-list\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,'desktop notes use two columns');
+   assert.match(styles,/\.note-list\{display:grid;grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,420px\),1fr\)\)/,'desktop notes adapt column count to available card width');
   assert.match(styles,/@media\(max-width:1000px\)\{\.note-list\{grid-template-columns:minmax\(0,1fr\)\}\}/,'narrow layouts return to one column');
   assert.match(styles,/\.reader-shell \.doc-title::before\{content:none;display:none\}/,'the decorative English overline is removed');
   dom.window.close();
@@ -853,6 +878,7 @@ test('editing a published note updates its private draft and only changes the re
   const title = w.document.querySelector('#editTitle'); title.value='后台新标题'; title.dispatchEvent(new w.Event('input',{bubbles:true}));
   assert.equal(w.document.querySelector('#viewEditor'),null,'editing has one return-to-reading action');
   w.document.querySelector('#backDoc').click();
+  w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(w.document.querySelector('#main').textContent,/后台新标题/);
   w.document.querySelector('#backDoc').click();
   assert.match(w.document.querySelector('#main').textContent,/原有标题/);
@@ -907,7 +933,23 @@ test('a cloud conflict shows both note versions and requires a comparison backup
   const load=w.document.querySelector('#loadConflictCloud');assert.equal(load.disabled,true);
   w.document.querySelector('#downloadSyncConflict').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(load.disabled,false);assert.equal(initialOptions.conflictExports,1);
+  load.click();assert.equal(w.document.querySelector('#actionDialogOverlay').classList.contains('open'),true);
+  assert.equal(w.document.querySelector('#actionDialogTitle').textContent,'载入已保存版本');
+  w.document.querySelector('#actionDialogCancel').click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(dialog.classList.contains('open'),true,'cancel keeps the conflict review open');
   dom.window.close();
+});
+test('reloading Docker data asks in the app dialog and cancel leaves current data untouched',async()=>{
+ const note={id:'reload-local',title:'当前页面内容',type:'note',category:'开发',tags:[],body:'<p>保留</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
+ const {dom,w,saves}=await mount({...structuredClone(empty),notes:[note]});
+ w.document.querySelector('#accountButton').click();w.document.querySelector('#openAppSettings').click();
+ w.document.querySelector('#reloadCloud').click();
+ assert.equal(w.document.querySelector('#actionDialogTitle').textContent,'重新载入数据');
+ assert.match(w.document.querySelector('#actionDialogMessage').textContent,/替换当前草稿/);
+ w.document.querySelector('#actionDialogCancel').click();await new Promise(resolve=>setTimeout(resolve,0));
+ assert.match(w.document.querySelector('#main').textContent,/当前页面内容/);
+ assert.equal(saves.length,0);
+ dom.window.close();
 });
 test('manual retry continues the retained sync queue instead of queueing a stale page snapshot', async () => {
   const options={ local:false, owner:'account-1' };
@@ -925,44 +967,43 @@ test('editor preserves draft when navigating home before debounce finishes', asy
   const title = w.document.querySelector('#editTitle'); title.value = '不丢失的笔记'; title.dispatchEvent(new w.Event('input',{ bubbles:true }));
   w.currentEditor.commands.setContent('<p>中文内容 ✅</p>');
   w.document.querySelector('[data-nav="all"]').click();
+  w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(saves.at(-1).notes[0].title,'不丢失的笔记'); assert.match(saves.at(-1).notes[0].body,/中文内容/);
   w.document.querySelector('[data-nav="drafts"]').click();
   assert.match(w.document.querySelector('#main').textContent,/不丢失的笔记/); dom.window.close();
 });
 test('leaving a changed editor asks to save and cancel keeps the editor open', async () => {
   const { dom, w, saves } = await mount();
-  const prompts=[];let confirmResult=false;
-  w.confirm=message=>{prompts.push(message);return confirmResult};
   w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
   const title=w.document.querySelector('#editTitle');title.value='离开前询问保存';title.dispatchEvent(new w.Event('input',{bubbles:true}));
   w.document.querySelector('[data-nav="all"]').click();
-  assert.equal(prompts.length,1);
-  assert.match(prompts[0],/是否保存后离开/);
+  assert.equal(w.document.querySelector('#actionDialogOverlay').classList.contains('open'),true);
+  assert.match(w.document.querySelector('#actionDialogMessage').textContent,/是否保存后离开/);
+  w.document.querySelector('#actionDialogCancel').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.ok(w.document.querySelector('#editTitle'),'cancel keeps the user in the editor');
-  confirmResult=true;
   w.document.querySelector('[data-nav="all"]').click();
-  assert.equal(prompts.length,2);
+  w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(w.document.querySelector('#editTitle'),null);
   assert.equal(saves.at(-1).notes[0].title,'离开前询问保存');
   dom.window.close();
 });
 test('opening the recycle bin from a changed editor asks first and saves only when confirmed', async () => {
-  const {dom,w,saves}=await mount();let confirmResult=false;const prompts=[];
-  w.confirm=message=>{prompts.push(message);return confirmResult};
+  const {dom,w,saves}=await mount();
   w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
   const title=w.document.querySelector('#editTitle');title.value='回收站导航前保存';title.dispatchEvent(new w.Event('input',{bubbles:true}));
   w.document.querySelector('[data-trash-nav]').click();
-  assert.equal(prompts.length,1);assert.match(prompts[0],/是否保存后离开/);assert.ok(w.document.querySelector('#editTitle'));
-  confirmResult=true;w.document.querySelector('[data-trash-nav]').click();
+  assert.equal(w.document.querySelector('#actionDialogOverlay').classList.contains('open'),true);assert.match(w.document.querySelector('#actionDialogMessage').textContent,/是否保存后离开/);
+  w.document.querySelector('#actionDialogCancel').click();await new Promise(resolve=>setTimeout(resolve,0));assert.ok(w.document.querySelector('#editTitle'));
+  w.document.querySelector('[data-trash-nav]').click();w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(w.document.querySelector('#editTitle'),null);assert.match(w.document.querySelector('#main').textContent,/回收站/);
   assert.equal(saves.at(-1).notes[0].title,'回收站导航前保存');assert.deepEqual(saves.at(-1).trash,[]);
   dom.window.close();
 });
 test('leaving an unchanged editor does not show a save prompt', async () => {
   const { dom, w } = await mount();
-  w.confirm=()=>{throw new Error('clean editor should not prompt')};
   w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
   w.document.querySelector('[data-nav="all"]').click();
+  assert.equal(w.document.querySelector('#actionDialogOverlay').classList.contains('open'),false);
   assert.equal(w.document.querySelector('#editTitle'),null);
   dom.window.close();
 });
@@ -976,6 +1017,7 @@ test('sidebar brand returns to the dashboard and saves the active draft first', 
   const brand = w.document.querySelector('#brandHome');
   assert.equal(brand.tagName, 'BUTTON');
   brand.querySelector('.brand-copy strong').click();
+  w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(saves.at(-1).notes[0].title, '通过品牌返回时保留');
   assert.match(saves.at(-1).notes[0].body, /品牌按钮导航内容/);
   assert.equal(w.document.querySelector('#breadcrumbTitle').textContent, '首页');
@@ -1418,6 +1460,57 @@ test('editor offers undo, redo, inline code, clear formatting and link removal w
   assert.match(editor.getHTML(),/可撤销内容/);
   dom.window.close();
 });
+test('format toolbar applies commands to the active text selection', async t => {
+  const { dom, w } = await mount();
+  t.after(() => dom.window.close());
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const editor = w.currentEditor;
+  editor.commands.setContent('<p>需要加粗</p>');
+  editor.commands.setTextSelection({ from: 1, to: 5 });
+  w.document.querySelector('#editorToolbar [data-fmt="bold"]').click();
+  assert.match(editor.getHTML(), /<strong>需要加粗<\/strong>/);
+  assert.equal(editor.isActive('bold'), true);
+});
+test('link toolbar applies a safe link to selected text and unlink preserves the text', async t => {
+  const { dom, w } = await mount();
+  t.after(() => dom.window.close());
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const editor = w.currentEditor;
+  editor.commands.setContent('<p>link text</p>');
+  editor.commands.setTextSelection({ from: 1, to: 10 });
+  w.document.querySelector('#editorToolbar [data-insert="link"]').click();
+  const overlay=w.document.querySelector('#actionDialogOverlay');
+  assert.equal(overlay.classList.contains('open'),true);
+  assert.equal(w.document.querySelector('#actionDialogTitle').textContent,'插入链接');
+  w.document.querySelector('#actionDialogInput').value='https://example.com/docs';
+  w.document.querySelector('#actionDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(editor.getHTML(), /<a href="https:\/\/example\.com\/docs"[^>]*>link text<\/a>/);
+  const unlink = w.document.querySelector('[data-editor-action="unlink"]');
+  assert.equal(unlink.disabled, false);
+  unlink.click();
+  assert.doesNotMatch(editor.getHTML(), /<a\b/);
+  assert.match(editor.getHTML(), /link text/);
+});
+test('editor symbol input uses the in-page dialog and supports keyboard cancellation and submission', async t => {
+  const { dom, w } = await mount();
+  t.after(() => dom.window.close());
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const editor=w.currentEditor;editor.commands.setContent('<p>正文</p>');editor.commands.setTextSelection(3);
+  const button=w.document.querySelector('#editorToolbar [data-insert="emoji"]');
+  button.click();
+  const overlay=w.document.querySelector('#actionDialogOverlay'),input=w.document.querySelector('#actionDialogInput');
+  assert.equal(overlay.classList.contains('open'),true);
+  assert.equal(input.hidden,false);assert.equal(input.getAttribute('aria-labelledby'),null);
+  input.value='⚠️';
+  input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+  assert.equal(overlay.classList.contains('open'),false,'Escape cancels without inserting the symbol');
+  assert.doesNotMatch(editor.getHTML(),/⚠️/);
+  button.click();input.value='⚠️';
+  input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.match(editor.getHTML(),/⚠️/,'Enter submits the custom input dialog');
+});
 test('callout toolbar removes the whole hint block only when the cursor is inside it', async () => {
   const { dom, w, saves } = await mount();
   w.Range.prototype.getClientRects=()=>[];
@@ -1590,6 +1683,7 @@ test('restoring a history revision downloads the current full backup before queu
   w.document.querySelector('#backupHistory').click();
   await new Promise(resolve => setTimeout(resolve, 0));
   w.document.querySelector('[data-backup-restore="12"]').click();
+  w.document.querySelector('#actionDialogConfirm').click();
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(restoreOptions.requestedBackup, '12');
   assert.equal(w.document.querySelector('#toast').textContent, '');
@@ -1598,6 +1692,18 @@ test('restoring a history revision downloads the current full backup before queu
   assert.equal(saves.at(-1).notes[0].title, '历史版本');
   assert.equal(w.document.querySelector('#backupHistoryOverlay').classList.contains('open'), false);
   dom.window.close();
+});
+test('importing a backup asks in the app dialog before exporting or replacing current data',async()=>{
+ const options={};const {dom,w,saves}=await mount(empty,options);
+ const input=w.document.querySelector('#importFile');
+ Object.defineProperty(input,'files',{configurable:true,value:[{name:'knowledge.json'}]});
+ input.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(w.document.querySelector('#actionDialogTitle').textContent,'导入备份');
+ assert.match(w.document.querySelector('#actionDialogMessage').textContent,/替换当前知识库/);
+ w.document.querySelector('#actionDialogCancel').click();await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(options.exportedBeforeRestore,undefined);
+ assert.equal(saves.length,0);
+ dom.window.close();
 });
 test('note types can be created and renamed from the sidebar and persist in the vault', async () => {
   const { dom, w, saves } = await mount();
@@ -1617,8 +1723,6 @@ test('note types can be created and renamed from the sidebar and persist in the 
 });
 test('new categories use the in-app dialog and are saved to the vault', async () => {
   const { dom, w, saves } = await mount();
-  let nativePromptCalls = 0;
-  w.prompt = () => { nativePromptCalls += 1; throw new Error('native prompt should not be used'); };
   w.document.querySelector('#addCategory').click();
   const overlay = w.document.querySelector('#categoryOverlay');
   const input = w.document.querySelector('#categoryNameInput');
@@ -1633,7 +1737,6 @@ test('new categories use the in-app dialog and are saved to the vault', async ()
   assert.equal(overlay.classList.contains('open'), false);
   assert.ok(saves.at(-1).categories.includes('系统维护'));
   assert.ok(w.document.querySelector('#sideCats [data-nav="系统维护"]'));
-  assert.equal(nativePromptCalls, 0);
   dom.window.close();
 });
 test('deleting a note type requires a target and preserves its notes by reassignment', async () => {
@@ -1992,9 +2095,43 @@ test('editor task lists toggle and persist checked state in the note HTML',async
  const {dom,w,saves}=await mount();t.after(()=>dom.window.close());w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
  w.currentEditor.commands.setContent('<p>先做这件事</p>');w.document.querySelector('[data-fmt="toggleTaskList"]').click();
  const list=w.currentEditor.view.dom.querySelector('ul[data-type="taskList"]');assert.ok(list);assert.equal(list.querySelectorAll('li[data-type="taskItem"]').length,1);
- const checkbox=list.querySelector('input[type="checkbox"]');checkbox.checked=true;checkbox.dispatchEvent(new w.Event('change',{bubbles:true}));
- assert.match(w.currentEditor.getHTML(),/data-checked="true"/,'completion state is serialized into the note body');
+ const checkbox=list.querySelector('input[type="checkbox"]');checkbox.click();
+ assert.match(w.currentEditor.getHTML(),/data-checked="true"/,'clicking the task checkbox stores its checked state');
+ assert.ok(w.document.querySelector('#editorSurface ul[data-type="taskList"]'),'clicking a task checkbox must not trigger note type navigation or convert the list to bullets');
  await new Promise(resolve=>setTimeout(resolve,300));assert.match(saves.at(-1).notes[0].body,/data-checked="true"/,'the sanitized saved HTML keeps the checked state');
+});
+
+test('editor mount renders stored note content only once', async t => {
+ const {dom,w}=await mount();t.after(()=>dom.window.close());w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ w.currentEditor.commands.setContent('<p>只显示一份正文</p>');
+ w.document.querySelector('#backDoc').click();w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));w.document.querySelector('#editDoc').click();
+ const host=w.document.querySelector('#editorSurface');
+ assert.equal(host.children.length,1,'the ProseMirror surface is the only child of its mount');
+ assert.equal(host.firstElementChild.classList.contains('ProseMirror'),true);
+ assert.equal(host.textContent,'只显示一份正文','stored content is rendered once in the editable surface');
+ assert.equal(host.firstElementChild.getAttribute('data-placeholder'),'开始输入内容，或直接粘贴网页文字、表格和图片...');
+});
+
+test('pressing Enter in a task item creates a new task item', async t => {
+ const {dom,w}=await mount();t.after(()=>dom.window.close());w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ Object.defineProperty(globalThis,'KeyboardEvent',{configurable:true,value:w.KeyboardEvent});
+ const editor=w.currentEditor;editor.commands.setContent('<p>第一项</p>');editor.commands.toggleTaskList();
+ assert.equal(editor.state.doc.firstChild.type.name,'taskList');
+ let end=-1;editor.state.doc.descendants((node,pos)=>{if(node.isText&&node.text==='第一项')end=pos+node.nodeSize});assert.notEqual(end,-1);
+ editor.commands.setTextSelection(end);assert.equal(editor.state.selection.$from.parent.type.name,'paragraph');assert.equal(editor.state.selection.$from.node(-1).type.name,'taskItem');assert.equal(editor.state.selection.$from.parentOffset,3);assert.equal(editor.commands.keyboardShortcut('Enter'),true);
+ const list=editor.state.doc.firstChild;assert.equal(list.type.name,'taskList');assert.equal(list.childCount,2,JSON.stringify(editor.getJSON()));
+ assert.equal(list.child(0).textContent,'第一项');assert.equal(list.child(1).textContent,'');
+});
+
+test('Tab nests a task item and Shift-Tab lifts it back out', async t => {
+ const {dom,w}=await mount();t.after(()=>dom.window.close());w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ const priorKeyboardEvent=globalThis.KeyboardEvent;Object.defineProperty(globalThis,'KeyboardEvent',{configurable:true,value:w.KeyboardEvent});t.after(()=>Object.defineProperty(globalThis,'KeyboardEvent',{configurable:true,value:priorKeyboardEvent}));
+ const editor=w.currentEditor;editor.commands.setContent('<p>第一项</p><p>子任务</p>');editor.commands.setTextSelection({from:1,to:editor.state.doc.content.size-1});editor.commands.toggleTaskList();
+ const positionFor=text=>{let position=-1;editor.state.doc.descendants((node,pos)=>{if(node.isText&&node.text===text)position=pos});return position};
+ editor.commands.setTextSelection(positionFor('子任务'));assert.equal(editor.commands.keyboardShortcut('Tab'),true);
+ let taskList=editor.state.doc.firstChild;assert.equal(taskList.childCount,1);assert.equal(taskList.firstChild.childCount,2);assert.equal(taskList.firstChild.child(1).type.name,'taskList');
+ editor.commands.setTextSelection(positionFor('子任务'));assert.equal(editor.commands.keyboardShortcut('Shift-Tab'),true);
+ taskList=editor.state.doc.firstChild;assert.equal(taskList.childCount,2);assert.equal(taskList.child(1).textContent,'子任务');
 });
 
 test('Markdown task lists retain checked states and inline formatting',()=>{
@@ -2007,7 +2144,9 @@ test('Markdown task lists retain checked states and inline formatting',()=>{
 
 test('editor outline follows headings and in-note search cycles through cross-format matches',async t=>{
  const {dom,w}=await mount();t.after(()=>dom.window.close());w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  assert.equal(w.document.querySelector('.editor-outline-mobile').hidden,true);assert.equal(w.document.querySelector('.edit-inspector').hidden,true);
  w.currentEditor.commands.setContent('<h2>章节一</h2><p>定<strong>位</strong>成功</p><h3>章节二</h3><p>再次定位</p>');
+  assert.equal(w.document.querySelector('.editor-outline-mobile').hidden,false);assert.equal(w.document.querySelector('.edit-inspector').hidden,false);
  const outline=w.document.querySelectorAll('.right-rail .editor-outline-links [data-outline-index]');assert.equal(outline.length,2);assert.equal(outline[1].textContent,'章节二');outline[1].click();assert.ok(w.currentEditor.state.selection.from>1,'selecting an outline item jumps into its heading');
  const input=w.document.querySelector('#editorFindInput');input.value='定位';input.dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(w.document.querySelector('#editorFindCount').textContent,'1 / 2');
  w.document.querySelector('#editorFindNext').click();assert.equal(w.document.querySelector('#editorFindCount').textContent,'2 / 2');

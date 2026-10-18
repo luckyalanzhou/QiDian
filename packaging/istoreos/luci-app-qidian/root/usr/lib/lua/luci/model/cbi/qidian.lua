@@ -34,17 +34,6 @@ end
 s:tab("basic", translate("基本设置"))
 s:tab("logs", translate("日志"))
 
-local environment = s:taboption("basic", DummyValue, "environment_display", translate("运行依赖"))
-if not docker_ready then
-	environment.default = translate("Docker 未启动")
-	environment.description = translate("请先启动 Docker 服务。")
-elseif not compose_ready then
-	environment.default = translate("Docker 已就绪 · 缺少 Compose")
-	environment.description = translate("请先安装 Docker Compose。")
-else
-	environment.default = translate("Docker 与 Compose 已就绪")
-end
-
 local port = s:taboption("basic", Value, "http_port", translate("访问端口"))
 port.datatype = "port"
 port.default = "9908"
@@ -64,17 +53,22 @@ trusted_proxy_ip.rmempty = true
 trusted_proxy_ip:depends("trust_proxy_enabled", "1")
 trusted_proxy_ip.description = translate("填写直接连接栖点容器的代理地址；启用反代时必填。")
 
-local image = s:taboption("basic", DummyValue, "image_display", translate("Docker 镜像"))
-image.default = "luckyalanzhou/qidian:latest"
-
 local account = s:taboption("basic", DummyValue, "_account_tools", translate("管理员密码重置"))
 account.template = "qidian/account-tools"
 
-local install = s:taboption("basic", Button, "_install", "")
-button(install, translate("部署服务"), "apply", "install")
+if not docker_ready or not compose_ready then
+	local environment = s:taboption("basic", DummyValue, "environment_display", translate("环境检查"))
+	environment.default = not docker_ready and translate("请先启动 Docker 服务。") or translate("请先安装 Docker Compose。")
+end
+
+local needs_deployment = not docker_ready or sys.call("docker inspect --type container qidian >/dev/null 2>&1") ~= 0 or sys.call("test -f /tmp/qidian-deployment.failed") == 0
+if needs_deployment then
+	local install = s:taboption("basic", Button, "_install", "")
+	button(install, translate("重试部署"), "apply", "install-package")
+end
 
 local updates = s:taboption("basic", Button, "_check_update", "")
-button(updates, translate("检查并更新"), "apply", "check-update")
+button(updates, translate("检查更新"), "apply", "check-update")
 
 local clear_logs = s:taboption("logs", Button, "_clear_logs", translate("日志"))
 clear_logs.inputtitle = translate("清空日志")

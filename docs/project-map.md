@@ -76,7 +76,7 @@ Docker 镜像承载 Web 服务和 Node.js 服务端，面向 `linux/amd64` 与 `
 | `packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh` | 检查并更新 LuCI 管理文件和 Docker 镜像 |
 | `packaging/istoreos/luci-app-qidian/root/etc/init.d/qidian-updater` | 通过 procd 管理宿主更新代理进程 |
 | `packaging/istoreos/compose.yaml`、`.env.example` | 设备上的容器配置模板 |
-| `packaging/istoreos/install.sh` | `.run` 解包后的安装或升级入口 |
+| `packaging/istoreos/install.sh` | `.run` 解包后安装管理文件并自动部署，在线更新时交由持锁任务部署 |
 | `packaging/istoreos/build-run.sh` | 组装 `.run` 自解压包并生成 SHA-256 文件 |
 
 发布的 `.run` 包含 LuCI、Compose 和设备管理脚本，不包含应用容器镜像；设备通过 Docker Hub 拉取适合自身架构的镜像。管理插件与镜像版本可独立检查，需要更新时由设备端流程执行。

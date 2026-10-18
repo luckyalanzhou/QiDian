@@ -18,7 +18,7 @@
 | 兼容的 OpenWrt | 下载相同 `.run`，在设备终端以 root 校验并执行 |
 | Linux、NAS、服务器 | 使用下方 Docker Compose 命令启动 |
 
-iStoreOS / OpenWrt 需要 Docker、Docker Compose、UCI、LuCI CBI 和 `jsonfilter`。安装 `.run` 后进入 **服务 → 栖点知识库**，点击 **部署服务**。镜像支持 `amd64`、`arm64`；校验及部署步骤见[部署指南](docs/deployment.md)。
+iStoreOS / OpenWrt 需要 Docker、Docker Compose、UCI、LuCI CBI 和 `jsonfilter`。`.run` 安装时自动拉取镜像并部署，完成后进入 **服务 → 栖点知识库**打开应用。镜像支持 `amd64`、`arm64`；详见[部署指南](docs/deployment.md)。
 
 ### Docker Compose
 
@@ -43,7 +43,7 @@ docker compose --env-file packaging/docker/.env -f packaging/docker/compose.yaml
 
 版本说明与 `.run` 安装包见 [GitHub Releases](https://github.com/luckyalanzhou/qidian/releases)，镜像见 [Docker Hub](https://hub.docker.com/r/luckyalanzhou/qidian)。
 
-LuCI 点击 **检查并更新** 可更新管理插件和镜像；支持宿主更新代理的部署也可在 Web 顶部版本入口更新。通用 Docker 使用 Compose 拉取镜像并重建容器，命令见[部署指南](docs/deployment.md#通用-docker-更新)。
+LuCI 点击 **检查更新** 可更新管理插件和镜像；支持宿主更新代理的部署也可在 Web 顶部版本入口更新。通用 Docker 使用 Compose 拉取镜像并重建容器，命令见[部署指南](docs/deployment.md#通用-docker-更新)。
 
 ## 文档
 
