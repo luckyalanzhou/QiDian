@@ -18,15 +18,13 @@ test('Vue breadcrumb derives its title from the active workspace feature stores'
   t.after(() => server.close());
 
   const { default: WorkspaceBreadcrumb } = await server.ssrLoadModule('/src/features/navigation/WorkspaceBreadcrumb.vue');
-  const [{ useWorkspaceShellStore }, { useNavigationStore }, { useEditorStore }, { useNoteListStore }, { useVaultStore }] = await Promise.all([
-    server.ssrLoadModule('/src/features/navigation/workspace-shell-store.ts'),
+  const [{ useNavigationStore }, { useEditorStore }, { useNoteListStore }, { useVaultStore }] = await Promise.all([
     server.ssrLoadModule('/src/features/navigation/store.ts'),
     server.ssrLoadModule('/src/features/editor/store.ts'),
     server.ssrLoadModule('/src/features/notes/store.ts'),
     server.ssrLoadModule('/src/features/vault/store.ts')
   ]);
   const pinia = createPinia();
-  const shell = useWorkspaceShellStore(pinia);
   const navigation = useNavigationStore(pinia);
   const editor = useEditorStore(pinia);
   const noteList = useNoteListStore(pinia);
@@ -37,7 +35,6 @@ test('Vue breadcrumb derives its title from the active workspace feature stores'
 
   await renderToString(createSSRApp(WorkspaceBreadcrumb).use(pinia), context);
 
-  assert.equal(shell.breadcrumbTitle, '书签导航', 'the shell title remains a projection of the active route');
   assert.match(context.teleports['#breadcrumbTitleIsland'], /<span class="breadcrumb-root">我的空间<\/span>/);
   assert.match(context.teleports['#breadcrumbTitleIsland'], /<span class="breadcrumb-separator" aria-hidden="true"> \/ <\/span>/);
   assert.match(context.teleports['#breadcrumbTitleIsland'], /<strong id="breadcrumbTitle">书签导航<\/strong>/);

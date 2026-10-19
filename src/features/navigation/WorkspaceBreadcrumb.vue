@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed } from 'vue';
 import { useEditorStore } from '../editor/store';
 import { useNoteListStore } from '../notes/store';
 import { useReaderStore } from '../reader/store';
 import { useNavigationStore } from './store';
-import { useWorkspaceShellStore } from './workspace-shell-store';
 
-const shell = useWorkspaceShellStore();
 const navigation = useNavigationStore();
 const notes = useNoteListStore();
 const editor = useEditorStore();
@@ -21,7 +19,6 @@ const title = computed(() => {
   }
 });
 
-watch(title, value => shell.setBreadcrumbTitle(value), { immediate: true });
 </script>
 
 <template>
