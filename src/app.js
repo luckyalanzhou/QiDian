@@ -22,6 +22,7 @@ import { createEditorToolbarState } from './features/editor/toolbar-state.ts';
 import { createLegacyEditorToolbarView } from './features/editor/legacy-toolbar-view.ts';
 import { createEditorInsertController } from './features/editor/insert-controller.ts';
 import { createEditorRuntimeController } from './features/editor/runtime-controller.ts';
+import { createEditorPageLifecycle } from './features/editor/page-lifecycle.ts';
 import { createEditorOutlineController } from './features/editor/outline-controller.ts';
 import { createLegacyEditorOutlineView } from './features/editor/legacy-editor-outline-view.ts';
 import { createNotePublishFlow } from './features/editor/note-publish-flow.ts';
@@ -544,20 +545,20 @@ function dispatchEditorAction({group,action,value,position}){
  if(group==='paragraph')return commands.runParagraphAction(action);
 }
 editorDataStore.bindRuntime({initialize:initializeEditorView,dispatch:dispatchEditorAction,formChanged:()=>{updateDraftFromDOM();scheduleSave()},formBlurred:flushEditorSave});
-function initializeEditorView(){
- if(editorFactory){mountEditorSurface();return}
- if(editorLoading)return;
- editorLoading=editorRuntime.loadFactory().then(()=>{
-  editorLoading=null;
-  if(navigationStore.editing&&navigationStore.page==='note'){mountEditorSurface();setTimeout(()=>$('#editTitle')?.focus(),0)}
- }).catch(error=>{
-  editorLoading=null;
+function mountEditorSurface(){if(!editorFactory||!navigationStore.editing||navigationStore.page!=='note'||!$('#editorSurface'))return;const editor=editorRuntime.mount();if(editor)ensureEditorCommands();return editor}
+const editorPageLifecycle=createEditorPageLifecycle({
+ getFactory:()=>editorFactory,
+ loadFactory:()=>editorRuntime.loadFactory(),
+ isActive:()=>navigationStore.editing&&navigationStore.page==='note',
+ mount:mountEditorSurface,
+ focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),0),
+ onLoadError:error=>{
   const surface=$('#editorSurface');
   if(surface)surface.innerHTML='<p class="hint">编辑器加载失败，请刷新后重试。</p>';
-  toast(error.message||'编辑器加载失败');
- });
-}
-function mountEditorSurface(){if(!editorFactory||!navigationStore.editing||navigationStore.page!=='note'||!$('#editorSurface'))return;const editor=editorRuntime.mount();if(editor)ensureEditorCommands();return editor}
+  toast(error?.message||'编辑器加载失败');
+ }
+});
+function initializeEditorView(){return editorPageLifecycle.initialize()}
 function renderEditorLegacy(){if(!editorFactory){if(!editorLoading){main.innerHTML='<div class="empty editor-loading">正在加载富文本编辑器…</div>';editorLoading=import('./editor.js').then(module=>{editorFactory=module.createQidianEditor;editorLoading=null;if(navigationStore.editing&&navigationStore.page==='note'){renderEditor();setTimeout(()=>$('#editTitle')?.focus(),0)}}).catch(error=>{editorLoading=null;main.innerHTML='<div class="empty editor-loading">编辑器加载失败，请刷新后重试。</div>';toast(error.message||'编辑器加载失败')})}return}destroyRichEditor();const n=ensureDraft();setBreadcrumb(n.title||'新建笔记');const publishLabel=isDraft(n)?'发布笔记':'保存笔记';main.innerHTML=renderLegacyEditorMarkup({note:n,noteTypes:getVault().noteTypes,publishLabel,icons,escapeHtml:esc,displayTypeName,categoryOptions,preferredPasteMode});mountEditorSurface();
 }
 
