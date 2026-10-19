@@ -40,11 +40,12 @@ flowchart LR
 | 1. 后端模块化 | 配置、HTTP 边界、应用服务、Repository 和共享 API 契约分层；验证鉴权、SQLite 事务、升级兼容与自托管 API。 | 已完成：模块边界和 9908 固定端口已验证；全量测试覆盖 SQLite 与自托管 API。 |
 | 2. 前端架构基础 | 建立唯一 Vue/TypeScript 入口、Pinia 状态所有权和按功能组织的页面与动作模块；保持既有功能与交互。 | 已完成：唯一入口、Vue 工作区、Pinia 和主要页面已建立；桌面本地浏览器 smoke test 通过。 |
 | 3. 前端迁移收尾 | 将剩余页面副作用、DOM 事件、数据适配和导航编排迁入明确的功能边界；移除生产路径中的旧 DOM 兼容实现及重复状态。 | 进行中：编辑器格式、段落与表格命令已统一委托给功能控制器；Vue 编辑器工具栏按钮直接绑定类型化命令，不再扫描 `data-*` 属性翻译动作；旧工具栏路由只在兼容路径创建；表单读取和正文清理已迁入 `features/editor/form-adapter.ts`；会话过期恢复已迁入 `features/auth/session-recovery-flow.ts`；远端 Vault 更新及活动编辑器保护已迁入 `features/sync/remote-vault-update-controller.ts`，组合层只注入 Pinia、编辑器和导航能力，并由状态分支测试与工作区集成测试覆盖；笔记类型弹窗的配置推导与 Vue/兼容 DOM 分流已迁入 `features/notes/type-dialog-presenter.ts`，覆盖创建限制、编辑数据、删除计数和最后类型转移选项；Vue 面包屑标题直接从页面状态派生，不再镜像写入 Shell Pinia；笔记类型与快速收集的旧 DOM 表单已分别迁入 `features/notes/legacy-type-dialog.ts`、`features/capture/legacy-capture-dialog.ts`，Vue 生产路径不再创建这两个旧表单适配器；生产 Vue 路径也不再创建旧工作区渲染器；生产书签页不再实例化旧 DOM 视图，书签导航、目录偏好、选择清理与新建链接由 Pinia/Vue 路径接管；手机底栏“新建”直接发出类型化 Vue 导航命令；侧栏品牌/新建、桌面/手机搜索、顶栏主题和账号菜单、备份历史动作已由 Vue 组件直接处理；导航命令仍经统一控制器保留未保存编辑确认，壳层命令经显式动作 Store 执行；生产 Vue 路径不再挂载旧 `workspaceContentEvents`，也不再注册 `workspaceNavigationEvents` 与 `workspaceShellEvents` 的全局点击委派，这些 DOM 适配器仅供兼容路径；应用组合层已移除可变 `data` 别名，所有当前知识库读取统一通过 Pinia Vault Store 的 `getVault()` 访问，替换数据时不再同步第二份引用，并新增 UI 回归测试覆盖 Store 快照替换；`src/app.js` 仍承担页面组合和部分适配。 |
-| 4. 系统验收 | 运行 `pnpm test`、`pnpm check`；分别验收 SQLite/DOM、桌面与手机浏览器、Docker 9908 和反向代理；需要的正式构建走远程流程。 | 部分完成：全量 `pnpm test` 610/610 通过，`pnpm check` 通过；DOM 与 SQLite 自动化覆盖通过。隔离桌面浏览器验证了笔记/书签操作、搜索、设置和主题；另用临时 SQLite/API 实测登录、创建笔记及刷新重载，数据库确认 revision 3、1 篇笔记、正文 2 段，随后清除了测试库。本地预览的设置与备份说明已在浏览器核对，验收内容为空。真实设备 `192.168.100.1:9908/healthz` 和公网 Lucky 反代 `qidian.alan520.top:19908/healthz` 均返回 `ok`，反代登录页可访问。远程 Release `v0.0.21` 已发布，`.run` 与 SHA-256 资产齐全，Docker Hub `latest` 含 amd64/arm64。手机实机验收与确认该版本正在设备运行仍待完成；本机未打包。 |
+| 4. 系统验收 | 运行 `pnpm test`、`pnpm check`；分别验收 SQLite/DOM、桌面与手机浏览器、Docker 9908 和反向代理；需要的正式构建走远程流程。 | 部分完成：最新全量 `pnpm test` 616/616 通过，`pnpm check` 通过；DOM 与 SQLite 自动化覆盖通过。隔离桌面浏览器验证了笔记/书签操作、搜索、设置和主题，并在固定端口 `127.0.0.1:5173` 验证工具栏格式与表格编辑；临时数据已清理。本地预览的设置与备份说明已在浏览器核对，验收内容为空。真实设备 `192.168.100.1:9908/healthz` 和公网 Lucky 反代 `qidian.alan520.top:19908/healthz` 均返回 `ok`，反代登录页可访问。远程 Release `v0.0.21` 已发布，`.run` 与 SHA-256 资产齐全，Docker Hub `latest` 含 amd64/arm64。手机实机验收与确认该版本正在设备运行仍待完成；本机未打包。 |
 
 ## 分阶段验证与推送
 
 - 每个迁移批次只改一个清晰的功能边界。先补或更新该边界的定向测试，再运行 `pnpm check` 和 `pnpm test`；涉及页面交互时，还要在本地浏览器用空白验收数据走完对应流程。发现失败先修复并重跑，再提交推送。阶段完成以门槛通过为准，不以代码已合并或测试已启动为准。
+- 2026-10-20：编辑器工具栏格式、插入、表格、编辑、段落和大纲动作统一由 `features/editor/action-dispatcher.ts` 按类型路由；定向单测覆盖全部动作组、编辑器未就绪保护及异步插入结果。桌面浏览器回归使用固定 `http://127.0.0.1:5173/`，验证加粗、插入表格及增删行；结束后清空临时笔记并确认无草稿残留。
 - 第 3 阶段按“编辑器与页面生命周期 → 导航及工作区编排 → 设置、备份和账户流程 → 笔记列表、书签与回收站剩余适配 → 清除生产路径旧 DOM 和重复状态”的顺序逐块迁移。每个功能边界的测试通过后单独提交并推送 `main`，避免把尚未验证的跨功能重构累积到一个大提交。
 - 第 4 阶段按“SQLite/API 与 DOM 回归 → 桌面浏览器完整操作 → 手机实机操作 → iStoreOS/Docker 9908 安装、更新和数据保留 → 反向代理”验收。每轮浏览器验收开始前清理明确标记的旧验收数据，结束后清理本轮数据和站点存储；不确定归属的数据保留并标记为未验证。
 - 本地浏览器验收固定使用 `http://127.0.0.1:5173/`，以 `--strictPort` 启动；端口占用时先确认并关闭本任务启动的旧服务，不临时换端口。
@@ -77,7 +78,7 @@ flowchart LR
 - `features/editor/autosave-controller.ts` 统一管理编辑器防抖定时器、显式提交和生命周期清理；应用组合层只注入浏览器窗口计时器与草稿保存动作。
 - `features/editor/editor-page-actions-store.ts` 定义编辑页保存、附件、HTML 导出、图片选择和删除的类型化动作边界；Vue 页面显式分派动作，旧 DOM 兼容事件复用相同应用处理器。
 - `features/editor/page-actions.ts` 编排编辑页操作并确定 HTML 导出版本：编辑中先保存草稿，预览与草稿导出当前版本，普通阅读状态导出已发布快照。
-- Vue 编辑器工具栏由 `EditorPage.vue` 静态声明；`features/editor/store.ts` 持有选区格式、段落、表格、撤销重做和快捷插入菜单等状态快照，运行时更新 Pinia；`features/editor/command-controller.ts` 是格式、段落、表格和编辑命令的单一实现，应用组合层只保留委托入口；`SlashMenu.vue` 按类型化编辑命令操作 Tiptap。`features/editor/legacy-toolbar-view.ts` 集中管理仅供迁移测试使用的旧 DOM 工具栏状态与布局。
+- Vue 编辑器工具栏由 `EditorPage.vue` 静态声明；`features/editor/store.ts` 持有选区格式、段落、表格、撤销重做和快捷插入菜单等状态快照，运行时更新 Pinia；`features/editor/action-dispatcher.ts` 按类型将工具栏动作路由到对应功能控制器，应用组合层只负责绑定编辑器、插入和大纲依赖；`features/editor/command-controller.ts` 是格式、段落、表格和编辑命令的单一实现；`SlashMenu.vue` 按类型化编辑命令操作 Tiptap。`features/editor/legacy-toolbar-view.ts` 集中管理仅供迁移测试使用的旧 DOM 工具栏状态与布局。
 - `features/editor/outline-controller.ts` 从 Tiptap 文档生成标题目录，并通过类型化编辑动作定位标题；目录快照由 Pinia 持有，桌面侧栏与手机目录均由 `EditorPage.vue` 响应式渲染。旧 DOM 回退保留原目录适配器，生产 Vue 页面不再由 `app.js` 注入目录 HTML 或逐项绑定事件。
 - `features/notes/draft-content.ts` 管理草稿有效内容判定与编辑基线比较；空白新笔记和未填写的结构化模板不会被当成已写内容，正文文本、图片和有效元数据会保留为草稿。
 - `features/notes/create-note-controller.ts` 编排新建笔记的类型与分类选择、活动草稿处理、Vault 写入及编辑页激活；笔记实体规则继续复用 `note-actions.ts`，页面组合层只注入导航和界面副作用。

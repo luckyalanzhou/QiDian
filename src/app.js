@@ -14,6 +14,7 @@ import { createSystemUpdateController } from './features/system-updates/controll
 import { createSignOutFlow } from './features/account/sign-out-flow.ts';
 import { createSyncConflictController } from './features/sync/sync-conflict-controller.ts';
 import { renderReleaseNotes } from './release-notes.js';
+import { createEditorActionDispatcher } from './features/editor/action-dispatcher.ts';
 import { createEditorCommandController } from './features/editor/command-controller.ts';
 import { createEditorPageActions } from './features/editor/page-actions.ts';
 import { renderLegacyEditorMarkup } from './features/editor/legacy-editor-view.js';
@@ -534,17 +535,16 @@ function ensureEditorCommands(){
  if(!editorCommands)editorCommands=createEditorCommandController({getEditor:()=>richEditor,afterChange:editor=>{if(!editor)return;updateDraftFromDOM();scheduleSave();syncToolbarState(editor);refreshEditorOutline(editor)},toast});
  return editorCommands;
 }
-function dispatchEditorAction({group,action,value,position}){
- if(!richEditor)return;
- const commands=ensureEditorCommands();
- if(group==='outline')return editorOutlineController.goTo(position);
- if(group==='format')return commands.doFormat(action,value);
- if(group==='insert')return doInsert(action);
- if(group==='table')return commands.runTableAction(action);
- if(group==='editor')return commands.runEditorAction(action);
- if(group==='paragraph')return commands.runParagraphAction(action);
-}
-editorDataStore.bindRuntime({initialize:initializeEditorView,dispatch:dispatchEditorAction,formChanged:()=>{updateDraftFromDOM();scheduleSave()},formBlurred:flushEditorSave});
+const editorActionDispatcher=createEditorActionDispatcher({
+ isReady:()=>Boolean(richEditor),
+ goToOutline:position=>editorOutlineController.goTo(position),
+ format:(action,value)=>ensureEditorCommands().doFormat(action,value),
+ insert:action=>doInsert(action),
+ table:action=>ensureEditorCommands().runTableAction(action),
+ editor:action=>ensureEditorCommands().runEditorAction(action),
+ paragraph:action=>ensureEditorCommands().runParagraphAction(action)
+});
+editorDataStore.bindRuntime({initialize:initializeEditorView,dispatch:action=>editorActionDispatcher.dispatch(action),formChanged:()=>{updateDraftFromDOM();scheduleSave()},formBlurred:flushEditorSave});
 function mountEditorSurface(){if(!editorFactory||!navigationStore.editing||navigationStore.page!=='note'||!$('#editorSurface'))return;const editor=editorRuntime.mount();if(editor)ensureEditorCommands();return editor}
 const editorPageLifecycle=createEditorPageLifecycle({
  getFactory:()=>editorFactory,
