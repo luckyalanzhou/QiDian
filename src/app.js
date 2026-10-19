@@ -46,6 +46,7 @@ import { createDashboardActions } from './features/dashboard/actions.ts';
 import { createNoteController as createNewNoteController } from './features/notes/create-note-controller.ts';
 import { isDraftNote as isDraft, needsPublish, publishedNoteView as publishedView, selectNotes } from './features/notes/selectors.ts';
 import { createNoteTypeDialogFlow } from './features/notes/type-dialog-flow.ts';
+import { createNoteTypeDialogOpenFlow } from './features/notes/type-dialog-open-flow.ts';
 import { createLegacyNoteTypeDialog } from './features/notes/legacy-type-dialog.ts';
 import { createNoteTypeDialogPresenter } from './features/notes/type-dialog-presenter.ts';
 import { mountCodeCopyButtons } from './features/reader/code-copy.ts';
@@ -186,6 +187,7 @@ const noteTypesExpanded=()=>getVault().noteTypesExpanded!==false;
 const {persist,commitPersist}=createVaultPersistence({getVault,getUnsavedNewNoteId:()=>unsavedNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
 const legacyNoteTypeDialog=workspaceAppMounted?null:createLegacyNoteTypeDialog({document,escapeHtml:esc});
 const noteTypeDialogPresenter=createNoteTypeDialogPresenter({getVault,defaultNoteTypes:DEFAULT_NOTE_TYPES,displayTypeName,vueMounted:workspaceAppMounted,vueDialog:noteTypeDialogStore,legacyDialog:legacyNoteTypeDialog,notify:toast});
+const noteTypeDialogOpenFlow=createNoteTypeDialogOpenFlow({closeMenu,isEditing:()=>navigationStore.editing,saveDraft:()=>saveDraft(true),clearAutosave:()=>editorAutosave.clear(),leaveEditor:()=>{navigationStore.editing=false;navigationStore.editingDraft=null},render,openDialog:(mode,id)=>noteTypeDialogPresenter.open(mode,id)});
 const noteTypeDialogFlow=createNoteTypeDialogFlow({getVault,mutateVault,replaceVault,getTypeFilter:()=>navigationStore.typeFilter,setTypeFilter:filter=>{navigationStore.typeFilter=filter},commit:()=>commitPersist(),close:()=>{if(workspaceAppMounted)noteTypeDialogStore.close();legacyNoteTypeDialog?.close()},render,notify:toast});
 if(workspaceAppMounted)noteTypeDialogStore.bindSave(input=>noteTypeDialogFlow.save(input));
 function versionOf(n){return {title:n.title,type:n.type,category:n.category,tags:[...(n.tags||[])],body:n.body,source:n.source||'',updated:n.updated}}
@@ -550,9 +552,7 @@ function renderEditorLegacy(){if(!editorFactory){if(!editorLoading){main.innerHT
 }
 
 function openTypeDialog(mode,id=null){
- closeMenu();
- if(navigationStore.editing){saveDraft(true);editorAutosave.clear();navigationStore.editing=false;navigationStore.editingDraft=null;render()}
- noteTypeDialogPresenter.open(mode,id);
+ noteTypeDialogOpenFlow.open(mode,id);
 }
 async function saveTypeDialog(){
  if(!legacyNoteTypeDialog)return;

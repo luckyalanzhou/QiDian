@@ -17,6 +17,7 @@ import { createBookmarkMutationActions } from '../src/features/bookmarks/mutatio
 import { createVaultPersistence } from '../src/features/vault/persistence.ts';
 import { createNoteTypeDialogFlow } from '../src/features/notes/type-dialog-flow.ts';
 import { createNoteTypeDialogPresenter } from '../src/features/notes/type-dialog-presenter.ts';
+import { createNoteTypeDialogOpenFlow } from '../src/features/notes/type-dialog-open-flow.ts';
 import { createLegacyNoteTypeDialog } from '../src/features/notes/legacy-type-dialog.ts';
 import { createCategoryDialogFlow } from '../src/features/categories/category-dialog-flow.ts';
 import { createLegacyCategoryDialog } from '../src/features/categories/legacy-category-dialog.ts';
@@ -328,6 +329,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.createLegacyEditorOutlineView = createLegacyEditorOutlineView;
   w.createMobileMenuFocusController = createMobileMenuFocusController;
   w.createLegacyCategoryDialog = createLegacyCategoryDialog;
+  w.createNoteTypeDialogOpenFlow = createNoteTypeDialogOpenFlow;
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
   assert.ok(start >= 0 && end > start, 'workspace entrypoint should remain available to DOM tests');
