@@ -29,6 +29,7 @@ import { createContentInsertionController } from './features/editor/content-inse
 import { createAttachmentUploadFlow } from './features/editor/attachment-upload.ts';
 import { createAppSettingsActions } from './features/settings/app-settings-actions.ts';
 import { createBackupWorkflows } from './features/settings/backup-workflows.ts';
+import { createBackupHistoryOpenFlow } from './features/settings/backup-history-open-flow.ts';
 import { createWorkspaceNavigationController } from './features/navigation/workspace-navigation-controller.ts';
 import { createMobileMenuFocusController } from './features/navigation/mobile-menu-focus-controller.ts';
 import { createWorkspaceViewDispatcher } from './features/navigation/workspace-view-dispatcher.ts';
@@ -633,7 +634,8 @@ function closeCapture(){captureDialogPresenter.close()}
 async function saveCapture(){if(!legacyCaptureDialog)return;try{const note=await captureFlow.save(legacyCaptureDialog.readInput());closeCapture();openNote(note.id)}catch(error){toast(error.message||'网页摘录尚未保存')}}
 function openCategoryDialog(){closeMenu();if(workspaceAppMounted){categoryDialogStore.open();return}legacyCategoryDialog?.open()}
 async function saveCategory(){if(!legacyCategoryDialog)return;try{const saved=await categoryDialogFlow.save(legacyCategoryDialog.readInput());legacyCategoryDialog.close();openHome(saved)}catch(error){legacyCategoryDialog.showError(error)}}
-async function openBackupHistory(){if(navigationStore.editing)saveDraft(true);closeAccountSettings();closeMenu();backupHistoryStore.show();await backupHistoryStore.refresh()}
+const backupHistoryOpenFlow=createBackupHistoryOpenFlow({isEditing:()=>navigationStore.editing,saveActiveDraft:()=>saveDraft(true),closeSettings:closeAccountSettings,closeMenu,showDialog:()=>backupHistoryStore.show(),refresh:()=>backupHistoryStore.refresh()});
+async function openBackupHistory(){await backupHistoryOpenFlow.open()}
 function downloadBackupSnapshot(revision){return backupWorkflows.downloadSnapshot(revision)}
 function restoreBackupSnapshot(revision){return backupWorkflows.restoreSnapshot(revision)}
 function exportJSON(){return backupWorkflows.exportFullBackup()}

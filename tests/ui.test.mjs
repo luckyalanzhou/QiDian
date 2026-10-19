@@ -91,6 +91,7 @@ import { useVaultStore } from '../src/features/vault/store.ts';
 import { useToastStore } from '../src/features/notifications/store.ts';
 import { useWorkspaceShellStore } from '../src/features/navigation/workspace-shell-store.ts';
 import { createBackupWorkflows } from '../src/features/settings/backup-workflows.ts';
+import { createBackupHistoryOpenFlow } from '../src/features/settings/backup-history-open-flow.ts';
 import { createTrashEntry, pruneExpiredTrash, restoreTrashEntry, TRASH_RETENTION_MS } from '../src/trash-data.js';
 import { renderReleaseNotes } from '../src/release-notes.js';
 import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from '../src/paste.js';
@@ -333,6 +334,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.createLegacyCategoryDialog = createLegacyCategoryDialog;
   w.createSignOutFlow = createSignOutFlow;
   w.createCaptureDialogPresenter = createCaptureDialogPresenter;
+  w.createBackupHistoryOpenFlow = createBackupHistoryOpenFlow;
   w.createNoteTypeDialogOpenFlow = createNoteTypeDialogOpenFlow;
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
