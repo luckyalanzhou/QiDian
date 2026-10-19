@@ -45,6 +45,7 @@ import { createNoteController as createNewNoteController } from './features/note
 import { isDraftNote as isDraft, needsPublish, publishedNoteView as publishedView, selectNotes } from './features/notes/selectors.ts';
 import { createNoteTypeDialogFlow } from './features/notes/type-dialog-flow.ts';
 import { createLegacyNoteTypeDialog } from './features/notes/legacy-type-dialog.ts';
+import { createNoteTypeDialogPresenter } from './features/notes/type-dialog-presenter.ts';
 import { mountCodeCopyButtons } from './features/reader/code-copy.ts';
 import { mountHeadingObserver } from './features/reader/heading-observer.ts';
 import { createCategoryDialogFlow } from './features/categories/category-dialog-flow.ts';
@@ -180,6 +181,7 @@ backupHistoryStore.configure({
 const noteTypesExpanded=()=>getVault().noteTypesExpanded!==false;
 const {persist,commitPersist}=createVaultPersistence({getVault,getUnsavedNewNoteId:()=>unsavedNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
 const legacyNoteTypeDialog=workspaceAppMounted?null:createLegacyNoteTypeDialog({document,escapeHtml:esc});
+const noteTypeDialogPresenter=createNoteTypeDialogPresenter({getVault,defaultNoteTypes:DEFAULT_NOTE_TYPES,displayTypeName,vueMounted:workspaceAppMounted,vueDialog:noteTypeDialogStore,legacyDialog:legacyNoteTypeDialog,notify:toast});
 const noteTypeDialogFlow=createNoteTypeDialogFlow({getVault,mutateVault,replaceVault,getTypeFilter:()=>navigationStore.typeFilter,setTypeFilter:filter=>{navigationStore.typeFilter=filter},commit:()=>commitPersist(),close:()=>{if(workspaceAppMounted)noteTypeDialogStore.close();legacyNoteTypeDialog?.close()},render,notify:toast});
 if(workspaceAppMounted)noteTypeDialogStore.bindSave(input=>noteTypeDialogFlow.save(input));
 function versionOf(n){return {title:n.title,type:n.type,category:n.category,tags:[...(n.tags||[])],body:n.body,source:n.source||'',updated:n.updated}}
@@ -550,20 +552,9 @@ function renderEditorLegacy(){if(!editorFactory){if(!editorLoading){main.innerHT
 }
 
 function openTypeDialog(mode,id=null){
- if(mode==='create'&&getVault().noteTypes.length>=50)return toast('最多支持 50 种笔记类型');
  closeMenu();
  if(navigationStore.editing){saveDraft(true);editorAutosave.clear();navigationStore.editing=false;navigationStore.editingDraft=null;render()}
- const item=getVault().noteTypes.find(type=>type.id===id);
- const automaticFallback=getVault().noteTypes.length===1&&id!=='note';
- const replacementTypes=[...getVault().noteTypes.filter(type=>type.id!==id),...(automaticFallback?[DEFAULT_NOTE_TYPES.find(type=>type.id==='note')].filter(Boolean):[])];
- const title=mode==='create'?'新增笔记类型':mode==='edit'?'编辑笔记类型':'删除笔记类型';
- const hint=mode==='delete'?'相关笔记会转移到所选类型，正文和附件不会删除。':'';
- const noteCount=mode==='delete'?getVault().notes.filter(note=>note.type===id).length:0;
- if(workspaceAppMounted){
-  noteTypeDialogStore.open({mode,id,title,hint,name:item?displayTypeName(item):'',noteCount,options:replacementTypes.map(type=>({id:type.id,name:type.name,autoCreate:automaticFallback}))});
-  return;
- }
- legacyNoteTypeDialog.open({mode,id,title,hint,name:item?displayTypeName(item):'',itemName:item?.name||'',noteCount,options:replacementTypes.map(type=>({id:type.id,name:type.name,autoCreate:automaticFallback}))});
+ noteTypeDialogPresenter.open(mode,id);
 }
 async function saveTypeDialog(){
  if(!legacyNoteTypeDialog)return;
