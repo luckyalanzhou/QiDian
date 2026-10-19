@@ -55,6 +55,7 @@ import { createNoteController as createNewNoteController } from '../src/features
 import { isDraftNote as isDraft, needsPublish, publishedNoteView as publishedView, selectNotes } from '../src/features/notes/selectors.ts';
 import { createNoteType, deleteNoteType, renameNoteType } from '../src/features/notes/type-actions.ts';
 import { createHtmlContentTools } from '../src/features/content/html-content.ts';
+import { createPastedTitleAutofill } from '../src/features/content/pasted-title-autofill.ts';
 import { createReaderSnapshot } from '../src/features/reader/snapshot.ts';
 import { createReaderActions } from '../src/features/reader/actions.ts';
 import { mountCodeCopyButtons } from '../src/features/reader/code-copy.ts';
@@ -320,6 +321,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.hasUnsaved = () => false; w.scrollTo = () => {}; w.confirm = () => { throw new Error('native confirm is not allowed'); }; w.prompt = () => { throw new Error('native prompt is not allowed'); };
   w.globalSearchDataStore = { open:false, query:'', configure(){}, show(query=''){this.query=query;this.open=true}, close(){this.open=false} };
   const appSource = (await readFile(new URL('../src/app.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
+  w.createPastedTitleAutofill = createPastedTitleAutofill;
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
   assert.ok(start >= 0 && end > start, 'workspace entrypoint should remain available to DOM tests');

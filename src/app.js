@@ -53,6 +53,7 @@ import { createCaptureFlow } from './features/capture/capture-flow.ts';
 import { createCaptureDOMAdapter } from './features/capture/capture-dom-adapter.ts';
 import { createLegacyCaptureDialog } from './features/capture/legacy-capture-dialog.ts';
 import { createHtmlContentTools } from './features/content/html-content.ts';
+import { createPastedTitleAutofill } from './features/content/pasted-title-autofill.ts';
 import { createThemeController } from './features/appearance/theme-controller.ts';
 import { createRemoteEditorRefresh } from './features/editor/remote-refresh.ts';
 import { createReaderSnapshot } from './features/reader/snapshot.ts';
@@ -439,7 +440,7 @@ const snapshotCurrentVault=createCurrentVaultSnapshot({
   notify:toast
  });
 function noteBodyText(body,title=''){return tinyText(readableNoteBody(body,title).html)}
-function autofillPastedTitle(fieldId,html,plain){const field=$('#'+fieldId);if(!field||field.value.trim())return false;const title=extractPastedTitle(html,plain);if(!title)return false;field.value=title;field.dispatchEvent(new Event('input',{bubbles:true}));return true}
+const autofillPastedTitle=createPastedTitleAutofill({document,extractPastedTitle});
 const syncConflictController=createSyncConflictController({
  store:syncConflictStore,
  getConflict:getSyncConflict,
