@@ -65,3 +65,10 @@ export function createWorkspaceNavigationEvents(dependencies: WorkspaceNavigatio
 
   return { handle };
 }
+
+export function createWorkspaceNavigationEventsForMode(
+  vueMounted: boolean,
+  dependencies: WorkspaceNavigationEventDependencies
+) {
+  return vueMounted ? null : createWorkspaceNavigationEvents(dependencies);
+}

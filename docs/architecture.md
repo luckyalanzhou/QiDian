@@ -47,7 +47,8 @@ flowchart LR
 - 每个迁移批次只改一个清晰的功能边界。先补或更新该边界的定向测试，再运行 `pnpm check` 和 `pnpm test`；涉及页面交互时，还要在本地浏览器用空白验收数据走完对应流程。发现失败先修复并重跑，再提交推送。阶段完成以门槛通过为准，不以代码已合并或测试已启动为准。
 - 2026-10-20：编辑器工具栏格式、插入、表格、编辑、段落和大纲动作统一由 `features/editor/action-dispatcher.ts` 按类型路由；定向单测覆盖全部动作组、编辑器未就绪保护及异步插入结果。桌面浏览器回归使用固定 `http://127.0.0.1:5173/`，验证加粗、插入表格及增删行；结束后清空临时笔记并确认无草稿残留。
 - 2026-10-20：导航命令执行与未保存编辑确认已迁入 `features/navigation/workspace-navigation-actions.ts`；Vue 导航 Store 直接调用该动作控制器，兼容 DOM 事件适配器只解析旧页面选择器。既有导航事务测试覆盖取消确认、命令路由和创建菜单行为。
-- 2026-10-20：工作区壳层命令执行已迁入 `features/navigation/workspace-shell-actions.ts`；Vue Store 和兼容 DOM 适配器共用同一动作控制器，DOM 事件模块只解析旧页面选择器、处理兼容弹窗关闭；定向测试 138/138、`pnpm check` 和全量 `pnpm test` 616/616 通过。桌面浏览器固定使用 `http://127.0.0.1:5173/`，验证主题菜单及深浅主题动作，并恢复原浅色设置；本次没有新增笔记、书签或回收站数据。
+- 2026-10-20：工作区壳层命令执行已迁入 `features/navigation/workspace-shell-actions.ts`；Vue Store 和兼容 DOM 适配器共用同一动作控制器，DOM 事件模块只解析旧页面选择器、处理兼容弹窗关闭；定向测试 138/138、`pnpm check` 和全量 `pnpm test` 617/617 通过。桌面浏览器固定使用 `http://127.0.0.1:5173/`，验证主题菜单及深浅主题动作，并恢复原浅色设置；本次没有新增笔记、书签或回收站数据。
+- 2026-10-20：Vue 已挂载时不再创建旧 `workspace-navigation-events.ts` DOM 导航适配器，兼容路径仍通过同一模式工厂创建；增加回归测试覆盖两种模式。
 - 第 3 阶段按“编辑器与页面生命周期 → 导航及工作区编排 → 设置、备份和账户流程 → 笔记列表、书签与回收站剩余适配 → 清除生产路径旧 DOM 和重复状态”的顺序逐块迁移。每个功能边界的测试通过后单独提交并推送 `main`，避免把尚未验证的跨功能重构累积到一个大提交。
 - 第 4 阶段按“SQLite/API 与 DOM 回归 → 桌面浏览器完整操作 → 手机实机操作 → iStoreOS/Docker 9908 安装、更新和数据保留 → 反向代理”验收。每轮浏览器验收开始前清理明确标记的旧验收数据，结束后清理本轮数据和站点存储；不确定归属的数据保留并标记为未验证。
 - 本地浏览器验收固定使用 `http://127.0.0.1:5173/`，以 `--strictPort` 启动；端口占用时先确认并关闭本任务启动的旧服务，不临时换端口。
@@ -90,7 +91,7 @@ flowchart LR
 - `workspace-static-dom-events.ts` 集中挂载摘录粘贴、类型和分类快捷键及静态弹层关闭事件，并返回卸载函数；页面组合层只注入具体业务回调。`Ctrl+K` / `⌘K` 打开 Vue 快速操作面板，搜索查询与结果由 Pinia 管理；顶栏搜索也直接使用该 Store。
 - `features/appearance/theme-controller.ts` 管理系统主题偏好、操作系统主题监听、文档颜色属性与 Pinia 投影；`features/editor/remote-refresh.ts` 将远端 Vault 更新安全同步到活动编辑器，保留编辑基线、表单状态和光标位置。
 - `features/sync/remote-vault-update-controller.ts` 负责应用远端 Vault 快照、保留本地编辑、恢复未提交的新草稿，以及在远端删除当前笔记时安全退出编辑并恢复页面滚动位置；应用组合层仅注入 Pinia、编辑器和导航副作用。
-- Vue 仪表盘、笔记列表、笔记卡片、桌面侧栏、手机底栏与阅读/编辑返回按钮通过 `navigation-actions-store.ts` 发出类型化导航命令；`workspace-navigation-actions.ts` 负责命令执行与未保存编辑确认，Vue Store 直接绑定此控制器。`workspace-navigation-events.ts` 仅把兼容 DOM 的旧选择器转换为类型化命令；侧栏类型和分类操作、笔记卡片删除通过 `workspace-shell-actions-store.ts` 发出类型化功能命令，由 `workspace-shell-actions.ts` 执行并沿用删除事务。
+- Vue 仪表盘、笔记列表、笔记卡片、桌面侧栏、手机底栏与阅读/编辑返回按钮通过 `navigation-actions-store.ts` 发出类型化导航命令；`workspace-navigation-actions.ts` 负责命令执行与未保存编辑确认，Vue Store 直接绑定此控制器。`workspace-navigation-events.ts` 仅把兼容 DOM 的旧选择器转换为类型化命令，且 Vue 已挂载时不会构造该适配器；侧栏类型和分类操作、笔记卡片删除通过 `workspace-shell-actions-store.ts` 发出类型化功能命令，由 `workspace-shell-actions.ts` 执行并沿用删除事务。
 - 服务端 `server/api.js` 负责 Origin 校验、会话认证、公共响应策略和路由分发。账号、认证、设备更新、知识库、备份和附件分别位于 `server/features/`，继续使用现有 Request / Response 接口，供 Node.js HTTP 服务复用。`server/validation.js` 将共享领域校验错误映射为稳定的 HTTP 错误类型。
 - `shared/api-contracts.js` 定义 JSON API 请求与响应的运行时校验，`shared/api-contracts.d.ts` 提供同源 TypeScript 类型。前端对认证、密码、知识库写入和设备更新等 JSON 请求在发送前校验；服务端在进入领域处理前校验相同的请求契约。服务端 `server/http-responses.js` 集中安全响应头，并强制成功 JSON 响应声明契约、错误响应符合共享错误结构；前端 `src/api/client.ts` 验证成功响应及错误对象形状，避免仅靠 `as T` 掩盖服务端与前端的字段漂移。头像和附件等二进制响应不经过 JSON 契约。
 - `server/features/` 负责 HTTP 参数、限流和 Cookie、状态码及错误映射；首个管理员初始化、注册、登录挑战、凭据验证与会话创建由 `server/application/auth-service.js` 编排；账号资料、头像和密码用例由 `server/application/account-service.js` 编排验证、条件更新和 Repository 调用；附件上传、分块读取与基于当前知识库及历史快照的清理由 `server/application/asset-service.js` 编排；备份列表、创建与快照读取由 `server/application/backup-service.js` 编排；知识库读写用例由 `server/application/vault-service.js` 编排校验与 revision 冲突处理；设备版本检查和更新授权由 `server/application/system-update-service.js` 编排，HTTP 功能层负责读取请求并映射响应。容器密码重置命令通过本机 SQLite 仓储完成账号查询和事务更新。账号私有数据 SQL 始终带账号条件，revision 冲突仍返回原有 409 响应。

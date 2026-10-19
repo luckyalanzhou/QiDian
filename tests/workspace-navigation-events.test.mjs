@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorkspaceNavigationActions } from '../src/features/navigation/workspace-navigation-actions.ts';
-import { createWorkspaceNavigationEvents } from '../src/features/navigation/workspace-navigation-events.ts';
+import { createWorkspaceNavigationEvents, createWorkspaceNavigationEventsForMode } from '../src/features/navigation/workspace-navigation-events.ts';
 
 function harness({ editing = false, changes = false, confirm = true } = {}) {
   const calls = [];
@@ -118,4 +118,10 @@ test('opening the create menu stays in the editor until a creation action is cho
   assert.equal(await h.actions.execute({ type: 'open-create-menu' }), true);
   assert.equal(await h.events.handle(click(['#mobileNew']).event), true);
   assert.deepEqual(h.calls, [['open-create-menu'], ['open-create-menu']]);
+});
+
+test('Vue mode does not construct the legacy DOM navigation adapter', () => {
+  const dependencies = { execute: () => true };
+  assert.equal(createWorkspaceNavigationEventsForMode(true, dependencies), null);
+  assert.equal(typeof createWorkspaceNavigationEventsForMode(false, dependencies)?.handle, 'function');
 });

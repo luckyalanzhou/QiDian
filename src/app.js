@@ -38,7 +38,7 @@ import { createWorkspaceShellActions } from './features/navigation/workspace-she
 import { createMobileMenuFocusController } from './features/navigation/mobile-menu-focus-controller.ts';
 import { createWorkspaceViewDispatcher } from './features/navigation/workspace-view-dispatcher.ts';
 import { createLegacyWorkspaceRenderer } from './features/navigation/legacy-workspace-renderer.js';
-import { createWorkspaceNavigationEvents } from './features/navigation/workspace-navigation-events.ts';
+import { createWorkspaceNavigationEventsForMode } from './features/navigation/workspace-navigation-events.ts';
 import { createWorkspaceShellEvents } from './features/navigation/workspace-shell-events.ts';
 import { createWorkspaceContentEvents } from './features/navigation/workspace-content-events.ts';
 import { createEditorToolbarEvents } from './features/editor/toolbar-events.ts';
@@ -331,7 +331,7 @@ const workspaceNavigationActions=createWorkspaceNavigationActions({
  createQuickImage:()=>{createNew('note');setTimeout(()=>$('#imageFile').click(),250)},
  closeSearch
 });
-const workspaceNavigationEvents=createWorkspaceNavigationEvents({execute:workspaceNavigationActions.execute});
+const workspaceNavigationEvents=createWorkspaceNavigationEventsForMode(workspaceAppMounted,{execute:workspaceNavigationActions.execute});
 navigationActionsStore.bind(command=>workspaceNavigationActions.execute(command));
 const editorToolbarEvents=workspaceAppMounted?null:createEditorToolbarEvents({closeSlashMenu,format:doFormat,insert:doInsert,tableAction:runTableAction});
 const workspaceShellActions=createWorkspaceShellActions({
