@@ -46,6 +46,7 @@ import { createEditorToolbarEvents } from '../src/features/editor/toolbar-events
 import { mountEditorFileInputEvents } from '../src/features/editor/file-input-events.ts';
 import { mountBackupImportFileEvents } from '../src/features/settings/import-file-events.ts';
 import { createProfileSettingsFlow } from '../src/features/account/profile-settings-flow.ts';
+import { createSignOutFlow } from '../src/features/account/sign-out-flow.ts';
 import { createAppSettingsActions } from '../src/features/settings/app-settings-actions.ts';
 import { createNotePublishFlow } from '../src/features/editor/note-publish-flow.ts';
 import { createContentInsertionController } from '../src/features/editor/content-insertion.ts';
@@ -330,6 +331,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.createLegacyEditorOutlineView = createLegacyEditorOutlineView;
   w.createMobileMenuFocusController = createMobileMenuFocusController;
   w.createLegacyCategoryDialog = createLegacyCategoryDialog;
+  w.createSignOutFlow = createSignOutFlow;
   w.createCaptureDialogPresenter = createCaptureDialogPresenter;
   w.createNoteTypeDialogOpenFlow = createNoteTypeDialogOpenFlow;
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");

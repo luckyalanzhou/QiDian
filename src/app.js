@@ -11,6 +11,7 @@ import { createTrashWorkflows } from './features/trash/workflows.ts';
 import { createVaultMutation } from './features/vault/mutation.ts';
 import { createVaultPersistence } from './features/vault/persistence.ts';
 import { createSystemUpdateController } from './features/system-updates/controller.ts';
+import { createSignOutFlow } from './features/account/sign-out-flow.ts';
 import { createSyncConflictController } from './features/sync/sync-conflict-controller.ts';
 import { renderReleaseNotes } from './release-notes.js';
 import { createEditorCommandController } from './features/editor/command-controller.ts';
@@ -650,7 +651,8 @@ trashDataStore.bindActions(trashWorkflows||{
  pruneExpired:()=>recycleBinView?.pruneExpired()||0
 });
 function openAppSettings(){closeAccountMenu();void appSettings.show()}
-async function signOut(){if(navigationStore.editing){editorAutosave.clear();saveDraft(true)}if(!await flush()){toast('修改暂未写入；请到设置中重试保存后再退出');return}try{await logoutAccount();location.reload()}catch(error){toast(error.message)}}
+const signOutFlow=createSignOutFlow({isEditing:()=>navigationStore.editing,clearAutosave:()=>editorAutosave.clear(),saveDraft:()=>saveDraft(true),flush,logout:()=>logoutAccount(),reload:()=>location.reload(),notify:toast});
+function signOut(){void signOutFlow.run()}
 workspaceShellStore.setIdentity(initial.username||'本地预览',!!initial.local);
 if(!initial.local)void profileSettings.refresh().catch(()=>{});
 const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
