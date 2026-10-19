@@ -19,6 +19,7 @@ import { createNoteTypeDialogFlow } from '../src/features/notes/type-dialog-flow
 import { createNoteTypeDialogPresenter } from '../src/features/notes/type-dialog-presenter.ts';
 import { createLegacyNoteTypeDialog } from '../src/features/notes/legacy-type-dialog.ts';
 import { createCategoryDialogFlow } from '../src/features/categories/category-dialog-flow.ts';
+import { createLegacyCategoryDialog } from '../src/features/categories/legacy-category-dialog.ts';
 import { createCaptureFlow } from '../src/features/capture/capture-flow.ts';
 import { createCaptureDOMAdapter } from '../src/features/capture/capture-dom-adapter.ts';
 import { createLegacyCaptureDialog } from '../src/features/capture/legacy-capture-dialog.ts';
@@ -322,6 +323,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.globalSearchDataStore = { open:false, query:'', configure(){}, show(query=''){this.query=query;this.open=true}, close(){this.open=false} };
   const appSource = (await readFile(new URL('../src/app.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
   w.createPastedTitleAutofill = createPastedTitleAutofill;
+  w.createLegacyCategoryDialog = createLegacyCategoryDialog;
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
   assert.ok(start >= 0 && end > start, 'workspace entrypoint should remain available to DOM tests');

@@ -49,6 +49,7 @@ import { createNoteTypeDialogPresenter } from './features/notes/type-dialog-pres
 import { mountCodeCopyButtons } from './features/reader/code-copy.ts';
 import { mountHeadingObserver } from './features/reader/heading-observer.ts';
 import { createCategoryDialogFlow } from './features/categories/category-dialog-flow.ts';
+import { createLegacyCategoryDialog } from './features/categories/legacy-category-dialog.ts';
 import { createCaptureFlow } from './features/capture/capture-flow.ts';
 import { createCaptureDOMAdapter } from './features/capture/capture-dom-adapter.ts';
 import { createLegacyCaptureDialog } from './features/capture/legacy-capture-dialog.ts';
@@ -259,6 +260,7 @@ const bookmarkMutationActions=createBookmarkMutationActions({
  notify:toast
 });
 const categoryDialogFlow=createCategoryDialogFlow({getVault,mutateVault:vaultMutation});
+const legacyCategoryDialog=workspaceAppMounted?null:createLegacyCategoryDialog({document,scheduleFocus:callback=>setTimeout(callback,50)});
 const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>tinyText(html)});
 const legacyCaptureDialog=workspaceAppMounted?null:createLegacyCaptureDialog({document,escapeHtml:esc});
 if(workspaceAppMounted)captureDialogStore.bindSave(async input=>{const note=await captureFlow.save(input);openNote(note.id)});
@@ -631,8 +633,8 @@ if(workspaceAppMounted)captureDialogStore.bindPasteHandler(pasteRich);
 function openCapture(options={}){closeMenu();if(workspaceAppMounted){captureDialogStore.open({types:getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),categories:getVault().categories,pasteMode:preferredPasteMode(),restoreFocusOnClose:options.restoreFocusOnClose});return}legacyCaptureDialog.open({types:getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),defaultType:getVault().noteTypes.find(type=>type.id==='clip')?.id||getVault().noteTypes[0].id,categoryOptions:categoryOptions('网页摘录'),pasteMode:preferredPasteMode()})}
 function closeCapture(){if(workspaceAppMounted){captureDialogStore.close();return}legacyCaptureDialog.close()}
 async function saveCapture(){if(!legacyCaptureDialog)return;try{const note=await captureFlow.save(legacyCaptureDialog.readInput());closeCapture();openNote(note.id)}catch(error){toast(error.message||'网页摘录尚未保存')}}
-function openCategoryDialog(){closeMenu();if(workspaceAppMounted){categoryDialogStore.open();return}const input=$('#categoryNameInput');input.value='';$('#categoryDialogMessage').textContent='';$('#categoryOverlay').classList.add('open');setTimeout(()=>input.focus(),50)}
-async function saveCategory(){const input=$('#categoryNameInput'),message=$('#categoryDialogMessage');try{const saved=await categoryDialogFlow.save(input.value);$('#categoryOverlay').classList.remove('open');openHome(saved)}catch(error){message.textContent=error.message||'分类尚未保存';input.focus()}}
+function openCategoryDialog(){closeMenu();if(workspaceAppMounted){categoryDialogStore.open();return}legacyCategoryDialog?.open()}
+async function saveCategory(){if(!legacyCategoryDialog)return;try{const saved=await categoryDialogFlow.save(legacyCategoryDialog.readInput());legacyCategoryDialog.close();openHome(saved)}catch(error){legacyCategoryDialog.showError(error)}}
 async function openBackupHistory(){if(navigationStore.editing)saveDraft(true);closeAccountSettings();closeMenu();backupHistoryStore.show();await backupHistoryStore.refresh()}
 function downloadBackupSnapshot(revision){return backupWorkflows.downloadSnapshot(revision)}
 function restoreBackupSnapshot(revision){return backupWorkflows.restoreSnapshot(revision)}
