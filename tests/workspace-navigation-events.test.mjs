@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createWorkspaceNavigationActions } from '../src/features/navigation/workspace-navigation-actions.ts';
 import { createWorkspaceNavigationEvents } from '../src/features/navigation/workspace-navigation-events.ts';
 
 function harness({ editing = false, changes = false, confirm = true } = {}) {
@@ -8,7 +9,7 @@ function harness({ editing = false, changes = false, confirm = true } = {}) {
     'openHome', 'openDashboard', 'openBookmarks', 'openTrash', 'openNoteType',
     'filterHome', 'openNote', 'backFromNote'
   ].map(name => [name, (...args) => calls.push([name, ...args])]));
-  const events = createWorkspaceNavigationEvents({
+  const actions = createWorkspaceNavigationActions({
     navigation,
     isEditing: () => editing,
     editorHasChanges: () => changes,
@@ -20,7 +21,8 @@ function harness({ editing = false, changes = false, confirm = true } = {}) {
     createQuickImage: () => calls.push(['quick-image']),
     closeSearch: () => calls.push(['close-search'])
   });
-  return { events, calls };
+  const events = createWorkspaceNavigationEvents({ execute: actions.execute });
+  return { actions, events, calls };
 }
 
 function click(targetSelectors, attributes = {}) {
@@ -88,22 +90,22 @@ test('creation and return controls keep their feature actions behind navigation 
   ]);
 });
 
-test('typed Vue navigation commands use the same unsaved-edit confirmation as compatibility clicks', async () => {
+test('typed navigation commands use the same unsaved-edit confirmation as compatibility clicks', async () => {
   const h = harness({ editing: true, changes: true, confirm: false });
 
-  assert.equal(await h.events.execute({ type: 'open-note', id: 'note-2' }), true);
-  assert.equal(await h.events.execute({ type: 'filter-home', typeFilter: 'command' }), true);
+  assert.equal(await h.actions.execute({ type: 'open-note', id: 'note-2' }), true);
+  assert.equal(await h.actions.execute({ type: 'filter-home', typeFilter: 'command' }), true);
   assert.deepEqual(h.calls, [
     ['confirm-leave'],
     ['filterHome', 'command']
   ]);
 });
 
-test('typed Vue navigation commands call the feature controller without translating CSS selectors', () => {
+test('typed navigation commands call feature actions without translating CSS selectors', () => {
   const h = harness();
 
-  assert.equal(h.events.execute({ type: 'create-note', kind: 'command' }), true);
-  assert.equal(h.events.execute({ type: 'back' }), true);
+  assert.equal(h.actions.execute({ type: 'create-note', kind: 'command' }), true);
+  assert.equal(h.actions.execute({ type: 'back' }), true);
   assert.deepEqual(h.calls, [
     ['create-new', 'command'],
     ['backFromNote']
@@ -113,7 +115,7 @@ test('typed Vue navigation commands call the feature controller without translat
 test('opening the create menu stays in the editor until a creation action is chosen', async () => {
   const h = harness({ editing: true, changes: true });
 
-  assert.equal(await h.events.execute({ type: 'open-create-menu' }), true);
+  assert.equal(await h.actions.execute({ type: 'open-create-menu' }), true);
   assert.equal(await h.events.handle(click(['#mobileNew']).event), true);
   assert.deepEqual(h.calls, [['open-create-menu'], ['open-create-menu']]);
 });

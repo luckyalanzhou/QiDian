@@ -33,6 +33,7 @@ import { createAppSettingsActions } from './features/settings/app-settings-actio
 import { createBackupWorkflows } from './features/settings/backup-workflows.ts';
 import { createBackupHistoryOpenFlow } from './features/settings/backup-history-open-flow.ts';
 import { createWorkspaceNavigationController } from './features/navigation/workspace-navigation-controller.ts';
+import { createWorkspaceNavigationActions } from './features/navigation/workspace-navigation-actions.ts';
 import { createMobileMenuFocusController } from './features/navigation/mobile-menu-focus-controller.ts';
 import { createWorkspaceViewDispatcher } from './features/navigation/workspace-view-dispatcher.ts';
 import { createLegacyWorkspaceRenderer } from './features/navigation/legacy-workspace-renderer.js';
@@ -317,7 +318,7 @@ const newNoteController=createNewNoteController({getContext:()=>({editing:naviga
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
 function addBookmark(folderId=''){openBookmarks();if(workspaceAppMounted)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
 function openTrash(){workspaceNavigation.openTrash()}
-const workspaceNavigationEvents=createWorkspaceNavigationEvents({
+const workspaceNavigationActions=createWorkspaceNavigationActions({
  navigation:workspaceNavigation,
  isEditing:()=>navigationStore.editing,
  editorHasChanges,
@@ -329,7 +330,8 @@ const workspaceNavigationEvents=createWorkspaceNavigationEvents({
  createQuickImage:()=>{createNew('note');setTimeout(()=>$('#imageFile').click(),250)},
  closeSearch
 });
-navigationActionsStore.bind(command=>workspaceNavigationEvents.execute(command));
+const workspaceNavigationEvents=createWorkspaceNavigationEvents({execute:workspaceNavigationActions.execute});
+navigationActionsStore.bind(command=>workspaceNavigationActions.execute(command));
 const editorToolbarEvents=workspaceAppMounted?null:createEditorToolbarEvents({closeSlashMenu,format:doFormat,insert:doInsert,tableAction:runTableAction});
 const workspaceShellEvents=createWorkspaceShellEvents({
  closeThemeMenu,
