@@ -10,6 +10,7 @@ import { createTrashEntry } from './trash-data.js';
 import { createTrashWorkflows } from './features/trash/workflows.ts';
 import { createVaultMutation } from './features/vault/mutation.ts';
 import { createVaultPersistence } from './features/vault/persistence.ts';
+import { createWorkspaceReplacementFlow } from './features/vault/workspace-replacement-flow.ts';
 import { createSystemUpdateController } from './features/system-updates/controller.ts';
 import { createSignOutFlow } from './features/account/sign-out-flow.ts';
 import { createSyncConflictController } from './features/sync/sync-conflict-controller.ts';
@@ -104,6 +105,7 @@ function mutateVault(operation){return vaultDataStore.mutate(operation)}
 globalSearchDataStore.configure({bodyText:body=>tinyText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
 let lastRenderedPage='',editorBaseline=null,unsavedNewNoteId=null,editorFactory=window.__qidianTestEditorFactory||null,editorLoading=null,richEditor=null,editorCommands=null,richEditorDraftId=null;
 let editorAutosave=null;
+let workspaceReplacementFlow=null;
 let legacyWorkspaceRenderer=null;
 const confirmAction=(message,options={})=>openActionDialog({message,...options}).then(Boolean);
 const promptAction=(message,defaultValue='',options={})=>openActionDialog({mode:'prompt',message,inputValue:defaultValue,...options});
@@ -132,12 +134,7 @@ const appSettingsActions=createAppSettingsActions({
  exportBackup,
  reloadCloud,
  restoreIgnoredDraft,
- replaceWorkspace:restored=>{
-  editorAutosave.clear();if(navigationStore.editing)destroyRichEditor();
-  unsavedNewNoteId=null;
-  replaceVault({...restored,trash:restored.trash||[]});applyTheme(getVault().theme);syncBookmarkPreferences();
-  workspaceNavigation.resetHome();
- },
+ replaceWorkspace:restored=>workspaceReplacementFlow.replace(restored,{navigation:'reset-home'}),
  markIgnoredDraftHandled:()=>{initial.ignoredDraft=false;refreshSettingsIndicators()},
  queueSave,
  openSyncConflict,
@@ -176,13 +173,10 @@ const backupWorkflows=createBackupWorkflows({
  validateVault,
  cleanHTML,
  commitSave,
- replaceWorkspace:(restored,mode)=>{
-  editorAutosave.clear();if(navigationStore.editing)destroyRichEditor();
-  editorBaseline=null;unsavedNewNoteId=null;
-  replaceVault(restored);applyTheme(getVault().theme);syncBookmarkPreferences();
-  if(mode==='import')workspaceNavigation.resetHome();else workspaceNavigation.returnHomePreservingList();
-  backupHistoryStore.close();
- },
+ replaceWorkspace:(restored,mode)=>workspaceReplacementFlow.replace(restored,{
+  navigation:mode==='import'?'reset-home':'preserve-list',
+  closeBackupHistory:true
+ }),
  downloadJSON:(value,filename)=>download(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}),filename),
  pruneAssets,
  clearImportFile:()=>{const input=$('#importFile');if(input)input.value=''},
@@ -315,6 +309,19 @@ function workspaceNavigationState(){return navigationStore.getWorkspaceState()}
 function applyWorkspaceNavigationState(state){navigationStore.setWorkspaceState(state)}
 const mobileMenuFocusController=createMobileMenuFocusController({document,isOpen:()=>workspaceShellStore.mobileMenuOpen,close:()=>workspaceShellStore.closeMobileMenu(),getSidebar:()=>$('#sidebar'),getMenuButton:()=>$('#menuBtn'),getMain:()=>main,scheduleFocus:callback=>requestAnimationFrame(callback)});
 const workspaceNavigation=createWorkspaceNavigationController({getState:workspaceNavigationState,setState:applyWorkspaceNavigationState,findNote:id=>getVault().notes.find(n=>n.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>editorAutosave.clear(),closeMenu,render,getScrollY:()=>window.scrollY,scrollTo:position=>window.scrollTo({top:position}),openBookmarkFolder,resumeBookmarks});
+workspaceReplacementFlow=createWorkspaceReplacementFlow({
+ isEditing:()=>navigationStore.editing,
+ clearAutosave:()=>editorAutosave.clear(),
+ destroyEditor:destroyRichEditor,
+ clearEditorBaseline:()=>{editorBaseline=null},
+ clearUnsavedNewNote:()=>{unsavedNewNoteId=null},
+ replaceVault,
+ applyTheme:theme=>applyTheme(theme),
+ syncBookmarkPreferences,
+ resetHome:()=>workspaceNavigation.resetHome(),
+ returnHomePreservingList:()=>workspaceNavigation.returnHomePreservingList(),
+ closeBackupHistory:()=>backupHistoryStore.close()
+});
 const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{unsavedNewNoteId=note.id;navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorBaseline=editorContentSnapshot(navigationStore.editingDraft);navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
 function addBookmark(folderId=''){openBookmarks();if(workspaceAppMounted)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
@@ -474,7 +481,7 @@ const syncConflictController=createSyncConflictController({
  exportConflict:exportSyncConflict,
  confirmRestore:()=>confirmAction('已下载修改对照备份。继续载入已保存版本？',{title:'载入已保存版本',confirmText:'载入'}),
  reloadCloud,
- replaceWorkspace:restored=>{editorAutosave.clear();destroyRichEditor();replaceVault({...restored,trash:restored.trash||[]});applyTheme(getVault().theme);syncBookmarkPreferences();workspaceNavigation.resetHome()},
+ replaceWorkspace:restored=>workspaceReplacementFlow.replace(restored,{navigation:'reset-home'}),
  notify:toast
 });
 function openSyncConflict(){syncConflictController.open()}
