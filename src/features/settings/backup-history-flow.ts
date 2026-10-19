@@ -27,7 +27,7 @@ export function createBackupHistoryFlow(dependencies: BackupHistoryDependencies)
 
   function emptyMessage() {
     if (state.items.length) return '';
-    return dependencies.localPreview ? '本地开发预览不创建服务端快照。' : '当前账号还没有可查看的快照。';
+    return dependencies.localPreview ? '本地预览模式不提供服务端快照。' : '当前账号还没有可查看的快照。';
   }
 
   return { state, refresh, emptyMessage };

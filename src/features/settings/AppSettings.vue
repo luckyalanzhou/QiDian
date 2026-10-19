@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { useAppSettingsStore, type AppSettingsAction } from './app-settings-store';
+import { useWorkspaceShellStore } from '../navigation/workspace-shell-store';
 
 const state = useAppSettingsStore();
+const shell = useWorkspaceShellStore();
 const dialog = ref<HTMLElement | null>(null);
 let returnFocus: HTMLElement | null = null;
 
@@ -32,7 +34,7 @@ watch(() => state.open, async open => {
       <div class="dialog-body account-settings-body">
         <section class="settings-group">
           <h3>数据与恢复</h3>
-          <p class="hint settings-group-hint">笔记保存在 Docker 挂载的数据目录。</p>
+          <p class="hint settings-group-hint">{{ shell.localPreview ? '数据仅保存在此浏览器的本地预览库。' : '笔记保存在 Docker 挂载的数据目录。' }}</p>
           <div class="settings-actions">
             <button class="settings-action" id="retrySync" type="button" @click="state.dispatch('retry-sync')">
               <span class="ico"><svg><use href="#i-upload" /></svg></span>
@@ -40,7 +42,7 @@ watch(() => state.open, async open => {
             </button>
             <button class="settings-action" id="reloadCloud" type="button" @click="state.dispatch('reload-cloud')">
               <span class="ico"><svg><use href="#i-note" /></svg></span>
-              <span><strong>重新载入数据</strong><small>用 Docker 数据目录中的版本替换当前页面内容</small></span>
+              <span><strong>重新载入数据</strong><small>{{ shell.localPreview ? '用此浏览器保存的数据替换当前页面内容' : '用 Docker 数据目录中的版本替换当前页面内容' }}</small></span>
             </button>
             <button class="settings-action" id="reviewSyncConflict" type="button" :hidden="!state.hasConflict" @click="state.dispatch('review-conflict')">
               <span class="ico"><svg><use href="#i-note" /></svg></span>
@@ -54,11 +56,11 @@ watch(() => state.open, async open => {
         </section>
         <section class="settings-group">
           <h3>备份与迁移</h3>
-          <p class="hint settings-group-hint">下载历史快照，或导出、导入完整知识库备份。</p>
+          <p class="hint settings-group-hint">{{ shell.localPreview ? '本地预览支持导出或导入完整知识库备份。' : '下载历史快照，或导出、导入完整知识库备份。' }}</p>
           <div class="settings-actions">
             <button class="settings-action" id="backupHistory" type="button" @click="state.dispatch('backup-history')">
               <span class="ico"><svg><use href="#i-note" /></svg></span>
-              <span><strong>自动备份</strong><small>查看并下载自动保存的历史快照</small></span>
+              <span><strong>自动备份</strong><small>{{ shell.localPreview ? '本地预览暂不提供历史快照' : '查看并下载自动保存的历史快照' }}</small></span>
             </button>
             <button class="settings-action" id="exportBtn" type="button" @click="state.dispatch('export-backup')">
               <span class="ico"><svg><use href="#i-download" /></svg></span>
@@ -71,7 +73,7 @@ watch(() => state.open, async open => {
           </div>
         </section>
       </div>
-      <div class="dialog-foot account-dialog-foot"><span class="hint">设置只影响当前账号</span></div>
+      <div class="dialog-foot account-dialog-foot"><span class="hint">{{ shell.localPreview ? '设置仅影响当前浏览器预览' : '设置只影响当前账号' }}</span></div>
     </section>
   </div>
 </template>

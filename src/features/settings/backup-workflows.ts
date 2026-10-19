@@ -3,6 +3,7 @@ export type BackupVault = { notes: BackupNote[]; theme?: string; trash?: unknown
 export type BackupRevision = string | number;
 
 export type BackupWorkflowDependencies = {
+  localPreview: boolean;
   getData: () => BackupVault;
   saveActiveEditor: () => unknown | Promise<unknown>;
   confirmAction: (message: string, options: { title: string; confirmText: string; danger?: boolean }) => Promise<boolean>;
@@ -32,8 +33,9 @@ export function createBackupWorkflows(dependencies: BackupWorkflowDependencies) 
   }
 
   async function restoreSnapshot(revision: BackupRevision) {
+    const destination = dependencies.localPreview ? '本地预览数据' : 'Docker 服务端';
     const confirmed = await dependencies.confirmAction(
-      `将用历史版本 ${revision} 替换当前知识库。恢复前会先下载当前完整备份（含附件），之后再提交 Docker 服务端恢复。是否继续？`,
+      `将用历史版本 ${revision} 替换当前知识库。恢复前会先下载当前完整备份（含附件），之后再提交到${destination}。是否继续？`,
       { title: '恢复历史备份', confirmText: '恢复', danger: true }
     );
     if (!confirmed) return;
@@ -72,8 +74,11 @@ export function createBackupWorkflows(dependencies: BackupWorkflowDependencies) 
   async function importBackup(file: File | null | undefined) {
     if (!file) return;
     try {
+      const destination = dependencies.localPreview ? '本地预览数据' : 'Docker 服务端';
       const confirmed = await dependencies.confirmAction(
-        '导入会替换当前知识库。继续后将先保存编辑内容、导出完整备份并创建服务端快照，是否继续？',
+        dependencies.localPreview
+          ? '导入会替换当前知识库。继续后将先保存编辑内容并导出完整备份，是否继续？'
+          : '导入会替换当前知识库。继续后将先保存编辑内容、导出完整备份并创建服务端快照，是否继续？',
         { title: '导入备份', confirmText: '继续导入', danger: true }
       );
       if (!confirmed) return;
@@ -89,7 +94,7 @@ export function createBackupWorkflows(dependencies: BackupWorkflowDependencies) 
       await dependencies.commitSave(candidate);
       dependencies.replaceWorkspace(candidate, 'import');
       await dependencies.pruneAssets();
-      dependencies.notify('导入完成，当前知识库已写入 Docker 服务端');
+      dependencies.notify(dependencies.localPreview ? '导入完成，本地预览数据已更新' : '导入完成，知识库已更新');
     } catch (error) {
       await dependencies.pruneAssets().catch(() => {});
       dependencies.notify(`导入失败：${(error as Error)?.message || '请稍后重试'}`);

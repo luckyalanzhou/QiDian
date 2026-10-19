@@ -36,5 +36,5 @@ test('backup history flow reports load errors and distinguishes local preview em
 
   const local = createBackupHistoryFlow({ listBackups: async () => [], localPreview: true });
   await local.refresh();
-  assert.equal(local.emptyMessage(), '本地开发预览不创建服务端快照。');
+  assert.equal(local.emptyMessage(), '本地预览模式不提供服务端快照。');
 });

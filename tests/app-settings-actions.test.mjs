@@ -6,10 +6,11 @@ function makeHarness(overrides = {}) {
   const events = [];
   let currentData = { notes: [], trash: [] };
   const dependencies = {
+    localPreview: false,
     closeSettings: () => events.push('close-settings'),
     closeMenu: () => events.push('close-menu'),
     retrySync: () => events.push('retry-sync'),
-    confirmReload: async () => { events.push('confirm'); return true; },
+    confirmReload: async sourceLabel => { events.push(['confirm', sourceLabel]); return true; },
     saveActiveEditor: () => events.push('save-editor'),
     getCurrentData: () => structuredClone(currentData),
     exportBackup: async data => { events.push(['backup', structuredClone(data)]); },
@@ -39,14 +40,14 @@ test('settings reload exports the active editor snapshot before replacing it wit
   harness.actions.dispatch('reload-cloud');
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.deepEqual(harness.events, [
-    'confirm',
+    ['confirm', 'Docker 服务端版本'],
     'save-editor',
     ['backup', { notes: [{ id: 'unsaved-editor' }], trash: [] }],
     'close-settings',
     'close-menu',
     'reload-cloud',
     ['replace', { notes: [{ id: 'cloud' }], trash: [] }],
-    ['notify', '已载入 Docker 服务端版本']
+    ['notify', '已重新载入已保存的数据']
   ]);
 });
 
@@ -55,17 +56,27 @@ test('settings reload keeps the current workspace open if a complete backup fail
   harness.actions.dispatch('reload-cloud');
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.deepEqual(harness.events, [
-    'confirm',
+    ['confirm', 'Docker 服务端版本'],
     'save-editor',
     ['notify', '重新载入已取消，当前内容未替换：快照暂不可用']
   ]);
 });
 
 test('cancelling settings reload performs no backup or workspace mutation', async () => {
-  const harness = makeHarness({ confirmReload: async () => { harness.events.push('confirm'); return false; } });
+  const harness = makeHarness({ confirmReload: async sourceLabel => { harness.events.push(['confirm', sourceLabel]); return false; } });
   harness.actions.dispatch('reload-cloud');
   await new Promise(resolve => setTimeout(resolve, 0));
-  assert.deepEqual(harness.events, ['confirm']);
+  assert.deepEqual(harness.events, [['confirm', 'Docker 服务端版本']]);
+});
+
+test('local preview reload labels its actual browser storage source', async () => {
+  const harness = makeHarness({ localPreview: true });
+  harness.actions.dispatch('reload-cloud');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(harness.events.filter(event => event[0] === 'confirm' || event[0] === 'notify'), [
+    ['confirm', '本地预览数据'],
+    ['notify', '已重新载入本地预览数据']
+  ]);
 });
 
 test('restoring a matching local draft queues it, while conflicts open the conflict workspace without saving', async () => {

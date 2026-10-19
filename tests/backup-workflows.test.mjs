@@ -9,6 +9,7 @@ function makeHarness(options = {}) {
   const current = vault();
   const restored = options.restored || vault('历史内容');
   const workflows = createBackupWorkflows({
+    localPreview: options.localPreview ?? false,
     getData: () => { events.push(['get-data']); return structuredClone(current); },
     saveActiveEditor: async () => { events.push(['save-editor']); if (options.saveError) throw Error(options.saveError); },
     confirmAction: async (message, config) => { events.push(['confirm', message, config]); return options.confirmed ?? true; },
@@ -63,7 +64,17 @@ test('backup import saves the editor, exports a recovery copy, then commits befo
   assert.ok(names.indexOf('commit-save') < names.indexOf('replace-workspace'));
   assert.equal(harness.events.find(event => event[0] === 'read-backup')[1], file);
   assert.equal(harness.events.find(event => event[0] === 'replace-workspace')[2], 'import');
+  assert.equal(harness.events.find(event => event[0] === 'notify')[1], '导入完成，知识库已更新');
   assert.equal(names.at(-1), 'clear-import-file');
+});
+
+test('local preview backup import does not claim to create a server snapshot or write Docker data', async () => {
+  const harness = makeHarness({ localPreview: true });
+  await harness.workflows.importBackup({ name: 'backup.json' });
+  const confirmation = harness.events.find(event => event[0] === 'confirm')[1];
+  const notification = harness.events.find(event => event[0] === 'notify')[1];
+  assert.doesNotMatch(confirmation, /服务端快照/);
+  assert.equal(notification, '导入完成，本地预览数据已更新');
 });
 
 test('cancelled backup import never changes data and still clears the file input', async () => {

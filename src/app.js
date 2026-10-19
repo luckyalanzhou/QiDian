@@ -118,10 +118,11 @@ profileSettingsStore.configure({
 });
 const profileSettings=profileSettingsStore;
 const appSettingsActions=createAppSettingsActions({
+ localPreview:!!initial.local,
  closeSettings:closeAccountSettings,
  closeMenu,
  retrySync,
- confirmReload:()=>confirmAction('先导出未完成的修改，再载入当前 Docker 服务端版本。此操作会替换当前草稿。是否继续？',{title:'重新载入数据',confirmText:'重新载入',danger:true}),
+ confirmReload:sourceLabel=>confirmAction(`先导出未完成的修改，再载入${sourceLabel}。此操作会替换当前草稿。是否继续？`,{title:'重新载入数据',confirmText:'重新载入',danger:true}),
  saveActiveEditor:()=>{if(navigationStore.editing){editorAutosave.clear();saveDraft(true)}},
  getCurrentData:()=>structuredClone(getVault()),
  exportBackup,
@@ -160,6 +161,7 @@ const notePublishFlow=createNotePublishFlow({
  notify:toast
 });
 const backupWorkflows=createBackupWorkflows({
+ localPreview:!!initial.local,
  getData:()=>structuredClone(getVault()),
  saveActiveEditor:()=>{if(navigationStore.editing){editorAutosave.clear();return saveDraft(true)}},
  confirmAction,

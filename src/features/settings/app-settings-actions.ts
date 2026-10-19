@@ -2,10 +2,11 @@ import type { AppSettingsAction } from './app-settings-store';
 
 export type SettingsVault = { [key: string]: unknown; theme?: string; trash?: unknown[] };
 export type AppSettingsActionsDependencies = {
+  localPreview: boolean;
   closeSettings: () => void;
   closeMenu: () => void;
   retrySync: () => void;
-  confirmReload: () => Promise<boolean>;
+  confirmReload: (sourceLabel: string) => Promise<boolean>;
   saveActiveEditor: () => void;
   getCurrentData: () => SettingsVault;
   exportBackup: (data: SettingsVault) => Promise<unknown>;
@@ -23,7 +24,8 @@ export type AppSettingsActionsDependencies = {
 
 export function createAppSettingsActions(dependencies: AppSettingsActionsDependencies) {
   async function reloadCloudFromSettings() {
-    if (!await dependencies.confirmReload()) return;
+    const sourceLabel = dependencies.localPreview ? '本地预览数据' : 'Docker 服务端版本';
+    if (!await dependencies.confirmReload(sourceLabel)) return;
     dependencies.saveActiveEditor();
     try {
       await dependencies.exportBackup(dependencies.getCurrentData());
@@ -36,9 +38,9 @@ export function createAppSettingsActions(dependencies: AppSettingsActionsDepende
     dependencies.closeMenu();
     try {
       dependencies.replaceWorkspace(await dependencies.reloadCloud());
-      dependencies.notify('已载入 Docker 服务端版本');
+      dependencies.notify(dependencies.localPreview ? '已重新载入本地预览数据' : '已重新载入已保存的数据');
     } catch (error) {
-      dependencies.notify((error as Error)?.message || '载入 Docker 服务端版本失败');
+      dependencies.notify((error as Error)?.message || (dependencies.localPreview ? '载入本地预览数据失败' : '载入已保存的数据失败'));
     }
   }
 

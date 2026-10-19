@@ -40,7 +40,7 @@ onBeforeUnmount(() => store.bindRefreshHandler(null));
       <div class="dialog-head">
         <div>
           <h2 id="backupHistoryTitle">自动备份</h2>
-          <p class="account-dialog-subtitle">最近 20 个正文快照；恢复前会先下载当前完整备份。</p>
+          <p class="account-dialog-subtitle">{{ store.options?.localPreview ? '本地预览模式不提供服务端快照。' : '最近 20 个正文快照；恢复前会先下载当前完整备份。' }}</p>
         </div>
         <button class="round-btn" type="button" aria-label="关闭" @click="close">
           <span class="ico"><svg><use href="#i-close" /></svg></span>
@@ -48,7 +48,7 @@ onBeforeUnmount(() => store.bindRefreshHandler(null));
       </div>
       <div class="dialog-body">
         <div id="backupHistoryList" class="backup-history-list" role="list" aria-live="polite">
-          <div v-if="state.loading" class="empty backup-empty">正在读取 Docker 服务端快照…</div>
+          <div v-if="state.loading" class="empty backup-empty">{{ store.options?.localPreview ? '正在读取本地预览数据…' : '正在读取 Docker 服务端快照…' }}</div>
           <div v-else-if="state.error" class="empty backup-empty" role="alert">读取失败：{{ state.error }}</div>
           <div v-else-if="state.items.length === 0" class="empty backup-empty">
             {{ flow.emptyMessage() }}
@@ -64,7 +64,7 @@ onBeforeUnmount(() => store.bindRefreshHandler(null));
             </div>
           </article>
         </div>
-        <p class="hint backup-footnote">历史快照只包含笔记正文和元数据，不含附件文件。要保留附件，请定期下载完整备份。</p>
+        <p v-if="!store.options?.localPreview" class="hint backup-footnote">历史快照只包含笔记正文和元数据，不含附件文件。要保留附件，请定期下载完整备份。</p>
       </div>
       <div class="dialog-foot">
         <button class="secondary-btn" type="button" @click="close">关闭</button>
