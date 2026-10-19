@@ -69,14 +69,19 @@ export function launchWorkspace(initial, showAuthentication) {
  return (()=>{'use strict';
 const navigationStore=workspaceNavigationStore;
 const icons=name=>`<span class="ico"><svg aria-hidden="true"><use href="#i-${name}"/></svg></span>`;
-const $=sel=>document.querySelector(sel);const main=$('#main');const displayTypeName=type=>type.id==='clip'&&type.name==='网页收藏'?'网页摘录':type.name;const typeLabel=id=>{const type=data.noteTypes.find(x=>x.id===id);return type?displayTypeName(type):'其他类型'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=sel=>document.querySelector(sel);const main=$('#main');const displayTypeName=type=>type.id==='clip'&&type.name==='网页收藏'?'网页摘录':type.name;const typeLabel=id=>{const type=getVault().noteTypes.find(x=>x.id===id);return type?displayTypeName(type):'其他类型'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const tinyText=s=>{let box=document.createElement('div');box.innerHTML=s;box.querySelectorAll('br').forEach(node=>node.replaceWith(' '));box.querySelectorAll('p,div,li,blockquote,pre,h1,h2,h3,h4,h5,h6,tr').forEach(node=>node.append(' '));return (box.textContent||'').replace(/\s+/g,' ').trim()};
 const {safeUrl,cleanHTML,plainTextToStructuredHTML,textWithBlockBreaks,readableNoteBody,extractPastedTitle}=createHtmlContentTools({document,sanitize:html=>DOMPurify.sanitize(html),parseHTML:html=>new DOMParser().parseFromString(html,'text/html'),escapeHtml:esc,looksLikeMarkdown});
 const {editorContentSnapshot,hasDraftContent}=createDraftContentTools({cleanHTML,parseHTML:html=>new DOMParser().parseFromString(html,'text/html')});
-let data = vaultDataStore.replace({ ...initial.data, noteTypes: initial.data.noteTypes || structuredClone(DEFAULT_NOTE_TYPES), trash: initial.data.trash || [] }); setOwner(initial.owner);
+vaultDataStore.replace({ ...initial.data, noteTypes: initial.data.noteTypes || structuredClone(DEFAULT_NOTE_TYPES), trash: initial.data.trash || [] }); setOwner(initial.owner);
+function getVault(){
+ const current=vaultDataStore.value;
+ if(!current)throw new Error('知识库尚未加载');
+ return current;
+}
 function replaceVault(value){
  const normalized={...value,noteTypes:Array.isArray(value.noteTypes)?value.noteTypes:structuredClone(DEFAULT_NOTE_TYPES),trash:Array.isArray(value.trash)?value.trash:[]};
- data=vaultDataStore.replace(normalized);return data;
+ return vaultDataStore.replace(normalized);
 }
 function mutateVault(operation){return vaultDataStore.mutate(operation)}
 globalSearchDataStore.configure({bodyText:body=>tinyText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
@@ -104,14 +109,14 @@ const appSettingsActions=createAppSettingsActions({
  retrySync,
  confirmReload:()=>confirmAction('先导出未完成的修改，再载入当前 Docker 服务端版本。此操作会替换当前草稿。是否继续？',{title:'重新载入数据',confirmText:'重新载入',danger:true}),
  saveActiveEditor:()=>{if(navigationStore.editing){clearTimeout(autoTimer);autoTimer=null;saveDraft(true)}},
- getCurrentData:()=>structuredClone(data),
+ getCurrentData:()=>structuredClone(getVault()),
  exportBackup,
  reloadCloud,
  restoreIgnoredDraft,
  replaceWorkspace:restored=>{
   clearTimeout(autoTimer);autoTimer=null;if(navigationStore.editing)destroyRichEditor();
   unsavedNewNoteId=null;
-  replaceVault({...restored,trash:restored.trash||[]});applyTheme(data.theme);syncBookmarkPreferences();
+  replaceVault({...restored,trash:restored.trash||[]});applyTheme(getVault().theme);syncBookmarkPreferences();
   workspaceNavigation.resetHome();
  },
  markIgnoredDraftHandled:()=>{initial.ignoredDraft=false;refreshSettingsIndicators()},
@@ -125,7 +130,7 @@ const appSettingsActions=createAppSettingsActions({
 appSettingsStore.bindActionHandler(appSettingsActions.dispatch);
 const appSettings=appSettingsStore;
 const notePublishFlow=createNotePublishFlow({
- getData:()=>data,
+ getData:getVault,
  getNoteId:()=>navigationStore.noteId,
  getEditingDraft:()=>navigationStore.editingDraft,
  isEditing:()=>navigationStore.editing,
@@ -141,7 +146,7 @@ const notePublishFlow=createNotePublishFlow({
  notify:toast
 });
 const backupWorkflows=createBackupWorkflows({
- getData:()=>structuredClone(data),
+ getData:()=>structuredClone(getVault()),
  saveActiveEditor:()=>{if(navigationStore.editing){clearTimeout(autoTimer);autoTimer=null;return saveDraft(true)}},
  confirmAction,
  getBackup,
@@ -154,7 +159,7 @@ const backupWorkflows=createBackupWorkflows({
  replaceWorkspace:(restored,mode)=>{
   clearTimeout(autoTimer);autoTimer=null;if(navigationStore.editing)destroyRichEditor();
   editorBaseline=null;unsavedNewNoteId=null;
-  replaceVault(restored);applyTheme(data.theme);syncBookmarkPreferences();
+  replaceVault(restored);applyTheme(getVault().theme);syncBookmarkPreferences();
   if(mode==='import')workspaceNavigation.resetHome();else workspaceNavigation.returnHomePreservingList();
   backupHistoryStore.close();
  },
@@ -169,10 +174,10 @@ backupHistoryStore.configure({
  downloadSnapshot:revision=>backupWorkflows.downloadSnapshot(revision),
  restoreSnapshot:revision=>backupWorkflows.restoreSnapshot(revision)
 });
-const noteTypesExpanded=()=>data.noteTypesExpanded!==false;
-const {persist,commitPersist}=createVaultPersistence({getVault:()=>data,getUnsavedNewNoteId:()=>unsavedNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
+const noteTypesExpanded=()=>getVault().noteTypesExpanded!==false;
+const {persist,commitPersist}=createVaultPersistence({getVault,getUnsavedNewNoteId:()=>unsavedNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
 const legacyNoteTypeDialog=workspaceAppMounted?null:createLegacyNoteTypeDialog({document,escapeHtml:esc});
-const noteTypeDialogFlow=createNoteTypeDialogFlow({getVault:()=>data,mutateVault,replaceVault,getTypeFilter:()=>navigationStore.typeFilter,setTypeFilter:filter=>{navigationStore.typeFilter=filter},commit:()=>commitPersist(),close:()=>{if(workspaceAppMounted)noteTypeDialogStore.close();legacyNoteTypeDialog?.close()},render,notify:toast});
+const noteTypeDialogFlow=createNoteTypeDialogFlow({getVault,mutateVault,replaceVault,getTypeFilter:()=>navigationStore.typeFilter,setTypeFilter:filter=>{navigationStore.typeFilter=filter},commit:()=>commitPersist(),close:()=>{if(workspaceAppMounted)noteTypeDialogStore.close();legacyNoteTypeDialog?.close()},render,notify:toast});
 if(workspaceAppMounted)noteTypeDialogStore.bindSave(input=>noteTypeDialogFlow.save(input));
 function versionOf(n){return {title:n.title,type:n.type,category:n.category,tags:[...(n.tags||[])],body:n.body,source:n.source||'',updated:n.updated}}
  const editorFormAdapter=createEditorFormAdapter({
@@ -185,7 +190,7 @@ function versionOf(n){return {title:n.title,type:n.type,category:n.category,tags
   cleanHTML
  });
 const editorDraftController=createEditorDraftController({
- getVault:()=>data,
+ getVault,
  getNoteId:()=>navigationStore.noteId,
  getEditingDraft:()=>navigationStore.editingDraft,
  setEditingDraft:note=>{navigationStore.editingDraft=note},
@@ -203,18 +208,18 @@ const editorDraftController=createEditorDraftController({
  mutateVault,
  persist
 });
-const bookmarksView=workspaceAppMounted?null:createBookmarkView({main,getData:()=>data,mutateData:operation=>mutateVault(()=>operation(data)),save:async()=>{await commitPersist();side()},download,notify:toast,viewState:bookmarkDataStore.viewState,onChange:()=>{if(navigationStore.page==='bookmarks')bookmarksView?.renderLegacy()}});
+const bookmarksView=workspaceAppMounted?null:createBookmarkView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},download,notify:toast,viewState:bookmarkDataStore.viewState,onChange:()=>{if(navigationStore.page==='bookmarks')bookmarksView?.renderLegacy()}});
 const isMobileViewport=()=>!!window.matchMedia?.('(max-width: 720px)').matches;
 function syncBookmarkPreferences(){if(workspaceAppMounted)bookmarkDataStore.syncPreferences(isMobileViewport());else bookmarksView?.syncPreferences()}
 function openBookmarkFolder(folderId){if(workspaceAppMounted)bookmarkDataStore.openFolder(folderId,isMobileViewport());else bookmarksView?.openFolder(folderId)}
 function resumeBookmarks(){if(workspaceAppMounted)window.scrollTo({top:bookmarkDataStore.resume(isMobileViewport())});else bookmarksView?.resume()}
 function leaveBookmarks(){if(workspaceAppMounted)bookmarkDataStore.leave(window.scrollY);else bookmarksView?.leave()}
 if(workspaceAppMounted)syncBookmarkPreferences();
-const recycleBinView=workspaceAppMounted?null:createRecycleBinView({main,getData:()=>data,mutateData:operation=>mutateVault(()=>operation(data)),save:async()=>{await commitPersist();side()},notify:toast,onChange:()=>{if(navigationStore.page==='trash'&&!trashDataStore.active)recycleBinView.render()}});
-const vaultMutation=createVaultMutation({getVault:()=>data,replaceVault,save:()=>commitPersist()});
+const recycleBinView=workspaceAppMounted?null:createRecycleBinView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},notify:toast,onChange:()=>{if(navigationStore.page==='trash'&&!trashDataStore.active)recycleBinView.render()}});
+const vaultMutation=createVaultMutation({getVault,replaceVault,save:()=>commitPersist()});
 const bookmarkMutationActions=createBookmarkMutationActions({
- getBookmarks:()=>data.bookmarks||[],
- getVault:()=>data,
+ getBookmarks:()=>getVault().bookmarks||[],
+ getVault,
  getEditor:()=>bookmarkDataStore.editor,
  getDeleteDialog:()=>bookmarkDataStore.deleteDialog,
  getBulkDialog:()=>bookmarkDataStore.bulkDialog,
@@ -240,20 +245,20 @@ const bookmarkMutationActions=createBookmarkMutationActions({
  mutation:vaultMutation,
  notify:toast
 });
-const categoryDialogFlow=createCategoryDialogFlow({getVault:()=>data,mutateVault:vaultMutation});
-const captureFlow=createCaptureFlow({getVault:()=>data,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>tinyText(html)});
+const categoryDialogFlow=createCategoryDialogFlow({getVault,mutateVault:vaultMutation});
+const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>tinyText(html)});
 const legacyCaptureDialog=workspaceAppMounted?null:createLegacyCaptureDialog({document,escapeHtml:esc});
 if(workspaceAppMounted)captureDialogStore.bindSave(async input=>{const note=await captureFlow.save(input);openNote(note.id)});
 if(workspaceAppMounted)categoryDialogStore.bindSave(async name=>{const saved=await categoryDialogFlow.save(name);openHome(saved)});
 const trashWorkflows=workspaceAppMounted?createTrashWorkflows({
- getVault:()=>data,
+ getVault,
  mutateVault:vaultMutation,
  confirmClear:count=>confirmAction(`将永久删除回收站中的 ${count} 项内容，无法再还原。是否继续？`,{title:'永久清空回收站',confirmText:'永久清空回收站',danger:true}),
  notify:toast
 }):null;
-const noteDeleteWorkflow=createNoteDeleteWorkflow({getVault:()=>data,mutateVault:vaultMutation,notify:toast});
+const noteDeleteWorkflow=createNoteDeleteWorkflow({getVault,mutateVault:vaultMutation,notify:toast});
 const editorDeleteWorkflow=createEditorDeleteWorkflow({
- getVault:()=>data,
+ getVault,
  getNoteId:()=>navigationStore.noteId,
  getEditingDraft:()=>navigationStore.editingDraft,
  prepareEditingDraft:()=>updateDraftFromDOM(),
@@ -264,7 +269,7 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
  clearAutosave:()=>{clearTimeout(autoTimer);autoTimer=null},
  discardDetachedNote:id=>mutateVault(vault=>{vault.notes=vault.notes.filter(note=>note.id!==id)}),
  storeEditingDraft:note=>{
-  const index=data.notes.findIndex(item=>item.id===note.id);
+  const index=getVault().notes.findIndex(item=>item.id===note.id);
   const saved=structuredClone(note);
   mutateVault(vault=>{if(index>=0)vault.notes[index]=saved;else vault.notes.unshift(saved)});
  },
@@ -275,8 +280,8 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
 });
 function workspaceNavigationState(){return navigationStore.getWorkspaceState()}
 function applyWorkspaceNavigationState(state){navigationStore.setWorkspaceState(state)}
-const workspaceNavigation=createWorkspaceNavigationController({getState:workspaceNavigationState,setState:applyWorkspaceNavigationState,findNote:id=>data.notes.find(n=>n.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>{clearTimeout(autoTimer);autoTimer=null},closeMenu,render,getScrollY:()=>window.scrollY,scrollTo:position=>window.scrollTo({top:position}),openBookmarkFolder,resumeBookmarks});
-const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault:()=>data,mutateVault,saveDraft,activate:note=>{unsavedNewNoteId=note.id;navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorBaseline=editorContentSnapshot(navigationStore.editingDraft);navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
+const workspaceNavigation=createWorkspaceNavigationController({getState:workspaceNavigationState,setState:applyWorkspaceNavigationState,findNote:id=>getVault().notes.find(n=>n.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>{clearTimeout(autoTimer);autoTimer=null},closeMenu,render,getScrollY:()=>window.scrollY,scrollTo:position=>window.scrollTo({top:position}),openBookmarkFolder,resumeBookmarks});
+const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{unsavedNewNoteId=note.id;navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorBaseline=editorContentSnapshot(navigationStore.editingDraft);navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
 function addBookmark(folderId=''){openBookmarks();if(workspaceAppMounted)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
 function openTrash(){workspaceNavigation.openTrash()}
@@ -308,7 +313,7 @@ const workspaceShellEvents=createWorkspaceShellEvents({
  addNoteType:()=>openTypeDialog('create'),
  addCategory:openCategoryDialog,
  openTypeDialog,
- noteTypeCount:()=>data.noteTypes.length,
+ noteTypeCount:()=>getVault().noteTypes.length,
  toast,
  confirmDeleteNote:()=>confirmAction('将这篇笔记移入回收站，可在 30 天内还原。是否继续？',{title:'移入回收站',confirmText:'移入回收站',danger:true}),
  moveNoteToTrash,
@@ -318,7 +323,7 @@ const workspaceShellEvents=createWorkspaceShellEvents({
 });
 workspaceShellActionsStore.bind(command=>workspaceShellEvents.execute(command));
 const readerActions=createReaderActions({
- getVault:()=>data,
+ getVault,
  getCurrentNoteId:()=>navigationStore.noteId,
  isPreviewing:()=>navigationStore.previewing,
  isDraft,
@@ -342,7 +347,7 @@ const editorPageActions=createEditorPageActions({
  isEditing:()=>navigationStore.editing,
  isPreviewing:()=>navigationStore.previewing,
  saveDraft,
- getCurrentNote:()=>data.notes.find(item=>item.id===navigationStore.noteId),
+ getCurrentNote:()=>getVault().notes.find(item=>item.id===navigationStore.noteId),
  isDraft,
  publishedView,
  cleanHTML,
@@ -381,10 +386,10 @@ const remoteEditorRefresh=createRemoteEditorRefresh({document,setEditingDraft:no
 onRemoteUpdate(remoteData=>{
  const previousScroll=window.scrollY;
  const localEditorChanged=editorHasChanges();
- replaceVault(structuredClone(remoteData));applyTheme(data.theme);syncBookmarkPreferences();
+ replaceVault(structuredClone(remoteData));applyTheme(getVault().theme);syncBookmarkPreferences();
  if(navigationStore.editing&&navigationStore.noteId){
   side();
-  const current=data.notes.find(note=>note.id===navigationStore.noteId);
+  const current=getVault().notes.find(note=>note.id===navigationStore.noteId);
   if(!current){
    if(navigationStore.noteId===unsavedNewNoteId&&isDraft(navigationStore.editingDraft)){mutateVault(vault=>{vault.notes.unshift(structuredClone(navigationStore.editingDraft))});if(hasDraftContent(navigationStore.editingDraft))persist();side();return}
    clearTimeout(autoTimer);autoTimer=null;navigationStore.editing=false;destroyRichEditor();navigationStore.editingDraft=null;navigationStore.noteId=null;render();window.scrollTo({top:previousScroll});return
@@ -395,7 +400,7 @@ onRemoteUpdate(remoteData=>{
  render();window.scrollTo({top:previousScroll});
 });
 const snapshotCurrentVault=createCurrentVaultSnapshot({
- getVault:()=>data,
+ getVault,
  isEditing:()=>navigationStore.editing,
  getEditingDraft:()=>navigationStore.editingDraft,
  editorIsMounted:()=>!!$('#editTitle'),
@@ -411,7 +416,7 @@ const snapshotCurrentVault=createCurrentVaultSnapshot({
   username:initial.username,
   applyAuthenticated:result=>{
    replaceVault(structuredClone(result.data));syncBookmarkPreferences();
-   if(navigationStore.editing&&navigationStore.noteId){const current=data.notes.find(note=>note.id===navigationStore.noteId);if(current)navigationStore.editingDraft=structuredClone(current)}
+   if(navigationStore.editing&&navigationStore.noteId){const current=getVault().notes.find(note=>note.id===navigationStore.noteId);if(current)navigationStore.editingDraft=structuredClone(current)}
    destroyRichEditor();render();
   },
   notify:toast
@@ -426,14 +431,14 @@ const syncConflictController=createSyncConflictController({
  exportConflict:exportSyncConflict,
  confirmRestore:()=>confirmAction('已下载修改对照备份。继续载入已保存版本？',{title:'载入已保存版本',confirmText:'载入'}),
  reloadCloud,
- replaceWorkspace:restored=>{clearTimeout(autoTimer);autoTimer=null;destroyRichEditor();replaceVault({...restored,trash:restored.trash||[]});applyTheme(data.theme);syncBookmarkPreferences();workspaceNavigation.resetHome()},
+ replaceWorkspace:restored=>{clearTimeout(autoTimer);autoTimer=null;destroyRichEditor();replaceVault({...restored,trash:restored.trash||[]});applyTheme(getVault().theme);syncBookmarkPreferences();workspaceNavigation.resetHome()},
  notify:toast
 });
 function openSyncConflict(){syncConflictController.open()}
 syncConflictStore.bindActions(action=>action==='download-backup'?syncConflictController.downloadBackup():syncConflictController.restoreCloudVersion());
 function nowString(t){return new Date(t).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'})};const fullDate=t=>new Date(t).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'});
 function closeMenu(returnToButton=false){const wasOpen=workspaceShellStore.mobileMenuOpen,focusInSidebar=$('#sidebar')?.contains(document.activeElement);workspaceShellStore.closeMobileMenu();if(wasOpen&&(returnToButton||focusInSidebar))requestAnimationFrame(()=>{(returnToButton?$('#menuBtn'):main)?.focus({preventScroll:true})})}
-function categoryOptions(curr){return [...new Set(['未分类',...data.categories,curr].filter(Boolean))].map(x=>`<option value="${esc(x)}" ${curr===x?'selected':''}>${esc(x)}</option>`).join('')}
+function categoryOptions(curr){return [...new Set(['未分类',...getVault().categories,curr].filter(Boolean))].map(x=>`<option value="${esc(x)}" ${curr===x?'selected':''}>${esc(x)}</option>`).join('')}
 function setBreadcrumb(s){workspaceShellStore.setBreadcrumbTitle(s)}
 function side(){legacyWorkspaceRenderer?.renderSidebar()}
 function openHome(cat='all'){workspaceNavigation.openHome(cat)}
@@ -443,7 +448,7 @@ function backFromNotePage(){workspaceNavigation.backFromNote()}
 function noteCardSnapshot(note){return {id:note.id,title:note.title||'',type:note.type,typeName:typeLabel(note.type),category:note.category||'未分类',tags:[...(note.tags||[])],description:noteBodyText(note.body,note.title),updatedLabel:nowString(note.updated),pinned:!!note.pinned}}
 function readerSnapshot(stored,working,n){return createReaderSnapshot({document,stored,note:n,working,previewing:navigationStore.previewing,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish})}
 readerDataStore.configure({document,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish,publishedView});
-function listNotes(q=''){return selectNotes(data.notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
+function listNotes(q=''){return selectNotes(getVault().notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
 function noteListHeading(){return navigationStore.typeFilter!=='all'?typeLabel(navigationStore.typeFilter):navigationStore.active==='all'?'全部笔记':navigationStore.active==='recent'?'最近编辑':navigationStore.active==='pinned'?'重要收藏':navigationStore.active==='drafts'?'草稿箱':navigationStore.active}
 function moveNoteToTrash(id){return noteDeleteWorkflow.moveToTrash(id)}
 function destroyRichEditor(){if(!richEditor)return;editorRuntime.destroy();richEditorDraftId=null}
@@ -460,21 +465,21 @@ function refreshEditorOutline(editor=richEditor){
  links.forEach(nav=>nav.querySelectorAll('[data-outline-index]').forEach(button=>button.addEventListener('click',()=>{const heading=headings[Number(button.dataset.outlineIndex)]?.heading;if(!heading)return;try{const from=editor.view.posAtDOM(heading,0);editor.commands.setTextSelection(Math.min(from+1,editor.state.doc.content.size));heading.scrollIntoView?.({block:'center'})}catch{heading.scrollIntoView?.({block:'center'})}})));
 }
 dashboardDataStore.configure({isDraft,publishedView,noteCard:noteCardSnapshot,isSafeUrl:safeUrl});
-dashboardDataStore.bindActions(createDashboardActions({getVault:()=>data,mutateVault,persist}));
+dashboardDataStore.bindActions(createDashboardActions({getVault,mutateVault,persist}));
 if(typeof sidebarDataStore!=='undefined')sidebarDataStore.configure({isDraft,needsPublish,hasDraftContent,displayTypeName});
 if(typeof noteListDataStore!=='undefined')noteListDataStore.configure({hasDraftContent,bodyText:noteBodyText,noteCard:noteCardSnapshot,typeName:typeLabel,displayTypeName});
 legacyWorkspaceRenderer=workspaceAppMounted?null:createLegacyWorkspaceRenderer({
- document,window,main,getData:()=>data,navigation:navigationStore,icons,escapeHtml:esc,displayTypeName,
+ document,window,main,getData:getVault,navigation:navigationStore,icons,escapeHtml:esc,displayTypeName,
  typeLabel,noteBodyText,nowString,fullDate,isDraft,needsPublish,hasDraftContent,publishedView,listNotes,
  readerSnapshot,safeUrl,dashboardStore:dashboardDataStore,destroyRichEditor,setBreadcrumb,openHome,
  organizeDocumentActions,mountCodeCopyButtons,mountHeadingObserver,noteTypesExpanded,
  enabled:false,notify:toast
 });
 function ensureDraft(){return editorDraftController.ensureDraft()}
-function editorSnapshot(note){return {noteId:note.id,title:note.title||'',type:note.type,category:note.category||'未分类',tags:(note.tags||[]).join(', '),source:note.source||'',noteTypes:data.noteTypes.map(type=>({id:type.id,label:displayTypeName(type)})),categories:[...data.categories],publishLabel:isDraft(note)?'发布笔记':'保存笔记',pasteMode:preferredPasteMode()}}
+function editorSnapshot(note){return {noteId:note.id,title:note.title||'',type:note.type,category:note.category||'未分类',tags:(note.tags||[]).join(', '),source:note.source||'',noteTypes:getVault().noteTypes.map(type=>({id:type.id,label:displayTypeName(type)})),categories:[...getVault().categories],publishLabel:isDraft(note)?'发布笔记':'保存笔记',pasteMode:preferredPasteMode()}}
 function prepareVueEditorPage(){destroyRichEditor();const note=ensureDraft();setBreadcrumb(note.title||'新建笔记');editorDataStore.sync(editorSnapshot(note))}
 function prepareVueReaderPage(){
- const stored=data.notes.find(note=>note.id===navigationStore.noteId);
+ const stored=getVault().notes.find(note=>note.id===navigationStore.noteId);
  if(!stored){openHome();return}
  const working=navigationStore.previewing||isDraft(stored),note=working?stored:publishedView(stored);
  setBreadcrumb(note.title);
@@ -534,19 +539,19 @@ function initializeEditorView(){
  });
 }
 function mountEditorSurface(){if(!editorFactory||!navigationStore.editing||navigationStore.page!=='note'||!$('#editorSurface'))return;const editor=editorRuntime.mount();if(editor)ensureEditorCommands();return editor}
-function renderEditorLegacy(){if(!editorFactory){if(!editorLoading){main.innerHTML='<div class="empty editor-loading">正在加载富文本编辑器…</div>';editorLoading=import('./editor.js').then(module=>{editorFactory=module.createQidianEditor;editorLoading=null;if(navigationStore.editing&&navigationStore.page==='note'){renderEditor();setTimeout(()=>$('#editTitle')?.focus(),0)}}).catch(error=>{editorLoading=null;main.innerHTML='<div class="empty editor-loading">编辑器加载失败，请刷新后重试。</div>';toast(error.message||'编辑器加载失败')})}return}destroyRichEditor();const n=ensureDraft();setBreadcrumb(n.title||'新建笔记');const publishLabel=isDraft(n)?'发布笔记':'保存笔记';main.innerHTML=renderLegacyEditorMarkup({note:n,noteTypes:data.noteTypes,publishLabel,icons,escapeHtml:esc,displayTypeName,categoryOptions,preferredPasteMode});mountEditorSurface();
+function renderEditorLegacy(){if(!editorFactory){if(!editorLoading){main.innerHTML='<div class="empty editor-loading">正在加载富文本编辑器…</div>';editorLoading=import('./editor.js').then(module=>{editorFactory=module.createQidianEditor;editorLoading=null;if(navigationStore.editing&&navigationStore.page==='note'){renderEditor();setTimeout(()=>$('#editTitle')?.focus(),0)}}).catch(error=>{editorLoading=null;main.innerHTML='<div class="empty editor-loading">编辑器加载失败，请刷新后重试。</div>';toast(error.message||'编辑器加载失败')})}return}destroyRichEditor();const n=ensureDraft();setBreadcrumb(n.title||'新建笔记');const publishLabel=isDraft(n)?'发布笔记':'保存笔记';main.innerHTML=renderLegacyEditorMarkup({note:n,noteTypes:getVault().noteTypes,publishLabel,icons,escapeHtml:esc,displayTypeName,categoryOptions,preferredPasteMode});mountEditorSurface();
 }
 
 function openTypeDialog(mode,id=null){
- if(mode==='create'&&data.noteTypes.length>=50)return toast('最多支持 50 种笔记类型');
+ if(mode==='create'&&getVault().noteTypes.length>=50)return toast('最多支持 50 种笔记类型');
  closeMenu();
  if(navigationStore.editing){saveDraft(true);clearTimeout(autoTimer);navigationStore.editing=false;navigationStore.editingDraft=null;render()}
- const item=data.noteTypes.find(type=>type.id===id);
- const automaticFallback=data.noteTypes.length===1&&id!=='note';
- const replacementTypes=[...data.noteTypes.filter(type=>type.id!==id),...(automaticFallback?[DEFAULT_NOTE_TYPES.find(type=>type.id==='note')].filter(Boolean):[])];
+ const item=getVault().noteTypes.find(type=>type.id===id);
+ const automaticFallback=getVault().noteTypes.length===1&&id!=='note';
+ const replacementTypes=[...getVault().noteTypes.filter(type=>type.id!==id),...(automaticFallback?[DEFAULT_NOTE_TYPES.find(type=>type.id==='note')].filter(Boolean):[])];
  const title=mode==='create'?'新增笔记类型':mode==='edit'?'编辑笔记类型':'删除笔记类型';
  const hint=mode==='delete'?'相关笔记会转移到所选类型，正文和附件不会删除。':'';
- const noteCount=mode==='delete'?data.notes.filter(note=>note.type===id).length:0;
+ const noteCount=mode==='delete'?getVault().notes.filter(note=>note.type===id).length:0;
  if(workspaceAppMounted){
   noteTypeDialogStore.open({mode,id,title,hint,name:item?displayTypeName(item):'',noteCount,options:replacementTypes.map(type=>({id:type.id,name:type.name,autoCreate:automaticFallback}))});
   return;
@@ -559,7 +564,7 @@ async function saveTypeDialog(){
 }
 const systemThemeMedia=window.matchMedia?.('(prefers-color-scheme: dark)');
 function closeThemeMenu(){workspaceShellStore.closeThemeMenu()}
-const themeController=createThemeController({document,media:systemThemeMedia,getPreference:()=>data.theme,setPreference:preference=>mutateVault(vault=>{vault.theme=preference}),persist,setResolvedState:(preference,dark)=>workspaceShellStore.setThemeState(preference,dark)});
+const themeController=createThemeController({document,media:systemThemeMedia,getPreference:()=>getVault().theme,setPreference:preference=>mutateVault(vault=>{vault.theme=preference}),persist,setResolvedState:(preference,dark)=>workspaceShellStore.setThemeState(preference,dark)});
 function applyTheme(mode,options={}){themeController.apply(mode,options)}
 function toggleThemeMenu(){workspaceShellStore.toggleThemeMenu()}
 const disposeTheme=themeController.mount();
@@ -616,7 +621,7 @@ function insertHTML(html){if(!richEditor)return;richEditor.chain().focus().inser
 function doFormat(cmd,arg=null){if(!richEditor)return;return ensureEditorCommands().doFormat(cmd,arg)}
 const editorInsertController=createEditorInsertController({getEditor:()=>richEditor,insertHTML,openImagePicker:()=>$('#imageFile').click(),prompt:promptAction,format:(command,value)=>doFormat(command,value),afterChange:editor=>{updateDraftFromDOM();scheduleSave();syncToolbarState(editor);refreshEditorOutline(editor)},safeUrl,escapeHTML:esc,toast});
 async function doInsert(kind){return editorInsertController.insert(kind)}
-function preferredPasteMode(){return ['rich','match','markdown','plain'].includes(data.pasteMode)?data.pasteMode:'rich'}
+function preferredPasteMode(){return ['rich','match','markdown','plain'].includes(getVault().pasteMode)?getVault().pasteMode:'rich'}
 const captureDOM=createCaptureDOMAdapter({window,document,getPad:()=>$('#capturePad')});
 const {captureSelection,insertHTML:insertCaptureHTML,insertText:insertCaptureText}=captureDOM;
 const contentInsertion=createContentInsertionController({window,document,purifier:DOMPurify,getMode:id=>$('#'+id)?.value||'rich',classifyClipboard,plainTextToDocument,sanitizeMarkdownDocument,loadMarkdownTools,cleanHTML,plainTextToStructuredHTML,safeUrl,escapeHTML:esc,autofillPastedTitle,upload,insertEditorHTML:insertHTML,getEditor:()=>richEditor,insertCaptureHTML,captureSelection,insertCaptureText,toast});
@@ -626,7 +631,7 @@ function openSlashMenu(){const selection=window.getSelection(),rect=selection?.r
 function storeImage(file,destination,bookmark=null,range=null){return contentInsertion.storeImage(file,destination,bookmark,range)}
 function pasteRich(event){return contentInsertion.handleCapturePaste(event)}
 if(workspaceAppMounted)captureDialogStore.bindPasteHandler(pasteRich);
-function openCapture(options={}){closeMenu();if(workspaceAppMounted){captureDialogStore.open({types:data.noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),categories:data.categories,pasteMode:preferredPasteMode(),restoreFocusOnClose:options.restoreFocusOnClose});return}legacyCaptureDialog.open({types:data.noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),defaultType:data.noteTypes.find(type=>type.id==='clip')?.id||data.noteTypes[0].id,categoryOptions:categoryOptions('网页摘录'),pasteMode:preferredPasteMode()})}
+function openCapture(options={}){closeMenu();if(workspaceAppMounted){captureDialogStore.open({types:getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),categories:getVault().categories,pasteMode:preferredPasteMode(),restoreFocusOnClose:options.restoreFocusOnClose});return}legacyCaptureDialog.open({types:getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),defaultType:getVault().noteTypes.find(type=>type.id==='clip')?.id||getVault().noteTypes[0].id,categoryOptions:categoryOptions('网页摘录'),pasteMode:preferredPasteMode()})}
 function closeCapture(){if(workspaceAppMounted){captureDialogStore.close();return}legacyCaptureDialog.close()}
 async function saveCapture(){if(!legacyCaptureDialog)return;try{const note=await captureFlow.save(legacyCaptureDialog.readInput());closeCapture();openNote(note.id)}catch(error){toast(error.message||'网页摘录尚未保存')}}
 function openCategoryDialog(){closeMenu();if(workspaceAppMounted){categoryDialogStore.open();return}const input=$('#categoryNameInput');input.value='';$('#categoryDialogMessage').textContent='';$('#categoryOverlay').classList.add('open');setTimeout(()=>input.focus(),50)}
@@ -684,7 +689,7 @@ const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
   openNote
  }
 });
-applyTheme(data.theme);render();systemUpdates.renderBadge({currentVersion:APP_VERSION,updateAvailable:false});if(!initial.local)void systemUpdates.check();if(initial.restoreDraft&&!initial.restoreConflict)queueSave(data);
+applyTheme(getVault().theme);render();systemUpdates.renderBadge({currentVersion:APP_VERSION,updateAvailable:false});if(!initial.local)void systemUpdates.check();if(initial.restoreDraft&&!initial.restoreConflict)queueSave(getVault());
 return ()=>{disposeWorkspaceInteractions();disposeWorkspaceLifecycle();disposeTheme();clearTimeout(autoTimer);destroyRichEditor()};
 })();
 }

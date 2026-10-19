@@ -370,6 +370,12 @@ async function mount(vault=empty, initialOptions={}) {
   await new Promise(resolve=>setTimeout(resolve,0));
   return { dom, w, saves, initialOptions };
 }
+test('workspace reads the current Vault Store snapshot after replacement', async t=>{
+  const {dom,w}=await mount(empty);t.after(()=>dom.window.close());
+  w.vaultDataStore.replace({...structuredClone(empty),notes:[{id:'store-replacement',title:'来自当前 Vault',type:'note',category:'开发',tags:[],body:'<p>当前 Pinia 快照</p>',created:1,updated:2,status:'published'}]});
+  w.document.querySelector('#sideCore [data-nav="all"]').click();
+  assert.equal(w.document.querySelector('.note-list .note-card h3')?.textContent,'来自当前 Vault');
+});
 test('topbar version badge shows release details and the unified action refreshes versions before automatically updating', async () => {
   let versionChecks=0;
   const versions=[
