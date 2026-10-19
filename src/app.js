@@ -59,6 +59,7 @@ import { createDraftContentTools } from './features/notes/draft-content.ts';
 import { mountWorkspaceLifecycle } from './features/lifecycle/workspace-lifecycle.ts';
 import { mountWorkspaceInteractionRuntime } from './features/lifecycle/workspace-interaction-runtime.ts';
 import { createCurrentVaultSnapshot } from './features/sync/current-vault-snapshot.ts';
+import { createRemoteVaultUpdateController } from './features/sync/remote-vault-update-controller.ts';
 import { reauthenticateAccount, logoutAccount, getAccountProfile, getAccountAvatar, saveAccountAvatar, removeAccountAvatar, changeAccountPassword, getSystemVersion, requestSystemUpdate, getSystemUpdateStatus, queueSave, commitSave, flush, onStatus, onAuthenticationRequired, onRemoteUpdate, refreshCloud, getSyncConflict, exportSyncConflict, setOwner, upload, pruneAssets, exportBackup, exportHTML, readBackup, listBackups, createBackupSnapshot, getBackup, download, hasUnsaved, reloadCloud, restoreIgnoredDraft, retrySync } from './cloud.js';
 import { DEFAULT_NOTE_TYPES, validateVault } from '../shared/vault-validation.js';
 import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from './paste.js';
@@ -383,22 +384,27 @@ const workspaceContentEvents=workspaceAppMounted?null:createWorkspaceContentEven
 function refreshSettingsIndicators(){appSettings.setIndicators({hasConflict:!!getSyncConflict(),hasIgnoredDraft:!!initial.ignoredDraft})}
 onStatus(refreshSettingsIndicators);refreshSettingsIndicators();
 const remoteEditorRefresh=createRemoteEditorRefresh({document,setEditingDraft:note=>{navigationStore.editingDraft=note},setBaseline:value=>{editorBaseline=value},snapshot:editorContentSnapshot,cleanBody:html=>cleanHTML(html,true),getEditor:()=>richEditor,syncToolbarState});
-onRemoteUpdate(remoteData=>{
- const previousScroll=window.scrollY;
- const localEditorChanged=editorHasChanges();
- replaceVault(structuredClone(remoteData));applyTheme(getVault().theme);syncBookmarkPreferences();
- if(navigationStore.editing&&navigationStore.noteId){
-  side();
-  const current=getVault().notes.find(note=>note.id===navigationStore.noteId);
-  if(!current){
-   if(navigationStore.noteId===unsavedNewNoteId&&isDraft(navigationStore.editingDraft)){mutateVault(vault=>{vault.notes.unshift(structuredClone(navigationStore.editingDraft))});if(hasDraftContent(navigationStore.editingDraft))persist();side();return}
-   clearTimeout(autoTimer);autoTimer=null;navigationStore.editing=false;destroyRichEditor();navigationStore.editingDraft=null;navigationStore.noteId=null;render();window.scrollTo({top:previousScroll});return
-  }
-  remoteEditorRefresh.refresh(current,localEditorChanged);
-  return
- }
- render();window.scrollTo({top:previousScroll});
+const remoteVaultUpdateController=createRemoteVaultUpdateController({
+ getEditingState:()=>({editing:navigationStore.editing,noteId:navigationStore.noteId,draft:navigationStore.editingDraft}),
+ getTransientNewNoteId:()=>unsavedNewNoteId,
+ hasLocalEditorChanges:editorHasChanges,
+ isDraft,
+ hasDraftContent,
+ replaceVault,
+ applyTheme:()=>applyTheme(getVault().theme),
+ syncBookmarkPreferences,
+ findNote:id=>getVault().notes.find(note=>note.id===id),
+ restoreTransientDraft:note=>mutateVault(vault=>{vault.notes.unshift(note)}),
+ persistRestoredDraft:persist,
+ clearAutoSave:()=>{clearTimeout(autoTimer);autoTimer=null},
+ closeEditor:()=>{navigationStore.editing=false;destroyRichEditor();navigationStore.editingDraft=null;navigationStore.noteId=null},
+ refreshEditor:(note,preserveLocalChanges)=>remoteEditorRefresh.refresh(note,preserveLocalChanges),
+ refreshSidebar:side,
+ render,
+ getScrollY:()=>window.scrollY,
+ scrollTo:position=>window.scrollTo({top:position})
 });
+onRemoteUpdate(remoteVaultUpdateController.handle);
 const snapshotCurrentVault=createCurrentVaultSnapshot({
  getVault,
  isEditing:()=>navigationStore.editing,

@@ -60,6 +60,7 @@ import { mountHeadingObserver } from '../src/features/reader/heading-observer.ts
 import { createDraftContentTools } from '../src/features/notes/draft-content.ts';
 import { createThemeController } from '../src/features/appearance/theme-controller.ts';
 import { createRemoteEditorRefresh } from '../src/features/editor/remote-refresh.ts';
+import { createRemoteVaultUpdateController } from '../src/features/sync/remote-vault-update-controller.ts';
 import { createSystemUpdateController } from '../src/features/system-updates/controller.ts';
 import { createSyncConflictController } from '../src/features/sync/sync-conflict-controller.ts';
 import { createWorkspaceNavigationController } from '../src/features/navigation/workspace-navigation-controller.ts';
@@ -294,6 +295,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.createEditorCommandController = createEditorCommandController;
   w.createThemeController = createThemeController;
   w.createRemoteEditorRefresh = createRemoteEditorRefresh;
+  w.createRemoteVaultUpdateController = createRemoteVaultUpdateController;
   w.createNewNoteController = createNewNoteController;
   w.upload = async file => ({ url:'/api/assets/00000000-0000-4000-8000-000000000001', mime:file.type });
   w.exportHTML = async () => true;
@@ -375,6 +377,18 @@ test('workspace reads the current Vault Store snapshot after replacement', async
   w.vaultDataStore.replace({...structuredClone(empty),notes:[{id:'store-replacement',title:'来自当前 Vault',type:'note',category:'开发',tags:[],body:'<p>当前 Pinia 快照</p>',created:1,updated:2,status:'published'}]});
   w.document.querySelector('#sideCore [data-nav="all"]').click();
   assert.equal(w.document.querySelector('.note-list .note-card h3')?.textContent,'来自当前 Vault');
+});
+test('remote Vault updates flow through the sync controller into the Pinia workspace', async t=>{
+  const {dom,w,initialOptions}=await mount(empty);t.after(()=>dom.window.close());
+  const remote={...structuredClone(empty),theme:'dark',notes:[{id:'remote-note',title:'远端笔记',type:'note',category:'开发',tags:[],body:'<p>远端正文</p>',created:1,updated:2,status:'published'}]};
+
+  initialOptions.remoteUpdate(remote);
+
+  assert.equal(w.vaultDataStore.value.notes[0].title,'远端笔记');
+  assert.equal(w.vaultDataStore.value.theme,'dark');
+  assert.equal(w.workspaceShellStore.resolvedDark,true);
+  remote.notes[0].title='调用方后续修改';
+  assert.equal(w.vaultDataStore.value.notes[0].title,'远端笔记','the Pinia Vault owns the received snapshot');
 });
 test('topbar version badge shows release details and the unified action refreshes versions before automatically updating', async () => {
   let versionChecks=0;

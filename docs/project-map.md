@@ -32,6 +32,7 @@
 | `src/features/lifecycle/workspace-lifecycle.ts` | 统一管理云端刷新、页面恢复事件和过期回收站清理定时器 |
 | `src/features/lifecycle/workspace-interaction-runtime.ts` | 集中挂载并成组卸载工作区 DOM、键盘、编辑器和弹窗事件 |
 | `src/features/sync/current-vault-snapshot.ts` | 生成冲突合并快照，纳入编辑器未保存内容并排除空白新草稿 |
+| `src/features/sync/remote-vault-update-controller.ts` | 应用远端 Vault 更新，保护活动编辑和瞬时新草稿，并处理当前笔记被远端删除时的导航恢复 |
 | `src/features/dashboard/` | 首页仪表盘、笔记卡片、书签分组树及 Pinia 状态；`store.ts` 直接从 Vault generation 派生首页投影，并将布局和分组命令交给显式绑定；`snapshot.ts` 纯计算首页卡片、书签层级、计数与展开状态 |
 | `src/features/reader/` | 阅读页 Pinia 状态从 Vault 与导航派生；快照模块生成安全正文、目录、阅读时长与操作状态，`reader-actions-store.ts` 提供类型化页面动作，`code-copy.ts` 管理代码块复制，Vue 与兼容页面共用业务处理 |
 | `src/features/notes/` | 类型化笔记卡片、基于 Vault generation 的 Pinia 列表快照及笔记新增、复制、草稿保存和类型管理领域动作；页面操作沿用现有保存队列和发布事务 |
