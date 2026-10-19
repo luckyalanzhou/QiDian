@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorkspaceShellEvents } from '../src/features/navigation/workspace-shell-events.ts';
+import { createWorkspaceShellActions } from '../src/features/navigation/workspace-shell-actions.ts';
 
 function harness(overrides = {}) {
   const calls = [];
@@ -17,7 +18,16 @@ function harness(overrides = {}) {
     closeTarget: id => calls.push(['closeTarget', id]),
     ...overrides
   });
-  return { events: createWorkspaceShellEvents(dependencies), calls };
+  const actions = createWorkspaceShellActions(dependencies);
+  const events = createWorkspaceShellEvents({
+    execute: actions.execute,
+    closeThemeMenu: dependencies.closeThemeMenu,
+    closeAccountMenu: dependencies.closeAccountMenu,
+    closeSlashMenu: dependencies.closeSlashMenu,
+    closeSearch: dependencies.closeSearch,
+    closeTarget: dependencies.closeTarget
+  });
+  return { actions, events, calls };
 }
 
 function click(selector, attributes = {}) {
@@ -38,12 +48,10 @@ test('theme and account actions preserve menu close and persistence routing', as
   assert.equal(await h.events.handle(click('[data-theme-choice]', { 'data-theme-choice': 'dark' })), true);
   assert.equal(await h.events.handle(click('#accountButton')), true);
   assert.deepEqual(h.calls, [
-    ['closeThemeMenu'],
+    ['closeThemeMenu'], ['closeAccountMenu'], ['closeSlashMenu'],
     ['applyTheme', 'dark'],
     ['closeThemeMenu'],
-    ['closeThemeMenu'],
-    ['closeAccountMenu'],
-    ['closeThemeMenu'],
+    ['closeThemeMenu'], ['closeAccountMenu'], ['closeSlashMenu'],
     ['toggleAccountMenu']
   ]);
 });
@@ -78,12 +86,12 @@ test('overlay close and search bookmark actions are routed through shell events'
 
 test('typed Vue sidebar actions share the shell boundary and delete workflow', async () => {
   const h = harness();
-  assert.equal(h.events.execute({ type: 'toggle-note-types' }), true);
-  assert.equal(h.events.execute({ type: 'add-note-type' }), true);
-  assert.equal(h.events.execute({ type: 'add-category' }), true);
-  assert.equal(h.events.execute({ type: 'edit-note-type', id: 'command' }), true);
-  assert.equal(h.events.execute({ type: 'delete-note-type', id: 'command' }), true);
-  assert.equal(await h.events.execute({ type: 'delete-note', id: 'n-2' }), true);
+  assert.equal(h.actions.execute({ type: 'toggle-note-types' }), true);
+  assert.equal(h.actions.execute({ type: 'add-note-type' }), true);
+  assert.equal(h.actions.execute({ type: 'add-category' }), true);
+  assert.equal(h.actions.execute({ type: 'edit-note-type', id: 'command' }), true);
+  assert.equal(h.actions.execute({ type: 'delete-note-type', id: 'command' }), true);
+  assert.equal(await h.actions.execute({ type: 'delete-note', id: 'n-2' }), true);
   assert.deepEqual(h.calls, [
     ['closeThemeMenu'], ['closeAccountMenu'], ['closeSlashMenu'], ['toggleNoteTypes'],
     ['closeThemeMenu'], ['closeAccountMenu'], ['closeSlashMenu'], ['addNoteType'],

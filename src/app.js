@@ -34,6 +34,7 @@ import { createBackupWorkflows } from './features/settings/backup-workflows.ts';
 import { createBackupHistoryOpenFlow } from './features/settings/backup-history-open-flow.ts';
 import { createWorkspaceNavigationController } from './features/navigation/workspace-navigation-controller.ts';
 import { createWorkspaceNavigationActions } from './features/navigation/workspace-navigation-actions.ts';
+import { createWorkspaceShellActions } from './features/navigation/workspace-shell-actions.ts';
 import { createMobileMenuFocusController } from './features/navigation/mobile-menu-focus-controller.ts';
 import { createWorkspaceViewDispatcher } from './features/navigation/workspace-view-dispatcher.ts';
 import { createLegacyWorkspaceRenderer } from './features/navigation/legacy-workspace-renderer.js';
@@ -333,7 +334,7 @@ const workspaceNavigationActions=createWorkspaceNavigationActions({
 const workspaceNavigationEvents=createWorkspaceNavigationEvents({execute:workspaceNavigationActions.execute});
 navigationActionsStore.bind(command=>workspaceNavigationActions.execute(command));
 const editorToolbarEvents=workspaceAppMounted?null:createEditorToolbarEvents({closeSlashMenu,format:doFormat,insert:doInsert,tableAction:runTableAction});
-const workspaceShellEvents=createWorkspaceShellEvents({
+const workspaceShellActions=createWorkspaceShellActions({
  closeThemeMenu,
  applyTheme:theme=>applyTheme(theme,{save:true}),
  toggleThemeMenu,
@@ -351,11 +352,14 @@ const workspaceShellEvents=createWorkspaceShellEvents({
  toast,
  confirmDeleteNote:()=>confirmAction('将这篇笔记移入回收站，可在 30 天内还原。是否继续？',{title:'移入回收站',confirmText:'移入回收站',danger:true}),
  moveNoteToTrash,
- render,
- closeSearch,
+ render
+});
+const workspaceShellEvents=workspaceAppMounted?null:createWorkspaceShellEvents({
+ execute:workspaceShellActions.execute,
+ closeThemeMenu,closeAccountMenu,closeSlashMenu,closeSearch,
  closeTarget:id=>{if(id==='profileSettingsOverlay')profileSettings.close();else if(id==='appSettingsOverlay')appSettings.close();else if(id==='backupHistoryOverlay')backupHistoryStore.close();else $('#'+id)?.classList.remove('open')}
 });
-workspaceShellActionsStore.bind(command=>workspaceShellEvents.execute(command));
+workspaceShellActionsStore.bind(command=>workspaceShellActions.execute(command));
 const readerActions=createReaderActions({
  getVault,
  getCurrentNoteId:()=>navigationStore.noteId,
