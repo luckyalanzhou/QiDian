@@ -1,4 +1,5 @@
 import { HttpError } from './validation.js';
+import { findAuthorizedSession, recordAuthThrottleAttempts, refreshSessionExpiry } from './repositories/auth-repository.js';
 
 export const PASSWORD_ITERATIONS = 600_000;
 export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
@@ -48,17 +49,13 @@ export async function authorize(request, env, includeVault = false) {
   if (!env.DB) throw new HttpError(503, '尚未配置数据库');
   const token = sessionTokenFromCookie(request);
   if (!token || !/^[A-Za-z0-9_-]{40,50}$/.test(token)) throw new HttpError(401, '请登录栖点账号');
-  const columns = includeVault ? 'a.id, a.username, v.revision, v.data' : 'a.id, a.username';
-  const vaultJoin = includeVault ? ' JOIN account_vaults v ON v.account_id = a.id' : '';
   const now = Date.now(), tokenHash = await hashSession(token);
-  const row = await env.DB.prepare(`SELECT ${columns}, s.created AS session_created, s.expires AS session_expires FROM sessions s JOIN accounts a ON a.id = s.account_id${vaultJoin} WHERE s.token_hash = ? AND s.expires > ? AND s.created > ?`)
-    .bind(tokenHash, now, now - SESSION_TTL).first();
+  const row = await findAuthorizedSession(env.DB, { tokenHash, now, minimumCreated: now - SESSION_TTL, includeVault });
   if (!row) throw new HttpError(401, '登录已过期，请重新登录');
   const sessionCreated = Number(row.session_created), sessionExpires = Number(row.session_expires);
   const refreshedExpiry = Math.min(sessionCreated + SESSION_TTL, now + SESSION_IDLE_TTL);
   if (sessionExpires < now + SESSION_IDLE_TTL - SESSION_REFRESH_INTERVAL && refreshedExpiry > sessionExpires) {
-    await env.DB.prepare('UPDATE sessions SET expires = ? WHERE token_hash = ? AND expires = ?')
-      .bind(refreshedExpiry, tokenHash, sessionExpires).run();
+    await refreshSessionExpiry(env.DB, { tokenHash, expectedExpiry: sessionExpires, expires: refreshedExpiry });
   }
   delete row.session_created;
   delete row.session_expires;
@@ -84,17 +81,14 @@ export async function throttleAuth(env, request, action, identity, { ipLimit, id
   const now = Date.now(), windowStart = Math.floor(now / windowMs) * windowMs;
   const ip = request.headers.get('X-Client-IP') || 'unknown-client';
   const scopes = [
-    { key: `${action}:ip:${await digestHex(ip)}`, limit: ipLimit },
-    { key: `${action}:identity:${await digestHex(identity)}`, limit: identityLimit }
+    { bucketKey: `${action}:ip:${await digestHex(ip)}:${windowStart}`, limit: ipLimit },
+    { bucketKey: `${action}:identity:${await digestHex(identity)}:${windowStart}`, limit: identityLimit }
   ];
-  const statements = [
-    env.DB.prepare('DELETE FROM auth_throttles WHERE window_start < ?').bind(now - 24 * 60 * 60 * 1000),
-    env.DB.prepare('DELETE FROM auth_challenges WHERE expires < ?').bind(now),
-    env.DB.prepare('DELETE FROM sessions WHERE expires < ?').bind(now)
-  ];
-  for (const scope of scopes) statements.push(env.DB.prepare(`INSERT INTO auth_throttles(bucket_key, window_start, attempts) VALUES (?, ?, 1)
-    ON CONFLICT(bucket_key) DO UPDATE SET attempts = attempts + 1`).bind(`${scope.key}:${windowStart}`, windowStart));
-  await env.DB.batch(statements);
-  const counts = await Promise.all(scopes.map(scope => env.DB.prepare('SELECT attempts FROM auth_throttles WHERE bucket_key = ?').bind(`${scope.key}:${windowStart}`).first()));
+  const counts = await recordAuthThrottleAttempts(env.DB, {
+    scopes,
+    now,
+    windowStart,
+    retentionCutoff: now - 24 * 60 * 60 * 1000
+  });
   if (counts.some((row, index) => (row?.attempts || 0) > scopes[index].limit)) throw new HttpError(429, '操作太频繁，请稍后再试');
 }

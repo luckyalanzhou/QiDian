@@ -4,8 +4,26 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { openSelfHostedDatabase } from '../server/sqlite-migrations.mjs';
-import { createSelfHostedServer, queueQidianUpdate, qidianUpdaterReady, readQidianUpdateStatus } from '../server/selfhost.mjs';
+import { createSelfHostedServer } from '../server/http-server.mjs';
+import { QIDIAN_PORT } from '../server/selfhost.mjs';
+import { queueQidianUpdate, qidianUpdaterReady, readQidianUpdateStatus } from '../server/host-updater.mjs';
 import { makeRegistrationCredential } from '../src/credentials.js';
+
+test('self-hosted application listens on its fixed container port', async () => {
+  const source = await readFile(resolve('server/selfhost.mjs'), 'utf8');
+  const config = await readFile(resolve('server/config.mjs'), 'utf8');
+  const dockerfile = await readFile(resolve('Dockerfile'), 'utf8');
+  const compose = await readFile(resolve('packaging/docker/compose.yaml'), 'utf8');
+  assert.equal(QIDIAN_PORT, 9908);
+  assert.match(config, /export const QIDIAN_PORT = 9908/);
+  assert.match(source, /server\.listen\(config\.port, config\.host/);
+  assert.doesNotMatch(source, /process\.env\.PORT/);
+  assert.match(dockerfile, /EXPOSE 9908/);
+  assert.match(compose, /:9908:9908/);
+  assert.doesNotMatch(compose, /APP_PORT|PORT:/);
+  assert.doesNotMatch(dockerfile, /PORT=9908/);
+  assert.doesNotMatch(compose, /\bPORT:/);
+});
 
 test('self-hosted SQLite migrations back up schema changes and serve a private app over HTTP', async t => {
   const temp = await mkdtemp(join(tmpdir(), 'qidian-selfhost-'));

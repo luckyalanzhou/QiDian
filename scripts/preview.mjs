@@ -3,12 +3,13 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { handle } from '../server/api.js';
 import { openSelfHostedDatabase } from '../server/sqlite-migrations.mjs';
-await mkdir('.local', { recursive:true });
-const db=await openSelfHostedDatabase({ databasePath:resolve('.local/preview.sqlite'), migrationsDir:resolve('migrations'), backupsDir:resolve('.local/migration-backups') });
-const root=resolve('dist'), port=8788;
+const dataDir=resolve(process.env.QIDIAN_PREVIEW_DATA_DIR||'.local');
+await mkdir(dataDir, { recursive:true });
+const db=await openSelfHostedDatabase({ databasePath:resolve(dataDir,'preview.sqlite'), migrationsDir:resolve('migrations'), backupsDir:resolve(dataDir,'migration-backups') });
+const root=resolve('dist'), port=Number(process.env.QIDIAN_PREVIEW_PORT||8788);
 const server=createServer(async (incoming,outgoing)=>{
  try {
-  if(!['127.0.0.1:8788','localhost:8788'].includes(incoming.headers.host)) { outgoing.writeHead(403);outgoing.end();return; }
+  if(![`127.0.0.1:${port}`,`localhost:${port}`].includes(incoming.headers.host)) { outgoing.writeHead(403);outgoing.end();return; }
   const url=new URL(incoming.url,`http://127.0.0.1:${port}`);
   if(url.pathname.startsWith('/api/')) {
    let size=0;const chunks=[];

@@ -34,11 +34,6 @@ end
 s:tab("basic", translate("基本设置"))
 s:tab("logs", translate("日志"))
 
-local port = s:taboption("basic", Value, "http_port", translate("访问端口"))
-port.datatype = "port"
-port.default = "9908"
-port.rmempty = false
-
 local registration = s:taboption("basic", Flag, "registration_enabled", translate("允许创建其他账号"))
 registration.default = "0"
 registration.rmempty = false

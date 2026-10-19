@@ -6,7 +6,6 @@ services:
     init: true
     environment:
       NODE_ENV: production
-      PORT: "9908"
       HOST: 0.0.0.0
       DATA_DIR: /data
       STATIC_DIR: /app/dist
@@ -17,7 +16,7 @@ services:
     volumes:
       - qidian-data:/data
     ports:
-      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-9908}:9908"
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:9908:9908"
 
 volumes:
   qidian-data:

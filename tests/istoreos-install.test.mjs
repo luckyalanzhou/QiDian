@@ -16,7 +16,7 @@ async function install(t, { existing = false, worker = false, fails = false, loc
   for (const dir of dirs) await mkdir(join(root, dir), { recursive: true });
   const marker = 'EXISTING USER CONFIGURATION\n';
   await writeFile(join(root, 'payload/compose.yaml'), 'services: {}\n');
-  await writeFile(join(root, 'payload/.env.example'), 'APP_PORT=9908\n');
+  await writeFile(join(root, 'payload/.env.example'), 'APP_BIND_ADDRESS=0.0.0.0\n');
   await writeFile(join(root, 'payload/version'), '0.0.20\n');
   await writeFile(join(root, 'payload/root/etc/config/qidian'), 'config qidian main\n');
   await writeFile(join(root, 'payload/root/usr/libexec/istorec/qidian-updater.sh'), '#!/bin/sh\nexit 0\n');

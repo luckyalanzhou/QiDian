@@ -6,7 +6,6 @@ services:
     init: true
     environment:
       NODE_ENV: production
-      PORT: "9908"
       HOST: 0.0.0.0
       DATA_DIR: /data
       STATIC_DIR: /app/dist
@@ -21,4 +20,4 @@ services:
       - ${QIDIAN_UPDATE_REQUEST_PATH:?请先在LuCI执行安装或更新}:/run/qidian-update-inbox
       - ${QIDIAN_UPDATE_STATUS_PATH:?请先在LuCI执行安装或更新}:/run/qidian-update-status:ro
     ports:
-      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-9908}:9908"
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:9908:9908"

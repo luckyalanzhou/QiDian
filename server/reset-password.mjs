@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { findLocalAccountForPasswordReset, resetLocalAccountPassword } from './repositories/local-account-repository.mjs';
 
 export const PASSWORD_ITERATIONS = 600_000;
 export function parseResetConfirmation(answer) {
@@ -29,19 +30,12 @@ export function resetAccountPassword(db, accountId, password) {
   const verifier = pbkdf2Sync(password, salt, PASSWORD_ITERATIONS, 32, 'sha256');
   const passwordHash = createHash('sha256').update(verifier).digest('base64');
 
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const update = db.prepare(`UPDATE accounts SET password_salt = ?, password_hash = ?, password_iterations = ? WHERE id = ?`)
-      .run(salt.toString('base64'), passwordHash, PASSWORD_ITERATIONS, accountId);
-    if (Number(update.changes) !== 1) throw new Error('账号不存在，密码未更改');
-    const sessionsRevoked = Number(db.prepare('DELETE FROM sessions WHERE account_id = ?').run(accountId).changes);
-    db.prepare('DELETE FROM auth_challenges WHERE account_id = ?').run(accountId);
-    db.exec('COMMIT');
-    return { sessionsRevoked };
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  return resetLocalAccountPassword(db, {
+    accountId,
+    salt: salt.toString('base64'),
+    passwordHash,
+    iterations: PASSWORD_ITERATIONS
+  });
 }
 
 function promptLine(label, { hidden = false } = {}) {
@@ -93,7 +87,7 @@ async function main() {
   try {
     const identifier = (await promptLine('输入账号：')).trim().toLowerCase();
     if (!identifier) throw new Error('账号不能为空');
-    const account = db.prepare('SELECT id, username FROM accounts WHERE username_normalized = ?').get(identifier);
+    const account = findLocalAccountForPasswordReset(db, identifier);
     if (!account) throw new Error('没有找到这个账号，数据库未更改');
 
     process.stdout.write(`将重置账号 ${account.username} 的密码。\n`);

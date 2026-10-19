@@ -69,17 +69,14 @@ printf '%s\n' "$(cat "$SCRIPT_DIR/version")" > /etc/qidian-version
 
 if [ "$HAD_CONFIG" = false ]; then
 	uci set qidian.main=qidian
-  uci set qidian.main.http_port=9908
   uci set qidian.main.registration_enabled=0
   uci set qidian.main.data_path=
 
   # Carry forward settings only when an environment file existed before this
   # package was installed.  A freshly copied example is not device state.
   if [ "$HAD_ENV" = true ]; then
-    OLD_PORT=$(sed -n 's/^APP_PORT=//p' "$INSTALL_DIR/.env" | tail -n 1)
     OLD_DATA=$(sed -n 's/^QIDIAN_DATA_PATH=//p' "$INSTALL_DIR/.env" | tail -n 1)
     OLD_REGISTRATION=$(sed -n 's/^REGISTRATION_ENABLED=//p' "$INSTALL_DIR/.env" | tail -n 1)
-    case "$OLD_PORT" in ''|*[!0-9]*) ;; *) uci set "qidian.main.http_port=$OLD_PORT" ;; esac
     case "$OLD_DATA" in /*) uci set "qidian.main.data_path=$OLD_DATA" ;; esac
     [ "$OLD_REGISTRATION" != true ] || uci set qidian.main.registration_enabled=1
   fi
@@ -91,6 +88,10 @@ elif ! uci -q get qidian.main.registration_enabled >/dev/null 2>&1; then
   else
     uci set qidian.main.registration_enabled=0
   fi
+  uci commit qidian
+fi
+if uci -q get qidian.main.http_port >/dev/null 2>&1; then
+  uci -q delete qidian.main.http_port
   uci commit qidian
 fi
 

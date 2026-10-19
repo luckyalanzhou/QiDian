@@ -43,9 +43,7 @@ status() {
 
 account_status() {
 	[ "$(status)" = running ] || { printf 'unavailable\n'; return; }
-	port=$(uci -q get qidian.main.http_port 2>/dev/null || true)
-	[ -n "$port" ] || port=9908
-	url=http://127.0.0.1:$port/api/auth/config
+	url=http://127.0.0.1:9908/api/auth/config
 	if command -v uclient-fetch >/dev/null 2>&1; then
 		body=$(uclient-fetch -qO- "$url" 2>/dev/null || true)
 	elif command -v wget >/dev/null 2>&1; then
@@ -484,10 +482,6 @@ prepare() {
 	case "$docker_root" in *:*) fail "Docker 挂载目录不能包含冒号：$docker_root" ;; esac
 	case "/$docker_root/" in *"/../"*) fail 'Docker 挂载目录不能包含上级目录。' ;; esac
 
-	port=$(uci -q get qidian.main.http_port 2>/dev/null || true)
-	[ -n "$port" ] || port=9908
-	case "$port" in *[!0-9]*) fail '端口必须为 1 至 65535 的数字。' ;; esac
-	[ "$port" -ge 1 ] 2>/dev/null && [ "$port" -le 65535 ] 2>/dev/null || fail '端口必须为 1 至 65535。'
 	registration_enabled=$(uci -q get qidian.main.registration_enabled 2>/dev/null || true)
 	case "$registration_enabled" in 1|true) registration_enabled=true ;; *) registration_enabled=false ;; esac
 	trust_proxy_enabled=$(uci -q get qidian.main.trust_proxy_enabled 2>/dev/null || true)
@@ -536,7 +530,6 @@ prepare() {
 	chmod 600 "$ENV_FILE"
 	set_env QIDIAN_DATA_PATH "$data_dir"
 	set_env APP_BIND_ADDRESS 0.0.0.0
-	set_env APP_PORT "$port"
 	set_env REGISTRATION_ENABLED "$registration_enabled"
 	set_env TRUST_PROXY "$trust_proxy_enabled"
 	set_env TRUSTED_PROXY_IPS "$trusted_proxy_ip"
@@ -631,7 +624,7 @@ run_operation() {
 			if [ "${QIDIAN_UPDATE_WORKER:-0}" = 1 ]; then
 				exec >> "$status_dir/update.log" 2>&1
 			fi
-			printf '正在拉取适合当前设备架构的栖点成品镜像（端口 %s）…\n' "$(uci -q get qidian.main.http_port)"
+			printf '正在拉取适合当前设备架构的栖点成品镜像（端口 9908）…\n'
 			image_name=$IMAGE_REPOSITORY:latest
 			if [ "$action" = install-package ]; then
 				deployment_version=$(cat /etc/qidian-version 2>/dev/null || true)
@@ -658,9 +651,9 @@ run_operation() {
 				/etc/init.d/qidian-updater restart || /etc/init.d/qidian-updater start
 			fi
 			printf '\n栖点部署完成。\n'
-			printf '访问端口：%s（HTTP）\n' "$(uci -q get qidian.main.http_port)"
+			printf '访问端口：9908（HTTP）\n'
 			printf '数据目录：%s\n' "$(uci -q get qidian.main.data_path)"
-			printf '请允许 OpenWrt 网关 TCP %s 入站，并按需配置路由器端口转发。\n' "$(uci -q get qidian.main.http_port)"
+			printf '请允许 OpenWrt 网关 TCP 9908 入站，并按需配置路由器端口转发。\n'
 			;;
 		check-update)
 			check_and_apply_updates

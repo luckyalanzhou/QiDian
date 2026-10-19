@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'vite';
+import { createViteTestServer as createServer } from './vite-test-server.mjs';
 import { fileURLToPath } from 'node:url';
 
 test('production autosave writes directly to cloud and never puts note data into IndexedDB', async () => {
@@ -45,13 +45,16 @@ test('production autosave writes directly to cloud and never puts note data into
     const statuses = [];
     cloud.setOwner('account-test');
     cloud.onStatus(status => statuses.push(status));
-    cloud.queueSave({ notes: [{ id: 'note-test', title: '仅云端保存' }], categories: [], theme: 'light' });
+    cloud.queueSave({
+      notes: [{ id: 'note-test', title: '仅云端保存', type: 'note', category: '未分类', tags: [], body: '', source: '', created: 1, updated: 1, pinned: false }],
+      categories: [], noteTypes: [{ id: 'note', name: '普通笔记' }], bookmarks: [], trash: [], theme: 'light', pasteMode: 'rich'
+    });
     await new Promise(resolve => setTimeout(resolve, 30));
 
     assert.equal(requests.length, 1);
     assert.equal(requests[0].url, '/api/vault');
     assert.equal(requests[0].options.method, 'PUT');
-    assert.deepEqual(JSON.parse(requests[0].options.body).data.notes[0], { id: 'note-test', title: '仅云端保存' });
+    assert.equal(JSON.parse(requests[0].options.body).data.notes[0].title, '仅云端保存');
     assert.ok(localWrites.every(([operation]) => operation === 'delete'), 'production may clear a legacy draft but must not put note data in IndexedDB');
     assert.deepEqual(statuses, ['正在保存到 Docker 数据目录…', '✓ 已保存到 Docker 数据目录']);
     assert.equal(listeners[0]?.[0], 'online');
@@ -150,7 +153,11 @@ test('an expired session pauses cloud writes and requests re-login without losin
   const server=await createServer({configFile:false,root:fileURLToPath(new URL('..',import.meta.url)),define:{'import.meta.env.DEV':'false'},server:{middlewareMode:true},appType:'custom'});
   try{
     const cloud=await server.ssrLoadModule('/src/cloud.js');cloud.setOwner('account-test');cloud.onStatus(status=>statuses.push(status));cloud.onAuthenticationRequired(()=>authenticationPrompts++);
-    cloud.queueSave({categories:[],notes:[{id:'pending-note',title:'当前页面保留'}],theme:'light'});
+    cloud.queueSave({
+      categories: [], noteTypes: [{ id: 'note', name: '普通笔记' }],
+      notes: [{ id: 'pending-note', title: '当前页面保留', type: 'note', category: '未分类', tags: [], body: '', source: '', created: 1, updated: 1, pinned: false }],
+      bookmarks: [], trash: [], theme: 'light', pasteMode: 'rich'
+    });
     assert.equal(await cloud.flush(),false);
     assert.equal(cloud.hasUnsaved(),true);
     assert.equal(authenticationPrompts,1);
@@ -169,7 +176,7 @@ test('a password login confirms the cookie-backed session before opening the wor
   globalThis.indexedDB = { open() { const request = {}; queueMicrotask(() => { request.result = { objectStoreNames: { contains: () => true } }; request.onsuccess?.(); }); return request; } };
   globalThis.fetch = async (url, options = {}) => {
     requests.push({ url, options });
-    if (url === '/api/auth/challenge') return { ok: true, json: async () => ({ id: 'challenge-test', salt: 'AAAAAAAAAAAAAAAAAAAAAA==' }) };
+    if (url === '/api/auth/challenge') return { ok: true, json: async () => ({ id: 'challenge-test', salt: 'AAAAAAAAAAAAAAAAAAAAAA==', iterations: 600000 }) };
     if (url === '/api/auth/verify') return { ok: true, json: async () => ({ id: 'account-test' }) };
     if (url === '/api/auth/session') return { ok: false, status: 401, json: async () => ({ error: '请登录栖点账号' }) };
     throw new Error(`Unexpected request: ${url}`);
@@ -193,7 +200,7 @@ test('re-login merges the retained page changes with newer Docker cloud data bef
   globalThis.fetch=async(url,options={})=>{
     requests.push({url,options});
     if(url==='/api/auth/session'){sessionReads++;return{ok:true,json:async()=>({id:'account-test',username:'alan',revision:sessionReads===1?1:2,data:sessionReads===1?base:remote})};}
-    if(url==='/api/auth/challenge')return{ok:true,json:async()=>({id:'challenge-test',salt:'AAAAAAAAAAAAAAAAAAAAAA=='})};
+    if(url==='/api/auth/challenge')return{ok:true,json:async()=>({id:'challenge-test',salt:'AAAAAAAAAAAAAAAAAAAAAA==',iterations:600000})};
     if(url==='/api/auth/verify')return{ok:true,json:async()=>({id:'account-test'})};
     if(url==='/api/vault'&&options.method==='PUT'){
       if(firstPut){firstPut=false;return{ok:false,status:401,json:async()=>({error:'登录已过期'})};}

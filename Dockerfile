@@ -15,7 +15,6 @@ FROM node:24-bookworm-slim AS runtime
 ARG QIDIAN_VERSION
 ENV NODE_ENV=production \
     QIDIAN_VERSION=${QIDIAN_VERSION} \
-    PORT=9908 \
     HOST=0.0.0.0 \
     DATA_DIR=/data \
     STATIC_DIR=/app/dist \
@@ -24,6 +23,7 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/server ./server
+COPY --from=build --chown=node:node /app/shared ./shared
 COPY --from=build --chown=node:node /app/migrations ./migrations
 COPY --from=build --chown=node:node /app/scripts/sqlite-adapter.mjs ./scripts/sqlite-adapter.mjs
 RUN mkdir -p /data /run/qidian-update-inbox /run/qidian-update-status && chown node:node /data /run/qidian-update-inbox && chown root:root /run/qidian-update-status && chmod 755 /run/qidian-update-status

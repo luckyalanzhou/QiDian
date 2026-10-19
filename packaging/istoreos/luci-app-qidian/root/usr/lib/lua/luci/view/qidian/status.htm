@@ -2,7 +2,6 @@
 <% local state = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh status 2>/dev/null")) %>
 <% local result = util.trim(sys.exec("cat /tmp/qidian-operation.result 2>/dev/null")) %>
 <% local account_status = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh account-status 2>/dev/null")) %>
-<% local port = util.trim(sys.exec("uci -q get qidian.main.http_port 2>/dev/null")); if port == "" then port = "9908" end %>
 <% local data_path = util.trim(sys.exec("uci -q get qidian.main.data_path 2>/dev/null")) %>
 <% if data_path == "" then local docker_root = util.trim(sys.exec("docker info --format '{{.DockerRootDir}}' 2>/dev/null")); if docker_root:sub(1, 1) == "/" and docker_root ~= "/" then data_path = docker_root:gsub("/$", "") .. "/volumes/qidian/data" else data_path = translate("等待 Docker 启动后检测") end end %>
 <% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
@@ -19,7 +18,7 @@
 			<tr><th scope="row"><%:版本%></th><td><span id="qidian-version-text"><%=util.pcdata(version_text)%></span><span id="qidian-version-actions"></span></td></tr>
 			<tr><th scope="row"><%:Docker 数据目录%></th><td><code id="qidian-data-path"><%=util.pcdata(data_path)%></code></td></tr>
 			<tr><th scope="row"><%:账号状态%></th><td><strong id="qidian-account-state"><% if account_status == "setup_required" then %><%:管理员待创建%><% elseif account_status == "ready" then %><%:管理员已创建%><% else %><%:启动后检测%><% end %></strong></td></tr>
-			<tr id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><th scope="row"><%:网页入口%></th><td><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:<%=util.pcdata(port)%>" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></td></tr>
+			<tr id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><th scope="row"><%:网页入口%></th><td><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:9908" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></td></tr>
 		</tbody>
 	</table>
 	<div id="qidian-service-operations" class="cbi-value"><div class="cbi-value-title"><%:服务控制%></div><div id="qidian-service-action-fields" class="cbi-value-field"></div></div>
@@ -27,7 +26,7 @@
 
 <script>
 (function () {
-	var port = "<%=util.pcdata(port)%>";
+	var port = "9908";
 	var openRow = document.getElementById("qidian-open-row");
 	var serviceActionFields = document.getElementById("qidian-service-action-fields");
 	var serviceActions = document.getElementById("qidian-service-operations");

@@ -2,18 +2,137 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
+import { createPinia } from 'pinia';
 import createDOMPurify from 'dompurify';
 import { createQidianEditor } from '../src/editor.js';
 import { TextSelection } from '@tiptap/pm/state';
 import { DEFAULT_NOTE_TYPES, validateVault } from '../server/validation.js';
 import { createBookmarkView } from '../src/bookmarks.js';
+import { bookmarksHTML, mergeBookmarks, parseBookmarks } from '../src/bookmark-data.js';
 import { createRecycleBinView } from '../src/recycle-bin.js';
+import { createTrashWorkflows } from '../src/features/trash/workflows.ts';
+import { createDashboardActions } from '../src/features/dashboard/actions.ts';
+import { createVaultMutation } from '../src/features/vault/mutation.ts';
+import { createBookmarkMutationActions } from '../src/features/bookmarks/mutation-actions.ts';
+import { createVaultPersistence } from '../src/features/vault/persistence.ts';
+import { createNoteTypeDialogFlow } from '../src/features/notes/type-dialog-flow.ts';
+import { createLegacyNoteTypeDialog } from '../src/features/notes/legacy-type-dialog.ts';
+import { createCategoryDialogFlow } from '../src/features/categories/category-dialog-flow.ts';
+import { createCaptureFlow } from '../src/features/capture/capture-flow.ts';
+import { createCaptureDOMAdapter } from '../src/features/capture/capture-dom-adapter.ts';
+import { createLegacyCaptureDialog } from '../src/features/capture/legacy-capture-dialog.ts';
+import { mountEditorSearch } from '../src/features/editor/search-controller.ts';
+import { createEditorCommandController } from '../src/features/editor/command-controller.ts';
+import { createEditorPageActions } from '../src/features/editor/page-actions.ts';
+import { createEditorRuntimeController } from '../src/features/editor/runtime-controller.ts';
+import { createEditorOutlineController } from '../src/features/editor/outline-controller.ts';
+import { createLegacyEditorToolbarView } from '../src/features/editor/legacy-toolbar-view.ts';
+import { createEditorToolbarState } from '../src/features/editor/toolbar-state.ts';
+import { createEditorInsertController } from '../src/features/editor/insert-controller.ts';
+import { createEditorDraftController } from '../src/features/editor/draft-controller.ts';
+import { createEditorFormAdapter } from '../src/features/editor/form-adapter.ts';
+import { connectSessionRecoveryFlow } from '../src/features/auth/session-recovery-flow.ts';
+import { createWorkspaceViewDispatcher } from '../src/features/navigation/workspace-view-dispatcher.ts';
+import { createLegacyWorkspaceRenderer } from '../src/features/navigation/legacy-workspace-renderer.js';
+import { mountWorkspaceInteractionRuntime } from '../src/features/lifecycle/workspace-interaction-runtime.ts';
+import { createCurrentVaultSnapshot } from '../src/features/sync/current-vault-snapshot.ts';
+import { renderLegacyEditorMarkup } from '../src/features/editor/legacy-editor-view.js';
+import { createEditorToolbarEvents } from '../src/features/editor/toolbar-events.ts';
+import { mountEditorFileInputEvents } from '../src/features/editor/file-input-events.ts';
+import { mountBackupImportFileEvents } from '../src/features/settings/import-file-events.ts';
+import { createProfileSettingsFlow } from '../src/features/account/profile-settings-flow.ts';
+import { createAppSettingsActions } from '../src/features/settings/app-settings-actions.ts';
+import { createNotePublishFlow } from '../src/features/editor/note-publish-flow.ts';
+import { createContentInsertionController } from '../src/features/editor/content-insertion.ts';
+import { createAttachmentUploadFlow } from '../src/features/editor/attachment-upload.ts';
+import { saveNoteDraft } from '../src/features/notes/draft-actions.ts';
+import { createNoteDeleteWorkflow } from '../src/features/notes/delete-workflow.ts';
+import { createEditorDeleteWorkflow } from '../src/features/notes/editor-delete-workflow.ts';
+import { createNote as createVaultNote, duplicateNote as duplicateVaultNote } from '../src/features/notes/note-actions.ts';
+import { createNoteController as createNewNoteController } from '../src/features/notes/create-note-controller.ts';
+import { isDraftNote as isDraft, needsPublish, publishedNoteView as publishedView, selectNotes } from '../src/features/notes/selectors.ts';
+import { createNoteType, deleteNoteType, renameNoteType } from '../src/features/notes/type-actions.ts';
+import { createHtmlContentTools } from '../src/features/content/html-content.ts';
+import { createReaderSnapshot } from '../src/features/reader/snapshot.ts';
+import { createReaderActions } from '../src/features/reader/actions.ts';
+import { mountCodeCopyButtons } from '../src/features/reader/code-copy.ts';
+import { mountHeadingObserver } from '../src/features/reader/heading-observer.ts';
+import { createDraftContentTools } from '../src/features/notes/draft-content.ts';
+import { createThemeController } from '../src/features/appearance/theme-controller.ts';
+import { createRemoteEditorRefresh } from '../src/features/editor/remote-refresh.ts';
+import { createSystemUpdateController } from '../src/features/system-updates/controller.ts';
+import { createSyncConflictController } from '../src/features/sync/sync-conflict-controller.ts';
+import { createWorkspaceNavigationController } from '../src/features/navigation/workspace-navigation-controller.ts';
+import { createWorkspaceNavigationEvents } from '../src/features/navigation/workspace-navigation-events.ts';
+import { mountWorkspaceClickRouter } from '../src/features/navigation/workspace-click-router.ts';
+import { createWorkspaceShellEvents } from '../src/features/navigation/workspace-shell-events.ts';
+import { mountWorkspaceKeyboardEvents } from '../src/features/navigation/workspace-keyboard-events.ts';
+import { mountWorkspaceStaticDomEvents } from '../src/features/navigation/workspace-static-dom-events.ts';
+import { createWorkspaceContentEvents } from '../src/features/navigation/workspace-content-events.ts';
+import { mountItemMenuController } from '../src/features/navigation/item-menu-controller.ts';
+import { mountModalFocusLoop } from '../src/features/dialogs/modal-focus-loop.ts';
+import { mountEditorDocumentLifecycle } from '../src/features/editor/document-lifecycle.ts';
+import { mountWorkspaceLifecycle } from '../src/features/lifecycle/workspace-lifecycle.ts';
+import { useNavigationStore } from '../src/features/navigation/store.ts';
+import { useCategoryDialogStore } from '../src/features/categories/category-dialog-store.ts';
+import { useNavigationActionsStore } from '../src/features/navigation/navigation-actions-store.ts';
+import { useWorkspaceShellActionsStore } from '../src/features/navigation/workspace-shell-actions-store.ts';
+import { useVaultStore } from '../src/features/vault/store.ts';
+import { useToastStore } from '../src/features/notifications/store.ts';
+import { useWorkspaceShellStore } from '../src/features/navigation/workspace-shell-store.ts';
+import { createBackupWorkflows } from '../src/features/settings/backup-workflows.ts';
 import { createTrashEntry, pruneExpiredTrash, restoreTrashEntry, TRASH_RETENTION_MS } from '../src/trash-data.js';
 import { renderReleaseNotes } from '../src/release-notes.js';
 import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from '../src/paste.js';
 import { parseQidianMarkdown, qidianSchema } from '../src/markdown.js';
 const loadMarkdownTools = async () => import('../src/markdown.js');
 const empty = { categories: ['开发'], noteTypes:[{id:'note',name:'普通笔记'},{id:'clip',name:'网页收藏'},{id:'command',name:'命令速查'},{id:'issue',name:'故障排查'}], notes: [], theme:'light', pasteMode:'rich' };
+function createActionDialogHarness(document) {
+  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="actionDialogOverlay"><section class="dialog action-dialog" role="dialog" aria-modal="true" aria-labelledby="actionDialogTitle" aria-describedby="actionDialogMessage" tabindex="-1"><div class="dialog-head"><h2 id="actionDialogTitle">确认操作</h2></div><div class="dialog-body"><p id="actionDialogMessage" class="action-dialog-message"></p><label class="form-label" id="actionDialogInputLabel" for="actionDialogInput" hidden></label><input class="form-text" id="actionDialogInput" type="text" autocomplete="off" hidden></div><div class="dialog-foot"><button class="secondary-btn" id="actionDialogCancel" type="button">取消</button><button class="primary-btn" id="actionDialogConfirm" type="button">确认</button></div></section></div>');
+  const overlay=document.querySelector('#actionDialogOverlay'),dialog=overlay.querySelector('[role="dialog"]'),input=document.querySelector('#actionDialogInput');
+  let pending=null;
+  const close=accepted=>{
+    if(!pending)return;
+    const current=pending;pending=null;overlay.classList.remove('open');
+    current.resolve(current.mode==='prompt'?accepted?input.value:null:!!accepted);
+    if(current.returnFocus?.isConnected)current.returnFocus.focus();
+  };
+  document.querySelector('#actionDialogConfirm').addEventListener('click',()=>close(true));
+  document.querySelector('#actionDialogCancel').addEventListener('click',()=>close(false));
+  overlay.addEventListener('click',event=>{if(event.target===overlay)close(false)});
+  dialog.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close(false)}
+    else if(event.key==='Enter'&&pending){event.preventDefault();event.stopPropagation();close(true)}
+  });
+  return options=>{
+    if(pending)return Promise.resolve(options.mode==='prompt'?null:false);
+    const mode=options.mode||'confirm';
+    document.querySelector('#actionDialogTitle').textContent=options.title||'确认操作';
+    document.querySelector('#actionDialogMessage').textContent=options.message||'';
+    document.querySelector('#actionDialogConfirm').textContent=options.confirmText||'确认';
+    document.querySelector('#actionDialogCancel').textContent=options.cancelText||'取消';
+    document.querySelector('#actionDialogConfirm').classList.toggle('danger-btn',!!options.danger);
+    input.value=String(options.inputValue??'');input.maxLength=options.maxLength||2048;input.hidden=mode!=='prompt';
+    const label=document.querySelector('#actionDialogInputLabel');label.textContent=options.inputLabel||'';label.hidden=mode!=='prompt';
+    overlay.classList.add('open');
+    return new Promise(resolve=>{pending={mode,resolve,returnFocus:document.activeElement};(mode==='prompt'?input:document.querySelector('#actionDialogConfirm')).focus()});
+  };
+}
+function createSyncConflictDialogHarness(document,window) {
+  document.body.insertAdjacentHTML('beforeend','<div class="overlay" id="syncConflictOverlay"><section class="dialog sync-conflict-dialog" role="dialog" aria-modal="true"><div id="syncConflictSummary"></div><div id="syncConflictVersions"></div><p id="syncConflictBackupStatus" role="status"></p><button id="downloadSyncConflict" type="button">下载两版对照备份</button><button id="loadConflictCloud" type="button" disabled>载入 Docker 服务端版本</button></section></div>');
+  const overlay=document.querySelector('#syncConflictOverlay'),summary=document.querySelector('#syncConflictSummary'),versions=document.querySelector('#syncConflictVersions'),status=document.querySelector('#syncConflictBackupStatus'),download=document.querySelector('#downloadSyncConflict'),restore=document.querySelector('#loadConflictCloud');
+  const renderVersion=version=>{
+    const section=document.createElement('section'),heading=document.createElement('h3');section.className='sync-conflict-version';heading.textContent=`${version.title} · ${version.changedCount} 篇笔记有变化`;section.append(heading);
+    if(version.notes.length){for(const note of version.notes){const article=document.createElement('article'),title=document.createElement('strong'),excerpt=document.createElement('p');article.className='sync-conflict-note';title.textContent=note.title+(note.deleted?'（已删除）':'');excerpt.textContent=note.excerpt;article.append(title,excerpt);section.append(article)}}
+    else{const empty=document.createElement('p');empty.textContent='冲突涉及分类、书签或其他结构化信息；完整内容已放入对照备份。';section.append(empty)}
+    return section;
+  };
+  let actionHandler=()=>undefined;
+  const store={visible:false,backupReady:false,exporting:false,restoring:false,bindActions(handler){actionHandler=handler},dispatch(action){return actionHandler(action)},show(local,remote){this.visible=true;this.backupReady=false;this.exporting=false;this.restoring=false;overlay.classList.add('open');summary.textContent='部分修改无法自动合并。系统已保留两个版本，请下载对照备份后再选择如何恢复。';versions.replaceChildren(renderVersion(local),renderVersion(remote));status.textContent='下载对照备份后，才能载入已保存版本。';status.className='account-settings-message';restore.disabled=true},close(){this.visible=false;overlay.classList.remove('open')},startExport(){this.exporting=true;download.disabled=true;status.textContent='正在整理两个版本及附件…'},exportSucceeded(){this.exporting=false;this.backupReady=true;download.disabled=false;restore.disabled=false;status.textContent='对照备份已下载，确认后可载入 Docker 服务端版本。';status.className='account-settings-message success'},exportFailed(message){this.exporting=false;download.disabled=false;status.textContent=message;status.className='account-settings-message error'},startRestore(){this.restoring=true;restore.disabled=true},restoreFailed(message){this.restoring=false;status.textContent=message;status.className='account-settings-message error'},finishRestore(){this.restoring=false;restore.disabled=!this.backupReady}};
+  download.addEventListener('click',()=>void store.dispatch('download-backup'));
+  restore.addEventListener('click',()=>void store.dispatch('restore-cloud'));
+  return store;
+}
 test('vault validation defaults legacy data to an empty trash and validates stored items', () => {
   const note={id:'old-note',title:'旧笔记',type:'note',category:'开发',tags:[],body:'<p>内容</p>',source:'',created:1,updated:2,pinned:false};
   assert.deepEqual(validateVault(structuredClone(empty)).trash,[]);
@@ -41,14 +160,117 @@ test('product branding shows the name without repeated promotional taglines', as
   assert.equal(document.querySelector('.auth-brand span'), null);
   assert.equal(document.querySelector('#brandHome .brand-copy span'), null);
   assert.equal(document.querySelector('.side-footer'), null);
+  assert.ok(document.querySelector('#topbarMenusIsland'),'the static page reserves a Vue top-bar menu mount point');
+  assert.equal(document.querySelector('#themeBtn'),null,'theme controls are rendered by Vue');
+  assert.equal(document.querySelector('#accountButton'),null,'account controls are rendered by Vue');
+  assert.equal(document.querySelector('#menuBtn'),null,'the mobile menu button is rendered by Vue');
+  assert.equal(document.querySelector('#globalSearch'),null,'global search input is rendered by Vue only while open');
+  assert.equal(document.querySelector('#mobileShade'),null,'the mobile drawer shade is rendered by Vue');
+  assert.ok(document.querySelector('#breadcrumbTitleIsland'),'the static page reserves a Vue breadcrumb mount point');
+  assert.equal(document.querySelector('#breadcrumbTitle'),null,'the breadcrumb title is rendered by Vue');
   const settingsIcon=document.querySelector('#i-settings');
   assert.equal(settingsIcon.querySelector('path').hasAttribute('transform'),false,'the settings gear is centered directly in its viewBox');
-  assert.equal(document.querySelector('#openAppSettings use').getAttribute('href'),'#i-settings');
+  const topbar=await readFile(new URL('../src/features/navigation/WorkspaceTopbarMenus.vue',import.meta.url),'utf8');
+  assert.match(topbar,/id="openAppSettings"[\s\S]*?href="#i-settings"/,'the Vue-owned account menu uses the shared settings icon');
+  const mobileDrawer=await readFile(new URL('../src/features/navigation/MobileDrawerControls.vue',import.meta.url),'utf8');
+  assert.match(mobileDrawer,/id="menuBtn"[\s\S]*?shell\.mobileMenuOpen/,'the mobile drawer button reads Pinia-owned shell state');
+  assert.match(mobileDrawer,/id="mobileShade"[\s\S]*?:aria-hidden="!shell\.mobileMenuOpen"/,'the shade follows the Vue-owned mobile drawer state');
+  assert.match(mobileDrawer,/@click="shell\.toggleMobileMenu\(\)"/,'Vue owns the mobile drawer toggle');
+  assert.match(mobileDrawer,/@click="closeFromShade"/,'Vue owns closing the drawer from its shade');
+  assert.match(mobileDrawer,/function closeFromShade\(\)[\s\S]*?shell\.closeMobileMenu\(\)[\s\S]*?menuBtn/,'closing from the shade updates Pinia and restores focus');
   dom.window.close();
+});
+test('sidebar fallback follows actual Vue mount state even when Pinia stores are imported',async t=>{
+  const legacy=await mount(structuredClone(empty));
+  t.after(()=>legacy.dom.window.close());
+  assert.ok(legacy.w.document.querySelector('#sideCore'),'the non-Vue fallback builds its own navigation');
+  assert.ok(legacy.w.document.querySelector('#sideTypes'),'the fallback includes the note-type navigation target');
+  const vue=await mount(structuredClone(empty),{readerBridge:true});
+  t.after(()=>vue.dom.window.close());
+  assert.equal(vue.w.document.querySelector('#sideCore'),null,'the Vue path does not generate a second legacy sidebar');
 });
 async function mount(vault=empty, initialOptions={}) {
   const dom = new JSDOM(await readFile(new URL('../index.html',import.meta.url),'utf8'), { url:'http://localhost', runScripts:'outside-only', pretendToBeVisual:true });
   const w = dom.window; const saves = [];
+  w.document.body.insertAdjacentHTML('beforeend', `<div class="overlay" id="captureOverlay"><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="captureTitle"><div class="dialog-head"><h2 id="captureTitle">快速收集</h2><button class="round-btn" data-close="captureOverlay" aria-label="关闭">关闭</button></div><div class="dialog-body"><label class="form-label" for="captureName">笔记标题</label><input id="captureName" class="form-text"><div class="dialog-row"><label>内容类型<select id="captureType" class="form-text"></select></label><label>归属分类<select id="captureCat" class="form-text"></select></label></div><label for="captureSource">来源网址（可选）</label><input id="captureSource" class="form-text"><label for="capturePad">内容</label><div id="capturePad" class="capture-pad doc-content" contenteditable="true"></div><select id="capturePasteMode" class="field"><option value="rich">网页格式 / 自动识别</option><option value="match">整理文本（兼容）</option><option value="markdown">按 Markdown 解析</option><option value="plain">仅纯文本</option></select></div><div class="dialog-foot"><button class="secondary-btn" data-close="captureOverlay">取消</button><button class="primary-btn" id="captureSave">收集并保存</button></div></section></div>`);
+  w.document.body.insertAdjacentHTML('beforeend', '<div class="overlay" id="categoryOverlay"><section class="dialog type-dialog" role="dialog" aria-modal="true" aria-labelledby="categoryDialogTitle"><div class="dialog-head"><h2 id="categoryDialogTitle">新增分类</h2><button class="round-btn" type="button" data-close="categoryOverlay" aria-label="关闭">关闭</button></div><div class="dialog-body"><label class="form-label" for="categoryNameInput">分类名称</label><input id="categoryNameInput" class="form-text" maxlength="30"><p id="categoryDialogMessage" class="hint" role="status"></p></div><div class="dialog-foot"><button class="secondary-btn" type="button" data-close="categoryOverlay">取消</button><button class="primary-btn" id="categoryDialogConfirm" type="button">创建分类</button></div></section></div>');
+  const openActionDialog=createActionDialogHarness(w.document);
+  const pinia=createPinia();
+  const toastStore=useToastStore(pinia);
+  toastStore.$subscribe((_mutation, state) => { const host=w.document.querySelector('#toast'); host.textContent=state.message; host.classList.toggle('show',state.visible); }, {flush:'sync'});
+  const workspaceShellStore=useWorkspaceShellStore(pinia);
+  w.workspaceShellStore=workspaceShellStore;
+  w.document.querySelector('#breadcrumbTitleIsland').innerHTML='<strong id="breadcrumbTitle">全部笔记</strong>';
+  w.document.querySelector('#topbarMenusIsland').innerHTML='<div id="themeMenuRoot" class="theme-menu"><button id="themeBtn" class="round-btn theme-toggle" type="button" aria-haspopup="menu" aria-expanded="false"><span class="ico"><svg><use href="#i-moon"/></svg></span></button><div id="themeMenu" class="theme-popover" role="menu" hidden><button role="menuitemradio" data-theme-choice="system" aria-checked="false"><span>跟随系统</span><span class="theme-choice-check">✓</span></button><button role="menuitemradio" data-theme-choice="light" aria-checked="true"><span>浅色</span><span class="theme-choice-check">✓</span></button><button role="menuitemradio" data-theme-choice="dark" aria-checked="false"><span>深色</span><span class="theme-choice-check">✓</span></button></div></div><div id="accountMenuRoot" class="account-menu"><button id="accountButton" class="avatar account-trigger" type="button" aria-expanded="false" aria-controls="accountMenu"><svg class="account-user-icon"><use href="#i-user"/></svg></button><div id="accountMenu" class="account-popover" role="menu" hidden><div class="account-menu-identity"><strong id="accountMenuUsername">我的账号</strong></div><button id="openProfileSettings">个人资料</button><button id="openAppSettings">设置</button><button id="accountLogout" class="account-logout">退出登录</button></div></div>';
+  w.document.querySelector('#mobileMenuButtonIsland').innerHTML='<button id="menuBtn" class="round-btn mobile-only" type="button" aria-controls="sidebar" aria-expanded="false" aria-label="打开菜单"><span class="ico"><svg><use href="#i-menu"/></svg></span></button>';
+  w.document.querySelector('#mobileShadeIsland').innerHTML='<div class="mobile-shade" id="mobileShade" aria-hidden="true"></div>';
+  w.document.querySelector('#menuBtn').addEventListener('click',()=>workspaceShellStore.toggleMobileMenu());
+  w.document.querySelector('#mobileShade').addEventListener('click',()=>workspaceShellStore.closeMobileMenu());
+  const renderTopbarFixture=()=>{
+    const themeButton=w.document.querySelector('#themeBtn'),themeMenu=w.document.querySelector('#themeMenu'),accountButton=w.document.querySelector('#accountButton'),accountMenu=w.document.querySelector('#accountMenu');
+    w.document.querySelector('#breadcrumbTitle').textContent=workspaceShellStore.breadcrumbTitle;
+    themeMenu.hidden=!workspaceShellStore.themeMenuOpen;themeButton.setAttribute('aria-expanded',String(workspaceShellStore.themeMenuOpen));
+    themeButton.querySelector('use').setAttribute('href',workspaceShellStore.resolvedDark?'#i-sun':'#i-moon');
+    const themeLabel=workspaceShellStore.themePreference==='system'?`主题：跟随系统（当前${workspaceShellStore.resolvedDark?'深色':'浅色'}）`:`主题：${workspaceShellStore.themePreference==='dark'?'深色':'浅色'}`;
+    themeButton.title=themeLabel;themeButton.setAttribute('aria-label',`${themeLabel}，打开主题设置`);
+    w.document.querySelectorAll('[data-theme-choice]').forEach(choice=>{const selected=choice.dataset.themeChoice===workspaceShellStore.themePreference;choice.classList.toggle('selected',selected);choice.setAttribute('aria-checked',String(selected))});
+    accountMenu.hidden=!workspaceShellStore.accountMenuOpen;accountButton.setAttribute('aria-expanded',String(workspaceShellStore.accountMenuOpen));accountButton.title=`账号：${workspaceShellStore.username}`;
+    w.document.querySelector('#accountMenuUsername').textContent=workspaceShellStore.username;w.document.querySelector('#accountLogout').hidden=workspaceShellStore.localPreview;
+  };
+  workspaceShellStore.$subscribe(renderTopbarFixture,{flush:'sync'});renderTopbarFixture();
+  const renderMobileDrawerFixture=()=>{
+    const open=workspaceShellStore.mobileMenuOpen,menu=w.document.querySelector('#menuBtn'),shade=w.document.querySelector('#mobileShade');
+    w.document.body.classList.toggle('menu-open',open);menu.setAttribute('aria-expanded',String(open));menu.setAttribute('aria-label',open?'关闭菜单':'打开菜单');shade.setAttribute('aria-hidden',String(!open));
+  };
+  workspaceShellStore.$subscribe(renderMobileDrawerFixture,{flush:'sync'});renderMobileDrawerFixture();
+  w.workspaceNavigationStore = useNavigationStore(pinia); w.navigationActionsStore = useNavigationActionsStore(pinia); w.workspaceShellActionsStore = useWorkspaceShellActionsStore(pinia);
+  const renderMobileNavigationFixture=()=>{
+    const page=w.workspaceNavigationStore.page,notesContext=page==='home'||page==='note';
+    w.document.querySelector('#mobileHome').classList.toggle('selected',page==='dashboard');
+    w.document.querySelector('#mobileCats').classList.toggle('selected',notesContext);
+    w.document.querySelector('#mobileBookmarks').classList.toggle('selected',page==='bookmarks');
+  };
+  w.workspaceNavigationStore.$subscribe(renderMobileNavigationFixture,{flush:'sync'});
+  w.vaultDataStore = useVaultStore(pinia);
+  w.sidebarDataStore={configure(){}};
+  const createViewStore=()=>({active:false,setActive(value){this.active=value},bindActions(){}});
+  const dashboardActions={};
+  w.dashboardDataStore={...createViewStore(),configure(){},bindActions(actions){Object.assign(dashboardActions,actions)},saveFolder(...args){return dashboardActions.saveFolder(...args)},setLayout(...args){return dashboardActions.setLayout(...args)},setAllFolders(...args){return dashboardActions.setAllFolders(...args)}};
+  w.noteTypeDialogStore={bindSave(){},open(){},close(){}};
+  w.categoryDialogStore=useCategoryDialogStore(pinia);
+  w.captureDialogStore={bindSave(){},bindPasteHandler(){},open(){},close(){}};
+  w.noteListDataStore={...createViewStore(),configure(){}};
+  w.bookmarkDataStore={...createViewStore(),viewState:{closed:new Set(),selected:new Set(),query:'',organizing:false,selectedFolder:'',pinnedOnly:false,directoryOpen:true},snapshot:{sections:[]},dispatched:[],syncPreferences(){},openFolder(id){this.viewState.selectedFolder=id},leave(){},resume(){return 0},bindActions(handler){this.actionHandler=handler},dispatch(action){this.dispatched.push(action);return this.actionHandler?.(action)},openEditor(draft){this.editor={...draft,error:'',saving:false}},closeEditor(){this.editor=null}};
+  w.trashDataStore=createViewStore();
+  let editorRuntime={initialize(){},dispatch(){}};
+  w.editorDataStore={
+    active:false,
+    snapshot:{revision:0},
+    slashMenu:{visible:false,left:0,top:0},
+    setActive(value){this.active=value},
+    showSlashMenu(position){this.slashMenu={visible:true,...position}},
+    closeSlashMenu(){this.slashMenu.visible=false},
+    sync(snapshot){this.snapshot={...snapshot,revision:this.snapshot.revision+1};this.active=true},
+    setToolbarState(state){this.toolbar=state},
+    setOutline(items){this.outline=items.map(item=>({...item}))},
+    bindRuntime(runtime){editorRuntime=runtime},
+    initialize(){return editorRuntime.initialize()},
+    dispatch(action){return editorRuntime.dispatch(action)}
+  };
+  let readerDependencies=null;
+  w.readerDataStore={
+    configure(dependencies){readerDependencies=dependencies},
+    bindActions(){},
+    get snapshot(){const stored=w.vaultDataStore.value?.notes.find(note=>note.id===w.workspaceNavigationStore.noteId);if(!stored||!readerDependencies)return{};const working=w.workspaceNavigationStore.previewing||readerDependencies.isDraft(stored);return createReaderSnapshot({...readerDependencies,stored,note:working?stored:readerDependencies.publishedView(stored),working,previewing:w.workspaceNavigationStore.previewing})},
+    get active(){return w.vaultDataStore.ready&&w.workspaceNavigationStore.page==='note'&&!w.workspaceNavigationStore.editing&&!!w.workspaceNavigationStore.noteId}
+  };
+  w.readerActionsStore={bind(){}};
+  w.createEditorPageActions=createEditorPageActions;
+  w.editorPageActionsStore={bind(){}};
+  const workspaceAppMounted=!!initialOptions.readerBridge;
+  const syncConflictStore=createSyncConflictDialogHarness(w.document,w);
+  w.document.querySelector('#qidianVueIslands').innerHTML='<nav class="bottom-nav" aria-label="手机导航"><button id="mobileHome" type="button" data-dashboard>首页</button><button id="mobileCats" type="button" data-nav="all">笔记</button><button id="mobileNew" type="button">新建</button><button id="mobileBookmarks" type="button">书签</button><button id="mobileSearch" type="button">搜索</button></nav>';
+  renderMobileNavigationFixture();
   let systemDark=!!initialOptions.systemDark;const systemThemeListeners=new Set();
   w.matchMedia=query=>({media:query,get matches(){return query==='(prefers-color-scheme: dark)'&&systemDark},addEventListener:(type,listener)=>{if(type==='change')systemThemeListeners.add(listener)},removeEventListener:(type,listener)=>{if(type==='change')systemThemeListeners.delete(listener)} });
   initialOptions.setSystemDark=dark=>{systemDark=dark;for(const listener of systemThemeListeners)listener({matches:dark,media:'(prefers-color-scheme: dark)'})};
@@ -58,6 +280,7 @@ async function mount(vault=empty, initialOptions={}) {
   Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable:true, value:w.requestAnimationFrame.bind(w) });
   Object.defineProperty(globalThis, 'cancelAnimationFrame', { configurable:true, value:w.cancelAnimationFrame.bind(w) });
   w.DEFAULT_NOTE_TYPES = DEFAULT_NOTE_TYPES;
+  w.mountWorkspaceLifecycle = mountWorkspaceLifecycle;
   w.validateVault = validateVault;
   w.createBookmarkView = createBookmarkView;
   w.createRecycleBinView = createRecycleBinView;
@@ -66,77 +289,87 @@ async function mount(vault=empty, initialOptions={}) {
   w.queueSave = data => saves.push(structuredClone(data)); w.flush = async () => { initialOptions.flushCalls=(initialOptions.flushCalls||0)+1; return initialOptions.flushResult??true; }; w.commitSave = async data => { w.queueSave(data); if(initialOptions.commitError)throw Error(initialOptions.commitError); if(!await w.flush())throw Error('修改尚未写入 Docker 服务端，请保持页面打开并重试'); return true; }; w.retrySync = () => { initialOptions.retryRequests = (initialOptions.retryRequests || 0) + 1; return true; }; w.onStatus = callback => { if (initialOptions.restoreConflict) callback('草稿与 Docker 服务端版本冲突；请导出后再载入服务端版本'); }; w.onAuthenticationRequired = callback => { initialOptions.authenticationRequired = callback; }; w.onRemoteUpdate = callback => { initialOptions.remoteUpdate = callback; }; w.getSyncConflict = () => initialOptions.syncConflict ? structuredClone(initialOptions.syncConflict) : null; w.exportSyncConflict = async () => { initialOptions.conflictExports = (initialOptions.conflictExports || 0) + 1; return true; }; w.refreshCloud = async () => false; w.reauthenticateAccount = async () => ({ data:structuredClone(vault), conflict:false, synced:true }); w.showAuthentication = (_config,recovery) => { initialOptions.reauthentication = recovery; return Promise.resolve(); }; w.setOwner = () => {};
   const editorFactory = options => { w.currentEditor = createQidianEditor(options); return w.currentEditor; };
   w.createQidianEditor = editorFactory; w.__qidianTestEditorFactory = editorFactory;
+  w.reloadCloud = async () => structuredClone(initialOptions.cloudData || vault);
+  w.exportBackup = async data => { initialOptions.settingsBackups=(initialOptions.settingsBackups||[]).concat([structuredClone(data)]); };
+  w.createEditorCommandController = createEditorCommandController;
+  w.createThemeController = createThemeController;
+  w.createRemoteEditorRefresh = createRemoteEditorRefresh;
+  w.createNewNoteController = createNewNoteController;
+  w.upload = async file => ({ url:'/api/assets/00000000-0000-4000-8000-000000000001', mime:file.type });
+  w.exportHTML = async () => true;
   w.listBackups = async () => initialOptions.backups || [];
+  w.getAccountProfile = async () => ({ id:'local-preview', username:'本地预览', created:0, avatarMime:null });
+  w.getAccountAvatar = async () => new w.Blob();
+  w.saveAccountAvatar = async () => ({ ok:true });
+  w.removeAccountAvatar = async () => ({ ok:true });
+  w.changeAccountPassword = async () => ({ ok:true });
   w.getSystemVersion = async () => typeof initialOptions.versionInfo==='function' ? initialOptions.versionInfo() : initialOptions.versionInfo || ({ currentVersion:'0.1.5', latestVersion:'0.1.6', updateAvailable:true, canUpdateDevice:true, installerAvailable:true, updaterAvailable:true, releaseUrl:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6', notes:'修复问题\n<img src=x onerror=alert(1)>' });
   w.getSystemUpdateStatus = async () => typeof initialOptions.updateStatus==='function' ? initialOptions.updateStatus() : initialOptions.updateStatus || ({ state:'idle', version:'', updatedAt:null, log:'' });
   w.requestSystemUpdate = async () => { assert.ok(initialOptions.flushCalls>0,'pending edits are flushed before the container restarts'); initialOptions.updateRequests=(initialOptions.updateRequests||0)+1; return initialOptions.onRequestSystemUpdate ? initialOptions.onRequestSystemUpdate() : { accepted:true, version:'0.1.6' }; };
   w.getBackup = async revision => { initialOptions.requestedBackup = revision; return structuredClone(initialOptions.snapshot || ({ categories:[], noteTypes:structuredClone(empty.noteTypes), notes:[], theme:'light', pasteMode:'rich', revision })); };
+  w.readBackup = async file => { initialOptions.importedFile=file; return structuredClone(initialOptions.importData || vault); };
   w.exportBackup = async data => { if(initialOptions.backupError)throw Error(initialOptions.backupError); if(initialOptions.onBackup)await initialOptions.onBackup(); (initialOptions.backupOrder??=[]).push('download'); initialOptions.exportedBeforeRestore = structuredClone(data); };
   w.createBackupSnapshot = async () => { (initialOptions.backupOrder??=[]).push('snapshot'); initialOptions.backupSnapshots=(initialOptions.backupSnapshots||0)+1; return { revision:1 }; };
   w.pruneAssets = async () => { initialOptions.assetPrunes=(initialOptions.assetPrunes||0)+1; return { removed:0, bytes:0 }; };
   w.download = () => {};
   w.restoreIgnoredDraft = async () => ({ data: structuredClone(vault), conflict:false });
   w.hasUnsaved = () => false; w.scrollTo = () => {}; w.confirm = () => { throw new Error('native confirm is not allowed'); }; w.prompt = () => { throw new Error('native prompt is not allowed'); };
+  w.globalSearchDataStore = { open:false, query:'', configure(){}, show(query=''){this.query=query;this.open=true}, close(){this.open=false} };
   const appSource = (await readFile(new URL('../src/app.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
   assert.ok(start >= 0 && end > start, 'workspace entrypoint should remain available to DOM tests');
-  const runWorkspace = w.Function('initial', 'createQidianEditor', 'flush', 'classifyClipboard', 'looksLikeMarkdown', 'plainTextToDocument', 'sanitizeMarkdownDocument', 'loadMarkdownTools', 'createRecycleBinView', 'createTrashEntry', 'APP_VERSION', 'renderReleaseNotes', appSource.slice(start, end + '\n})();'.length));
-  runWorkspace(w.initial, editorFactory, w.flush, classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument, loadMarkdownTools, createRecycleBinView, createTrashEntry, initialOptions.appVersion || '0.1.5', renderReleaseNotes);
+  const mountProfileSettings=(root,dependencies)=>{
+    root.innerHTML='<div class="overlay" id="profileSettingsOverlay"><section class="dialog account-dialog" role="dialog" aria-modal="true"><div class="dialog-head"><h2>个人资料</h2><button data-close="profileSettingsOverlay">关闭</button></div><div class="dialog-body account-settings-body"><strong id="profileUsername"></strong><button id="chooseAvatar">更换头像</button><button id="removeAvatar">移除头像</button><p id="profileSettingsMessage"></p><div class="account-password-section"><h3>修改密码</h3><form id="passwordChangeForm"><button id="changePasswordButton">更新密码</button></form></div></div></section></div>';
+    const overlay=root.querySelector('#profileSettingsOverlay');
+    return {show:async()=>{overlay.classList.add('open');root.querySelector('#profileUsername').textContent=dependencies.username;root.querySelector('#profileSettingsMessage').textContent=dependencies.local?'当前是本地界面预览；请登录部署后的栖点管理头像和密码。':''},close:()=>overlay.classList.remove('open'),refresh:async()=>null};
+  };
+  const profileSettingsHost=w.document.createElement('div');
+  w.document.querySelector('#qidianVueIslands').append(profileSettingsHost);
+  let profileSettingsInstance;
+  w.profileSettingsStore={
+    configure(dependencies){profileSettingsInstance=mountProfileSettings(profileSettingsHost,dependencies)},
+    show(){return profileSettingsInstance.show()},
+    close(){return profileSettingsInstance.close()},
+    refresh(){return profileSettingsInstance.refresh()}
+  };
+  const mountAppSettings=(root,onAction)=>{
+    root.innerHTML='<div class="overlay" id="appSettingsOverlay"><section class="dialog account-dialog" role="dialog" aria-modal="true"><div class="dialog-head"><div><h2>设置</h2><p class="account-dialog-subtitle">管理数据恢复和备份迁移。</p></div><button data-close="appSettingsOverlay">关闭</button></div><div class="dialog-body account-settings-body"><section><h3>数据与恢复</h3><button id="retrySync">重试保存</button><button id="reloadCloud">重新载入数据</button><button id="reviewSyncConflict" hidden>整理未合并修改</button><button id="restoreLocalDraft" hidden>恢复旧版暂存内容</button></section><section><h3>备份与迁移</h3><button id="backupHistory">自动备份</button><button id="exportBtn">导出完整备份</button><button id="importBtn">导入备份</button></section></div><div class="dialog-foot account-dialog-foot"><span class="hint">设置只影响当前账号</span></div></section></div>';
+    const overlay=root.querySelector('#appSettingsOverlay');
+    const actions={retrySync:'retry-sync',reloadCloud:'reload-cloud',reviewSyncConflict:'review-conflict',restoreLocalDraft:'restore-draft',backupHistory:'backup-history',exportBtn:'export-backup',importBtn:'import-backup'};
+    for(const [id,action] of Object.entries(actions))root.querySelector('#'+id).addEventListener('click',()=>onAction(action));
+    return {show:async()=>overlay.classList.add('open'),close:()=>overlay.classList.remove('open'),setIndicators:({hasConflict=false,hasIgnoredDraft=false}={})=>{root.querySelector('#reviewSyncConflict').hidden=!hasConflict;root.querySelector('#restoreLocalDraft').hidden=!hasIgnoredDraft}};
+  };
+  const appSettingsHost=w.document.createElement('div');
+  w.document.querySelector('#qidianVueIslands').append(appSettingsHost);
+  let appSettingsInstance;
+  w.appSettingsStore={
+    bindActionHandler(handler){appSettingsInstance=mountAppSettings(appSettingsHost,handler)},
+    show(){return appSettingsInstance.show()},
+    close(){return appSettingsInstance.close()},
+    setIndicators(indicators){return appSettingsInstance.setIndicators(indicators)}
+  };
+  const mountBackupHistoryList=(root,listBackups,localPreview)=>({refresh:async()=>{
+    root.innerHTML='<div class="empty backup-empty">正在读取 Docker 服务端快照…</div>';
+    try{const backups=await listBackups();if(!backups.length){root.innerHTML=`<div class="empty backup-empty">${localPreview?'本地开发预览不创建服务端快照。':'当前账号还没有可查看的快照。'}</div>`;return}root.innerHTML=backups.slice(0,20).map(item=>`<article class="backup-row"><div class="backup-row-info"><strong>版本 ${item.revision}</strong><time>${new Date(item.created).toLocaleString('zh-CN')}</time></div><div class="backup-row-actions"><button class="secondary-btn" data-backup-download="${item.revision}">下载正文</button><button class="secondary-btn" data-backup-restore="${item.revision}">恢复此版本</button></div></article>`).join('')}catch(error){root.innerHTML=`<div class="empty backup-empty">读取失败：${error.message||'请稍后重试'}</div>`}
+  }});
+  const backupHistoryHost=w.document.createElement('div');
+  w.document.querySelector('#qidianVueIslands').append(backupHistoryHost);
+  let backupHistoryListInstance;
+  w.backupHistoryStore={
+    configure({listBackups,localPreview}){
+      backupHistoryHost.innerHTML='<div class="overlay" id="backupHistoryOverlay"><section class="dialog backup-dialog"><div id="backupHistoryList" class="backup-history-list"></div><p class="backup-footnote">历史快照只包含笔记正文和元数据，不含附件文件。要保留附件，请定期下载完整备份。</p></section></div>';
+      backupHistoryListInstance=mountBackupHistoryList(backupHistoryHost.querySelector('#backupHistoryList'),listBackups,localPreview);
+    },
+    show(){backupHistoryHost.querySelector('#backupHistoryOverlay').classList.add('open')},
+    close(){backupHistoryHost.querySelector('#backupHistoryOverlay')?.classList.remove('open')},
+    refresh(){return backupHistoryListInstance.refresh()}
+  };
+  const runWorkspace = w.Function('initial', 'createQidianEditor', 'flush', 'classifyClipboard', 'looksLikeMarkdown', 'plainTextToDocument', 'sanitizeMarkdownDocument', 'loadMarkdownTools', 'createRecycleBinView', 'createTrashWorkflows', 'createVaultMutation', 'createBookmarkMutationActions', 'bookmarksHTML', 'mergeBookmarks', 'parseBookmarks', 'createDashboardActions', 'createVaultPersistence', 'createNoteTypeDialogFlow', 'createLegacyNoteTypeDialog', 'createCategoryDialogFlow', 'createCaptureFlow', 'createCaptureDOMAdapter', 'createLegacyCaptureDialog', 'createNoteDeleteWorkflow', 'createEditorDeleteWorkflow', 'createEditorDraftController', 'createEditorFormAdapter', 'connectSessionRecoveryFlow', 'createWorkspaceViewDispatcher', 'createLegacyWorkspaceRenderer', 'renderLegacyEditorMarkup', 'mountWorkspaceInteractionRuntime', 'createCurrentVaultSnapshot', 'navigationActionsStore', 'workspaceShellActionsStore', 'createTrashEntry', 'APP_VERSION', 'renderReleaseNotes', 'mountEditorSearch', 'createEditorCommandController', 'createEditorInsertController', 'createEditorRuntimeController', 'createEditorOutlineController', 'createEditorToolbarState', 'createLegacyEditorToolbarView', 'profileSettingsStore', 'createAppSettingsActions', 'createNotePublishFlow', 'createContentInsertionController', 'createAttachmentUploadFlow', 'backupHistoryStore', 'createBackupWorkflows', 'createWorkspaceNavigationController', 'createWorkspaceNavigationEvents', 'createWorkspaceShellEvents', 'createWorkspaceContentEvents', 'createEditorToolbarEvents', 'createSystemUpdateController', 'createSyncConflictController', 'appSettingsStore', 'syncConflictStore', 'editorDataStore', 'vaultDataStore', 'dashboardDataStore', 'noteTypeDialogStore', 'categoryDialogStore', 'captureDialogStore', 'createMenuStore', 'bookmarkDataStore', 'trashDataStore', 'readerDataStore', 'workspaceShellStore', 'workspaceAppMounted', 'getSystemVersion', 'getSystemUpdateStatus', 'requestSystemUpdate', 'openActionDialog', 'createNoteType', 'deleteNoteType', 'renameNoteType', 'createVaultNote', 'duplicateVaultNote', 'isDraft', 'needsPublish', 'publishedView', 'selectNotes', 'createHtmlContentTools', 'createReaderSnapshot', 'createReaderActions', 'createDraftContentTools', 'notificationDataStore', 'mountCodeCopyButtons', 'mountHeadingObserver', appSource.slice(start, end + '\n})();'.length));
+  runWorkspace(w.initial, editorFactory, w.flush, classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument, loadMarkdownTools, createRecycleBinView, createTrashWorkflows, createVaultMutation, createBookmarkMutationActions, bookmarksHTML, mergeBookmarks, parseBookmarks, createDashboardActions, createVaultPersistence, createNoteTypeDialogFlow, createLegacyNoteTypeDialog, createCategoryDialogFlow, createCaptureFlow, createCaptureDOMAdapter, createLegacyCaptureDialog, createNoteDeleteWorkflow, createEditorDeleteWorkflow, createEditorDraftController, createEditorFormAdapter, connectSessionRecoveryFlow, createWorkspaceViewDispatcher, createLegacyWorkspaceRenderer, renderLegacyEditorMarkup, mountWorkspaceInteractionRuntime, createCurrentVaultSnapshot, w.navigationActionsStore, w.workspaceShellActionsStore, createTrashEntry, initialOptions.appVersion || '0.1.5', renderReleaseNotes, mountEditorSearch, createEditorCommandController, createEditorInsertController, createEditorRuntimeController, createEditorOutlineController, createEditorToolbarState, createLegacyEditorToolbarView, w.profileSettingsStore, createAppSettingsActions, createNotePublishFlow, createContentInsertionController, createAttachmentUploadFlow, w.backupHistoryStore, createBackupWorkflows, createWorkspaceNavigationController, createWorkspaceNavigationEvents, createWorkspaceShellEvents, createWorkspaceContentEvents, createEditorToolbarEvents, createSystemUpdateController, createSyncConflictController, w.appSettingsStore, syncConflictStore, w.editorDataStore, w.vaultDataStore, w.dashboardDataStore, w.noteTypeDialogStore, w.categoryDialogStore, w.captureDialogStore, w.createMenuStore, w.bookmarkDataStore, w.trashDataStore, w.readerDataStore, w.workspaceShellStore, workspaceAppMounted, w.getSystemVersion, w.getSystemUpdateStatus, w.requestSystemUpdate, openActionDialog, createNoteType, deleteNoteType, renameNoteType, createVaultNote, duplicateVaultNote, isDraft, needsPublish, publishedView, selectNotes, createHtmlContentTools, createReaderSnapshot, createReaderActions, createDraftContentTools, toastStore, mountCodeCopyButtons, mountHeadingObserver);
   await new Promise(resolve=>setTimeout(resolve,0));
   return { dom, w, saves, initialOptions };
 }
-async function mountAuth(registrationEnabled=true, sessionConfig=null, loginAccount=async()=>({ data:{ notes:[] }, local:false })) {
-  const dom = new JSDOM(await readFile(new URL('../index.html',import.meta.url),'utf8'), { url:'http://localhost', runScripts:'outside-only', pretendToBeVisual:true });
-  const w = dom.window, appSource = (await readFile(new URL('../src/app.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
-  const start = appSource.indexOf('async function showAuthentication(sessionConfig = null, recovery = null) {');
-  const end = appSource.indexOf('\nfunction launchWorkspace(initial) {', start);
-  assert.ok(start >= 0 && end > start, 'authentication view should remain independently testable');
-  const counters={configRequests:0,bootstrapCalls:0};
-  const showAuthentication = w.Function('getAuthConfig','showStartupError','registerAccount','loginAccount','bootstrap','launchWorkspace', `${appSource.slice(start,end)}\nreturn showAuthentication;`)(async()=>{counters.configRequests++;return {registrationEnabled}},()=>{},async()=>{},loginAccount,async()=>{counters.bootstrapCalls++;return { data:{ notes:[] }, local:false }},()=>{});
-  await showAuthentication(sessionConfig);
-  return { dom, w, counters, showAuthentication };
-}
-test('login page opens registration and returns to login', async () => {
-  const { dom, w } = await mountAuth(true);
-  assert.equal(w.document.querySelector('input[type="email"]'), null);
-  assert.equal(w.document.querySelector('#authUsername').name, 'username');
-  assert.equal(w.document.querySelector('#authUsername').minLength, 3);
-  assert.equal(w.document.querySelector('#authUsername').maxLength, 32);
-  assert.doesNotMatch(w.document.querySelector('#loginGate').textContent, /忘记密码|找回密码/);
-  assert.equal(w.document.querySelector('.auth-tabs'), null);
-  assert.equal(w.document.querySelector('#authRegister').hidden, false);
-  w.document.querySelector('#authRegister').click();
-  assert.equal(w.document.querySelector('#authTitle').textContent, '创建个人账号');
-  assert.equal(w.document.querySelector('.auth-card').classList.contains('registering'), true);
-  assert.equal(w.document.querySelector('#authReturnLogin').hidden, false);
-  w.document.querySelector('#authReturnLogin').click();
-  assert.equal(w.document.querySelector('#authTitle').textContent, '进入你的知识库');
-  assert.equal(w.document.querySelector('.auth-card').classList.contains('registering'), false);
-  dom.window.close();
-});
-test('registration entry stays hidden when the backend disables registration', async () => {
-  const { dom, w } = await mountAuth(false);
-  assert.equal(w.document.querySelector('#authRegister').hidden, true);
-  dom.window.close();
-});
-test('a fresh self-hosted install opens administrator setup with admin prefilled and no default password', async () => {
-  const { dom, w } = await mountAuth(true, { registrationEnabled:true, setupRequired:true });
-  assert.equal(w.document.querySelector('#authTitle').textContent, '创建管理员账号');
-  assert.equal(w.document.querySelector('.auth-card').classList.contains('registering'), true);
-  assert.equal(w.document.querySelector('#authUsername').value, 'admin');
-  assert.equal(w.document.querySelector('#authPassword').value, '');
-  assert.equal(w.document.querySelector('#authReturnLogin').hidden, true);
-  assert.equal(w.document.querySelector('#authSubmit').textContent, '创建管理员');
-  dom.window.close();
-});
-test('an unauthenticated session response supplies registration settings without a second config request', async () => {
-  const { dom, w, counters } = await mountAuth(true, { registrationEnabled:false });
-  assert.equal(counters.configRequests, 0);
-  assert.equal(w.document.querySelector('#authRegister').hidden, true);
-  dom.window.close();
-});
-
 test('topbar version badge shows release details and the unified action refreshes versions before automatically updating', async () => {
   let versionChecks=0;
   const versions=[
@@ -145,8 +378,9 @@ test('topbar version badge shows release details and the unified action refreshe
   ];
   const { dom, w, initialOptions } = await mount(empty,{versionInfo:()=>{versionChecks++;return versions.shift()||versions.at(-1)}});
   const badge=w.document.querySelector('#versionButton');
-  assert.equal(badge.previousElementSibling.id,'searchTop','the version badge sits beside the top-bar search');
-  assert.equal(badge.nextElementSibling.id,'themeMenuRoot','the version badge remains beside the theme control in the utility action cluster');
+  assert.equal(badge.previousElementSibling.id,'topbarSearchIsland','the version badge sits beside the Vue top-bar search island');
+  assert.ok(badge.previousElementSibling.querySelector('#searchTop'),'the top-bar search remains adjacent to the version badge');
+  assert.equal(badge.nextElementSibling.id,'topbarMenusIsland','Vue owns the top-bar menu mount point after the version badge');
   assert.ok(badge.nextElementSibling.querySelector('#themeBtn'));
   assert.equal(w.document.querySelector('#currentVersionLabel').textContent,'v0.1.5');
   assert.equal(badge.dataset.updateAvailable,'false');
@@ -416,43 +650,6 @@ test('the unified action checks updates but only the first account can start dep
   assert.match(w.document.querySelector('#versionState').textContent,/只有首个账号可以更新设备/);
   dom.window.close();
 });
-test('login reports its security and loading stages without repeating bootstrap requests', async () => {
-  const stages=[];
-  let browserWindow;
-  const login=async(_identifier,_password,onStage)=>{
-    for(const stage of ['challenge','derive','verify','load']){
-      onStage(stage);
-      stages.push({ stage, message:browserWindow.document.querySelector('#authMessage').textContent, busy:browserWindow.document.querySelector('#authSubmit').getAttribute('aria-busy') });
-    }
-    return { data:{ notes:[] }, local:false, owner:'account-test' };
-  };
-  const { dom, w, counters } = await mountAuth(true,null,login);
-  browserWindow=w;
-  w.document.querySelector('#authUsername').value='alan';
-  w.document.querySelector('#authPassword').value='A secure password 1!';
-  w.document.querySelector('#authForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
-  await new Promise(resolve=>setTimeout(resolve,0));
-  assert.deepEqual(stages.map(stage=>stage.message),['正在连接验证服务…','正在安全计算登录凭据…','正在验证账号…','正在载入私人空间…']);
-  assert.ok(stages.every(stage=>stage.busy==='true'));
-  assert.equal(counters.bootstrapCalls,0,'the successful login response already carries the authenticated vault');
-  dom.window.close();
-});
-test('an in-place session recovery can log in again after a previous login succeeded', async()=>{
-  const {dom,w,showAuthentication}=await mountAuth(true);
-  w.initial={username:'alan'};
-  let completed=0;
-  await showAuthentication(null,{username:'alan',authenticate:async(_identifier,_password,onStage)=>{onStage('verify');return{data:{notes:[]},conflict:false,synced:true}},onAuthenticated:async result=>{assert.equal(result.synced,true);completed++}});
-  assert.equal(w.document.querySelector('#loginGate').classList.contains('reauth'),true);
-  assert.equal(w.document.querySelector('#authUsername').value,'alan');
-  w.document.querySelector('#authPassword').value='Valid-password-2!';
-  w.document.querySelector('#authForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
-  await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(completed,1);
-  assert.equal(w.document.querySelector('#loginGate').hidden,true);
-  await showAuthentication(null,{username:'alan',authenticate:async()=>({data:{notes:[]},conflict:false,synced:true}),onAuthenticated:async()=>{}});
-  assert.equal(w.document.querySelector('#authSubmit').disabled,false,'the next session recovery must have an enabled login button');
-  dom.window.close();
-});
 test('dashboard presents notes and bookmarks as peer workspaces and keeps bookmark paths', async () => {
   const vault=structuredClone(empty);
   vault.bookmarks=[{id:'folder-reading',kind:'folder',title:'阅读',children:[{id:'folder-reference',kind:'folder',title:'参考',children:[{id:'bookmark-mdn',kind:'link',title:'MDN',url:'https://developer.mozilla.org'}]}]}];
@@ -669,6 +866,32 @@ test('an untouched empty new note is discarded instead of entering the draft box
   assert.ok(saves.every(snapshot=>snapshot.notes.length===0),'no empty placeholder is written to the vault');
   dom.window.close();
 });
+test('duplicating a published note routes through the vault action and saves its published content as a draft', async () => {
+  const vault=structuredClone(empty);
+  vault.notes=[{
+    id:'published-source',title:'工作标题',type:'note',category:'开发',tags:['工作'],body:'<p>未发布正文</p>',source:'',created:1,updated:2,pinned:true,status:'published',publishedAt:2,
+    publishedSnapshot:{title:'已发布标题',body:'<p>已发布正文</p>',category:'开发',type:'note',tags:['公开'],source:'',updated:2}
+  }];
+  const {dom,w,saves}=await mount(vault);
+  try {
+    w.document.querySelector('#sideCore [data-nav="all"]').click();
+    w.document.querySelector('[data-open="published-source"]').click();
+    w.document.querySelector('#duplicateDoc').click();
+    for(let attempt=0;attempt<40&&w.workspaceNavigationStore.noteId==='published-source';attempt++)await new Promise(resolve=>setTimeout(resolve,5));
+
+    const copy=saves.at(-1).notes[0];
+    assert.notEqual(copy.id,'published-source');
+    assert.equal(copy.title,'已发布标题（副本）');
+    assert.equal(copy.body,'<p>已发布正文</p>');
+    assert.deepEqual(copy.tags,['公开']);
+    assert.equal(copy.status,'draft');
+    assert.equal(copy.pinned,false);
+    assert.equal(copy.publishedAt,null);
+    assert.equal(copy.publishedSnapshot,undefined);
+    assert.equal(w.workspaceNavigationStore.noteId,copy.id);
+    assert.equal(w.workspaceNavigationStore.editing,true,'a duplicate opens directly in the editor');
+  } finally { dom.window.close(); }
+});
 test('untouched command and troubleshooting templates are not mistaken for written drafts', async () => {
   for (const type of ['command','issue']) {
     const { dom, w, saves } = await mount();
@@ -786,6 +1009,7 @@ test('destructive actions remain visible when the Docker transaction is not conf
 test('bookmark and recycle-bin mutations roll back when the Docker transaction is not confirmed', async () => {
   const bookmarkVault={...structuredClone(empty),bookmarks:[{id:'saved-folder',kind:'folder',title:'保留分组',children:[{id:'saved-link',kind:'link',title:'保留网址',url:'https://example.com'}]}],bookmarkFolderStates:{'saved-folder':true}};
   const bookmarkMount=await mount(bookmarkVault,{commitError:'Docker 服务端保存失败'});
+  const bookmarkGeneration=bookmarkMount.w.vaultDataStore.generation;
   bookmarkMount.w.document.querySelector('#openBookmarks').click();
   bookmarkMount.w.document.querySelector('[data-bm-organize]').click();
   bookmarkMount.w.document.querySelector('[data-bm-clear]').click();
@@ -793,15 +1017,18 @@ test('bookmark and recycle-bin mutations roll back when the Docker transaction i
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(bookmarkMount.w.document.querySelector('#bookmarkTree').textContent,/保留分组/);
   assert.deepEqual(bookmarkMount.saves.at(-1).bookmarks,[],'the failed candidate reached the mocked transaction boundary');
+  assert.ok(bookmarkMount.w.vaultDataStore.generation>bookmarkGeneration,'bookmark mutation and rollback both pass through the Vault store');
   bookmarkMount.dom.window.close();
 
   const note={id:'retained-trash',title:'保留在回收站',type:'note',category:'开发',tags:[],body:'<p>内容</p>',source:'',created:1,updated:2,pinned:false,status:'published'};
   const trashMount=await mount({...structuredClone(empty),trash:[createTrashEntry('note',note,{index:0})]},{commitError:'Docker 服务端保存失败'});
+  const trashGeneration=trashMount.w.vaultDataStore.generation;
   trashMount.w.document.querySelector('[data-trash-nav]').click();
   trashMount.w.document.querySelector('[data-trash-clear]').click();
   trashMount.w.document.querySelector('#trashClearOverlay form').dispatchEvent(new trashMount.w.Event('submit',{bubbles:true,cancelable:true}));
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.match(trashMount.w.document.querySelector('#main').textContent,/保留在回收站/);
+  assert.ok(trashMount.w.vaultDataStore.generation>trashGeneration,'recycle-bin mutation and rollback both pass through the Vault store');
   trashMount.dom.window.close();
 });
 test('the reader presents article metadata and keeps a section outline available on mobile', async () => {
@@ -816,6 +1043,50 @@ test('the reader presents article metadata and keeps a section outline available
   assert.equal(w.document.querySelector('#main .about-note'),null,'the reader has no service footer');
   assert.equal(w.document.querySelector('.right-rail .outline a[href="#sec-1"]').textContent, '确认版本');
   dom.window.close();
+});
+test('the reader projection derives the published, sanitized note snapshot from the active vault', async t=>{
+  const note={id:'vue-reader',title:'安全的阅读标题',type:'note',category:'开发',tags:['Vue'],body:'<h2>章节标题</h2><p>正文内容</p><script>globalThis.pwned=true</script>',source:'javascript:alert(1)',created:1,updated:2,pinned:true};
+  const {dom,w}=await mount({...structuredClone(empty),notes:[note]});
+  t.after(()=>dom.window.close());
+  w.document.querySelector('[data-open="vue-reader"]').click();
+  const snapshot=w.readerDataStore.snapshot;
+  assert.equal(snapshot.noteId,'vue-reader');
+  assert.equal(snapshot.title,'安全的阅读标题');
+  assert.equal(snapshot.bodyHtml.includes('<script'),false,'the Vue view receives sanitized HTML only');
+  assert.match(snapshot.bodyHtml,/章节标题/);
+  assert.deepEqual([...snapshot.outline].map(item=>[item.name,item.id,item.level]),[['章节标题','sec-0',2]]);
+  assert.equal(snapshot.sourceUrl,'','unsafe source protocols are not sent to the Vue link');
+  assert.equal(snapshot.pinned,true);
+  assert.equal(w.document.querySelector('#main').hidden,false);
+  assert.equal(w.document.querySelector('#dashboardHost').hidden,true);
+  assert.equal(w.readerDataStore.active,true);
+});
+test('mounted Vue workspace routes do not render duplicate legacy page markup', async t=>{
+  const {dom,w}=await mount(structuredClone(empty),{readerBridge:true});
+  t.after(()=>dom.window.close());
+  const legacyMain=w.document.querySelector('#main'),vueHost=w.document.querySelector('#dashboardHost');
+  assert.equal(legacyMain.hidden,true,'the legacy page host stays hidden while Vue owns the active route');
+  assert.equal(vueHost.hidden,false,'the Vue page host is active');
+  assert.equal(legacyMain.querySelector('.dashboard-page'),null,'the dashboard is not rendered into the hidden legacy host');
+  assert.equal(w.document.querySelector('#bookmarkOverlay'),null,'the Vue path does not instantiate the legacy bookmark editor overlay');
+  w.document.querySelector('#mobileCats').click();
+  assert.equal(legacyMain.hidden,true);
+  assert.equal(legacyMain.querySelector('.note-page-layout'),null,'the notes list is not rendered a second time');
+  w.document.querySelector('#mobileBookmarks').click();
+  assert.equal(legacyMain.hidden,true);
+  assert.equal(legacyMain.querySelector('.bookmark-page'),null,'bookmark state sync does not render a hidden legacy page');
+  w.document.querySelector('#mobileHome').click();
+  assert.equal(legacyMain.hidden,true);
+  assert.equal(legacyMain.querySelector('.dashboard-page'),null);
+});
+test('typed dashboard add-bookmark command opens the Pinia editor without creating a legacy bookmark dialog',async t=>{
+  const {dom,w}=await mount(structuredClone(empty),{readerBridge:true});
+  t.after(()=>dom.window.close());
+  w.navigationActionsStore.execute({type:'add-bookmark'});
+  assert.equal(w.workspaceNavigationStore.page,'bookmarks');
+  assert.equal(JSON.stringify(w.bookmarkDataStore.dispatched),JSON.stringify([{type:'add-link',parentId:''}]));
+  assert.equal(w.bookmarkDataStore.editor.kind,'link');
+  assert.equal(w.document.querySelector('#bookmarkOverlay'),null);
 });
 test('legacy Markdown notes render as formatted content and the outline contains headings only', async()=>{
   const note={id:'markdown-note',title:'Markdown 使用笔记',type:'note',category:'开发',tags:['Markdown'],body:'<p># Markdown 使用笔记</p><p><br></p><p>## 安装</p><p><br></p><p>1. 从 [GitHub Releases](https://github.com/example/releases) 下载最新版。</p><p><br></p><p>2. 在 iStoreOS 上传并安装 **安装包**。</p><p><br></p><p>```sh</p><p>cat /tmp/qidian-install.log</p><p>```</p><p><br></p><p>普通说明文本。</p>',source:'',created:1,updated:2,pinned:false};
@@ -848,6 +1119,8 @@ test('a remote update refreshes the active editor and account preferences withou
   assert.equal(w.document.querySelector('#saveEditor').textContent.trim().endsWith('保存笔记'),true);
   const remote=structuredClone(empty);remote.noteTypesExpanded=false;remote.notes=[{...note,title:'另一设备改好的标题',tags:['新版'],body:'<p>另一设备改好的正文</p>',updated:3}];
   initialOptions.remoteUpdate(remote);
+  assert.equal(w.vaultDataStore.value.notes[0].title,'另一设备改好的标题','the Pinia Vault store receives the remote snapshot used by the editor');
+  assert.equal(w.vaultDataStore.generation,2,'remote replacement advances the Vault change generation');
   assert.equal(w.document.querySelector('#editTitle').value,'另一设备改好的标题');
   assert.equal(w.document.querySelector('#sideTypes').hidden,true,'sidebar preference follows the same account on another device');
   assert.deepEqual(w.currentEditor.getJSON().content[0].content[0].text,'另一设备改好的正文');
@@ -890,6 +1163,22 @@ test('editing a published note updates its private draft and only changes the re
   assert.match(w.document.querySelector('#main').textContent,/后台新标题/);
   assert.equal(w.document.querySelector('#main .about-note'),null);
   dom.window.close();
+});
+test('workspace navigation restores the originating note list and scroll position', async t => {
+  const note = { id:'nav-note', title:'导航返回', type:'note', category:'开发', tags:[], body:'<p>正文</p>', source:'', created:1, updated:2, pinned:false };
+  const { dom, w } = await mount({ ...structuredClone(empty), notes:[note] });
+  t.after(() => dom.window.close());
+  let scroll = 0;
+  Object.defineProperty(w, 'scrollY', { configurable:true, get:() => scroll });
+  w.scrollTo = options => { scroll = Number(options?.top || 0); };
+
+  w.document.querySelector('#sideCore [data-nav="all"]').click();
+  scroll = 428;
+  w.document.querySelector('[data-open="nav-note"]').click();
+  assert.equal(scroll, 0, 'opening a note starts at the top');
+  w.document.querySelector('#backDoc').click();
+  assert.match(w.document.querySelector('#main').textContent,/导航返回/);
+  assert.equal(scroll, 428, 'returning from the reader restores the originating list position');
 });
 test('a safe pending draft is queued for cloud sync immediately after recovery', async () => {
   const { dom, saves } = await mount(empty, { local:false, owner:'account-1', restoreDraft:true });
@@ -949,6 +1238,17 @@ test('reloading Docker data asks in the app dialog and cancel leaves current dat
  w.document.querySelector('#actionDialogCancel').click();await new Promise(resolve=>setTimeout(resolve,0));
  assert.match(w.document.querySelector('#main').textContent,/当前页面内容/);
  assert.equal(saves.length,0);
+ dom.window.close();
+});
+test('reloading Docker data replaces the workspace without stale publish state or lost cloud content',async()=>{
+ const cloud={...structuredClone(empty),notes:[{id:'cloud-note',title:'云端已保存',type:'note',category:'开发',tags:[],body:'<p>云端正文</p>',source:'',created:1,updated:3,pinned:false,status:'published'}]};
+ const current={...structuredClone(empty),notes:[{id:'local-note',title:'当前页面内容',type:'note',category:'开发',tags:[],body:'<p>本机正文</p>',source:'',created:1,updated:2,pinned:false,status:'published'}]};
+ const {dom,w}=await mount(current,{cloudData:cloud});
+ w.document.querySelector('#accountButton').click();w.document.querySelector('#openAppSettings').click();w.document.querySelector('#reloadCloud').click();
+ w.document.querySelector('#actionDialogConfirm').click();await new Promise(resolve=>setTimeout(resolve,0));await new Promise(resolve=>setTimeout(resolve,0));
+ assert.match(w.document.querySelector('#main').textContent,/云端已保存/);
+ assert.doesNotMatch(w.document.querySelector('#main').textContent,/当前页面内容/);
+ assert.equal(w.document.querySelector('#appSettingsOverlay').classList.contains('open'),false);
  dom.window.close();
 });
 test('manual retry continues the retained sync queue instead of queueing a stale page snapshot', async () => {
@@ -1337,6 +1637,43 @@ test('quick capture can paste exact plain text with blank lines and no forced Ma
   assert.doesNotMatch(pad.innerHTML,/<h1>|<pre>/);
   dom.window.close();
 });
+test('quick capture waits for the Vault transaction before opening the saved draft', async t=>{
+  const {dom,w,saves}=await mount();
+  t.after(()=>dom.window.close());
+  w.document.querySelector('#quickCapture').click();
+  w.document.querySelector('#captureName').value='网络配置摘录';
+  w.document.querySelector('#captureType').value='clip';
+  w.document.querySelector('#captureCat').value='开发';
+  w.document.querySelector('#captureSource').value='https://example.com/guide';
+  w.document.querySelector('#capturePad').innerHTML='<p>保留重点</p><script>unsafe()</script>';
+  w.document.querySelector('#captureSave').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+
+  const note=saves.at(-1).notes[0];
+  assert.equal(note.title,'网络配置摘录');
+  assert.equal(note.type,'clip');
+  assert.equal(note.category,'开发');
+  assert.equal(note.source,'https://example.com/guide');
+  assert.equal(note.body,'<p>保留重点</p>');
+  assert.equal(note.status,'draft');
+  assert.equal(w.document.querySelector('#captureOverlay').classList.contains('open'),false);
+  assert.ok(w.document.querySelector('#docRead'),'navigation happens only after the committed note is opened');
+});
+test('a failed quick capture transaction keeps the dialog open and the workspace unchanged', async t=>{
+  const {dom,w,initialOptions}=await mount(empty,{commitError:'SQLite 提交失败'});
+  t.after(()=>dom.window.close());
+  w.document.querySelector('#quickCapture').click();
+  w.document.querySelector('#captureName').value='未提交摘录';
+  w.document.querySelector('#capturePad').innerHTML='<p>内容</p>';
+  w.document.querySelector('#captureSave').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+
+  assert.equal(w.vaultDataStore.value.notes.length,0);
+  assert.equal(w.workspaceNavigationStore.page,'dashboard');
+  assert.equal(w.document.querySelector('#captureOverlay').classList.contains('open'),true);
+  assert.match(w.document.querySelector('#toast').textContent,/SQLite 提交失败/);
+  assert.equal(initialOptions.flushCalls||0,0,'a failed transaction does not proceed to a second save');
+});
 test('pasting fills an empty note title and preserves a manually entered title', async () => {
   const { dom, w } = await mount();
   w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
@@ -1470,6 +1807,24 @@ test('format toolbar applies commands to the active text selection', async t => 
   w.document.querySelector('#editorToolbar [data-fmt="bold"]').click();
   assert.match(editor.getHTML(), /<strong>需要加粗<\/strong>/);
   assert.equal(editor.isActive('bold'), true);
+});
+test('paragraph and font color controls dispatch typed changes to the active editor', async t => {
+  const { dom, w } = await mount();
+  t.after(() => dom.window.close());
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const editor = w.currentEditor;
+  editor.commands.setContent('<p>选择要修改的文字</p>');
+  editor.commands.setTextSelection({ from: 1, to: 7 });
+
+  const block = w.document.querySelector('#blockSelect');
+  block.value = 'h2';
+  block.dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.equal(editor.isActive('heading', { level: 2 }), true);
+
+  const color = w.document.querySelector('#fontColor');
+  color.value = '#ff0000';
+  color.dispatchEvent(new w.Event('change', { bubbles: true }));
+  assert.match(editor.getHTML(), /style="color:\s*(#ff0000|rgb\(255, 0, 0\))/i);
 });
 test('link toolbar applies a safe link to selected text and unlink preserves the text', async t => {
   const { dom, w } = await mount();
@@ -1658,6 +2013,51 @@ test('account settings keep the footer visible while long dialog content scrolls
   assert.match(styles,/\.bookmark-page \.bookmark-card:focus-within>\.item-menu/);
   assert.match(styles,/@media\(hover:none\), \(max-width:720px\)\{\.bookmark-page \.bookmark-card>\.item-menu,.bookmark-page \.bookmark-section-heading>\.item-menu\{opacity:1\}\}/);
 });
+test('profile settings keep local preview read-only and clear password fields when closed', async () => {
+  let requests=0;
+  const flow=createProfileSettingsFlow({local:true,username:'预览账号',getAccountProfile:async()=>{requests++;throw Error('must not call API')},getAccountAvatar:async()=>{requests++;return new Blob()},saveAccountAvatar:async()=>{requests++},removeAccountAvatar:async()=>{requests++},changeAccountPassword:async()=>{requests++}});
+  flow.state.currentPassword='secret';flow.state.newPassword='Private-pass-1!';flow.state.confirmPassword='Private-pass-1!';
+  await flow.show();
+  assert.equal(flow.state.visible,true);
+  assert.equal(flow.state.username,'预览账号');
+  assert.match(flow.state.profileMessage,/本地界面预览/);
+  assert.equal(requests,0);
+  flow.close();
+  assert.equal(flow.state.visible,false);
+  assert.equal(flow.state.currentPassword,'');
+  assert.equal(flow.state.newPassword,'');
+  assert.equal(flow.state.confirmPassword,'');
+});
+test('profile settings refresh the account avatar and revoke the previous object URL', async () => {
+  const profile={id:'account-1',username:'alan',created:1,avatarMime:'image/png'};
+  const revoked=[],published=[];let avatar=0;
+  const flow=createProfileSettingsFlow({local:false,username:'alan',getAccountProfile:async()=>profile,getAccountAvatar:async()=>{avatar++;return new Blob(['avatar-'+avatar],{type:'image/png'})},saveAccountAvatar:async()=>{},removeAccountAvatar:async()=>{},changeAccountPassword:async()=>{},createAvatarUrl:()=> 'blob:avatar-'+avatar,revokeAvatarUrl:url=>revoked.push(url),onProfileChange:(value,url)=>published.push([value.username,url])});
+  await flow.refresh();
+  assert.equal(flow.state.username,'alan');assert.equal(flow.state.avatarUrl,'blob:avatar-1');assert.equal(flow.state.hasAvatar,true);
+  await flow.refresh();
+  assert.deepEqual(revoked,['blob:avatar-1']);assert.equal(flow.state.avatarUrl,'blob:avatar-2');
+  assert.deepEqual(published,[['alan','blob:avatar-1'],['alan','blob:avatar-2']]);
+  flow.dispose();assert.deepEqual(revoked,['blob:avatar-1','blob:avatar-2']);
+});
+test('profile avatar upload reports success and rejects unsupported image types', async () => {
+  const profile={id:'account-1',username:'alan',created:1,avatarMime:null};let saved=null,reads=0;
+  const flow=createProfileSettingsFlow({local:false,username:'alan',getAccountProfile:async()=>{reads++;return profile},getAccountAvatar:async()=>new Blob(),saveAccountAvatar:async file=>{saved=file},removeAccountAvatar:async()=>{},changeAccountPassword:async()=>{},processAvatar:async file=>new File([file],'qidian-avatar.webp',{type:'image/webp'})});
+  const ok=await flow.uploadAvatar(new File(['input'],'avatar.png',{type:'image/png'}));
+  assert.equal(ok,true);assert.equal(saved.type,'image/webp');assert.equal(reads,1);assert.equal(flow.state.profileMessage,'头像已保存到 Docker 服务端');
+  const invalidFlow=createProfileSettingsFlow({local:false,username:'alan',getAccountProfile:async()=>profile,getAccountAvatar:async()=>new Blob(),saveAccountAvatar:async()=>{},removeAccountAvatar:async()=>{},changeAccountPassword:async()=>{}});
+  assert.equal(await invalidFlow.uploadAvatar(new File(['gif'],'avatar.gif',{type:'image/gif'})),false);
+  assert.match(invalidFlow.state.profileMessage,/只支持 PNG、JPEG 或 WebP/);
+});
+test('profile password changes validate confirmation and report server results', async () => {
+  const changed=[];let reject=false;
+  const flow=createProfileSettingsFlow({local:false,username:'alan',getAccountProfile:async()=>({id:'account-1',username:'alan',created:1,avatarMime:null}),getAccountAvatar:async()=>new Blob(),saveAccountAvatar:async()=>{},removeAccountAvatar:async()=>{},changeAccountPassword:async(current,next)=>{if(reject)throw Error('当前密码不正确');changed.push([current,next])}});
+  Object.assign(flow.state,{currentPassword:'current',newPassword:'New-secure-1!',confirmPassword:'mismatch'});
+  assert.equal(await flow.submitPassword(),false);assert.equal(changed.length,0);assert.match(flow.state.passwordMessage,/不一致/);
+  flow.state.confirmPassword=flow.state.newPassword;
+  assert.equal(await flow.submitPassword(),true);assert.deepEqual(changed,[['current','New-secure-1!']]);assert.equal(flow.state.currentPassword,'');assert.match(flow.state.passwordMessage,/其他设备的登录已退出/);
+  reject=true;Object.assign(flow.state,{currentPassword:'wrong',newPassword:'New-secure-2!',confirmPassword:'New-secure-2!'});
+  assert.equal(await flow.submitPassword(),false);assert.equal(flow.state.passwordMessage,'当前密码不正确');assert.equal(flow.state.changingPassword,false);
+});
 test('automatic backup history lists revisions with separate download and restore actions', async () => {
   const { dom, w } = await mount(empty, { backups:[{ revision:12, created:Date.UTC(2026,9,10) }, { revision:11, created:Date.UTC(2026,9,9) }] });
   w.document.querySelector('#accountButton').click();
@@ -1721,14 +2121,16 @@ test('note types can be created and renamed from the sidebar and persist in the 
   assert.deepEqual(saves.at(-1).noteTypes.find(t => t.id === 'command'), { id:'command', name:'终端命令' });
   dom.window.close();
 });
-test('new categories use the in-app dialog and are saved to the vault', async () => {
+test('new categories use the in-app dialog and are saved to the vault', async t => {
   const { dom, w, saves } = await mount();
+  t.after(() => dom.window.close());
   w.document.querySelector('#addCategory').click();
   const overlay = w.document.querySelector('#categoryOverlay');
   const input = w.document.querySelector('#categoryNameInput');
   assert.equal(overlay.classList.contains('open'), true);
   assert.equal(overlay.querySelector('[role="dialog"]').getAttribute('aria-modal'), 'true');
   w.document.querySelector('#categoryDialogConfirm').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(overlay.classList.contains('open'), true);
   assert.equal(w.document.querySelector('#categoryDialogMessage').textContent, '请输入分类名称');
   input.value = '系统维护';
@@ -1736,6 +2138,8 @@ test('new categories use the in-app dialog and are saved to the vault', async ()
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(overlay.classList.contains('open'), false);
   assert.ok(saves.at(-1).categories.includes('系统维护'));
+  assert.ok(w.vaultDataStore.value.categories.includes('系统维护'),'the Pinia Vault store owns category changes');
+  assert.ok(w.vaultDataStore.generation >= 2,'the validated Vault replacement advances its generation');
   assert.ok(w.document.querySelector('#sideCats [data-nav="系统维护"]'));
   dom.window.close();
 });
@@ -1870,6 +2274,47 @@ test('bookmark cards use each website favicon and retain initials when it fails'
   images[1].dispatchEvent(new w.Event('error'));
   assert.equal(icons[1].querySelector('.bookmark-site-favicon'), null);
   assert.equal(icons[1].querySelector('.bookmark-site-initials').textContent, 'GO');
+  dom.window.close();
+});
+
+test('bookmark Vue snapshot and actions stay connected to the saved bookmark model', async () => {
+  const vault = { ...empty, bookmarks:[{ id:'vue-folder', kind:'folder', title:'文档', children:[
+    { id:'vue-link', kind:'link', title:'MDN', url:'https://developer.mozilla.org/' }
+  ] }] };
+  const { dom, w } = await mount(vault);
+  const main = w.document.createElement('main');
+  const saves = [];
+  const viewState = { closed:new Set(), selected:new Set(), query:'', organizing:false, selectedFolder:'', pinnedOnly:false, directoryOpen:true };
+  const view = createBookmarkView({
+    main,
+    getData:() => vault,
+    save:async () => { saves.push(structuredClone(vault)); },
+    download:() => {},
+    notify:() => {},
+    viewState,
+    onChange:() => {}
+  });
+  const snapshot = () => view.snapshot();
+
+  view.render();
+  assert.equal(snapshot().folderCount, 1);
+  assert.equal(snapshot().sections[0].links[0].id, 'vue-link');
+  view.dispatch({ type:'select-folder', id:'vue-folder' });
+  assert.equal(viewState.selectedFolder, 'vue-folder', 'the controller writes the shared view state directly');
+  assert.equal(snapshot().selectedPath, '文档');
+  assert.deepEqual(snapshot().sections.map(section => section.title), ['文档']);
+  view.dispatch({ type:'toggle-organizing' });
+  assert.equal(viewState.organizing, true);
+  assert.equal(snapshot().organizing, true);
+  view.dispatch({ type:'search', query:'not-found' });
+  assert.equal(viewState.query, 'not-found');
+  assert.equal(snapshot().sections[0].emptyMessage, '没有找到书签');
+  view.dispatch({ type:'search', query:'developer.mozilla.org' });
+  assert.equal(snapshot().sections[0].links[0].id, 'vue-link');
+  await view.dispatch({ type:'toggle-pin', id:'vue-link' });
+  assert.equal(vault.bookmarks[0].children[0].pinned, true);
+  assert.equal(saves.length, 1, 'bookmark actions continue to use the configured persistence boundary');
+  assert.equal(snapshot().sections[0].links[0].pinned, true);
   dom.window.close();
 });
 
@@ -2024,13 +2469,8 @@ test('unified navigation exposes peer workspaces and creation choices without mu
  assert.equal(w.document.querySelector('#captureOverlay').classList.contains('open'),true);dom.window.close();
 });
 
-test('global search labels both content types while local note search and return preserve scope',async()=>{
- const {dom,w}=await mount(designVault());w.document.querySelector('#searchTop').click();
- const search=w.document.querySelector('#globalSearch');search.value='共享关键词';search.dispatchEvent(new w.Event('input'));
- assert.equal(w.document.querySelectorAll('#switcherList [data-search-id]').length,1);
- const link=w.document.querySelector('#switcherList [data-search-bookmark]');assert.equal(link.href,'https://example.com/a');assert.equal(link.target,'_blank');
- assert.deepEqual([...w.document.querySelectorAll('#switcherList .search-kind')].map(n=>n.textContent),['笔记','书签']);
- w.document.querySelector('#mobileCats').click();w.document.querySelector('#switcher').classList.remove('open');
+test('local note search and returning from a note preserve the current list scope',async()=>{
+ const {dom,w}=await mount(designVault());w.document.querySelector('#mobileCats').click();
  const local=w.document.querySelector('#notePageSearch');assert.match(local.placeholder,/筛选本页笔记/);assert.match(local.getAttribute('aria-label'),/当前笔记/);assert.equal(w.document.querySelector('.section-right .muted'),null,'the visible note total is not duplicated beside the create action');local.value='测试笔记正文';local.dispatchEvent(new w.Event('input'));
  assert.equal(w.document.querySelectorAll('.note-list .note-card').length,1);
  w.document.querySelector('.note-card-open').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
@@ -2099,6 +2539,16 @@ test('editor task lists toggle and persist checked state in the note HTML',async
  assert.match(w.currentEditor.getHTML(),/data-checked="true"/,'clicking the task checkbox stores its checked state');
  assert.ok(w.document.querySelector('#editorSurface ul[data-type="taskList"]'),'clicking a task checkbox must not trigger note type navigation or convert the list to bullets');
  await new Promise(resolve=>setTimeout(resolve,300));assert.match(saves.at(-1).notes[0].body,/data-checked="true"/,'the sanitized saved HTML keeps the checked state');
+});
+
+test('attachment picker uploads through the editor flow and inserts a private download link',async t=>{
+ const {dom,w}=await mount();t.after(()=>dom.window.close());w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+ const file=new w.File(['private attachment'],'guide.txt',{type:'text/plain'}),picker=w.document.querySelector('#attachmentFile');
+ Object.defineProperty(picker,'files',{configurable:true,value:[file]});picker.dispatchEvent(new w.Event('change',{bubbles:true}));
+ await new Promise(resolve=>setTimeout(resolve,0));
+ const link=w.currentEditor.view.dom.querySelector('a[href="/api/assets/00000000-0000-4000-8000-000000000001?download=1"]');
+ assert.ok(link,'the selected file is uploaded and linked to its authenticated asset endpoint');
+ assert.equal(link.textContent,'guide.txt');assert.match(w.currentEditor.getHTML(),/0\.0 KB/);
 });
 
 test('editor mount renders stored note content only once', async t => {
@@ -2171,4 +2621,16 @@ test('editor converts selected TSV and Markdown rows into editable tables',async
 test('table Tab navigation creates a row after the final cell and Shift-Tab moves back',async t=>{
  const {dom,w}=await mount();t.after(()=>dom.window.close());Object.defineProperty(globalThis,'KeyboardEvent',{configurable:true,value:w.KeyboardEvent});w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
  const editor=w.currentEditor;editor.chain().focus().insertTable({rows:2,cols:2,withHeaderRow:true}).run();editor.commands.setTextSelection(18);editor.commands.keyboardShortcut('Tab');assert.equal(editor.state.doc.child(0).childCount,3);editor.commands.keyboardShortcut('Shift-Tab');assert.equal(editor.state.doc.child(0).childCount,3);
+});
+
+test('typed editor action bridge routes formatting and table controls to the active Tiptap editor',async t=>{
+  const {dom,w}=await mount();t.after(()=>dom.window.close());w.scrollBy=()=>{};w.HTMLElement.prototype.getClientRects=function(){return [this.getBoundingClientRect()]};w.Range.prototype.getClientRects=function(){return [{top:0,bottom:1,left:0,right:1}]};
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const editor=w.currentEditor;editor.commands.setContent('<p>bridge</p>');editor.commands.setTextSelection({from:1,to:7});
+  await w.editorDataStore.dispatch({group:'format',action:'bold'});
+  let bold=false;editor.state.doc.descendants(node=>{if(node.isText&&node.text==='bridge'&&node.marks.some(mark=>mark.type.name==='bold'))bold=true});assert.ok(bold);
+  editor.commands.setContent('<p></p>');await w.editorDataStore.dispatch({group:'insert',action:'table'});
+  assert.equal(editor.state.doc.firstChild.type.name,'table');
+  await w.editorDataStore.dispatch({group:'table',action:'addRowAfter'});
+  assert.equal(editor.state.doc.firstChild.childCount,4);
 });

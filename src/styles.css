@@ -78,6 +78,8 @@
 
 .version-trigger{position:relative;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;min-width:54px;height:36px;padding:0 8px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--sub);font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap}
 .version-trigger:hover{background:var(--panel2);color:var(--accent-text)}
+.topbar-menus-island{display:contents}
+#mobileMenuButtonIsland,#mobileShadeIsland,#breadcrumbTitleIsland{display:contents}
 .version-alert-dot{position:absolute;top:4px;right:4px;display:none;width:7px;height:7px;border:1.5px solid var(--bg);border-radius:50%;background:#e5484d;box-shadow:0 0 0 1px #e5484d22}
 .version-trigger[data-update-available="true"] .version-alert-dot{display:block}
 @media(max-width:720px){.version-trigger{min-width:49px;height:34px;padding-inline:5px;font-size:10px}.version-alert-dot{top:3px;right:2px}}
@@ -488,7 +490,6 @@ body.booting > :not(#loginGate){display:none!important}
 
 .table-tools[hidden]{display:none}
 
-.breadcrumb.is-home .breadcrumb-root,.breadcrumb.is-home .breadcrumb-separator{display:none}
 
 :root{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}:root[data-theme=dark] .secondary-btn.danger-btn,:root[data-theme=dark] .item-menu-panel .danger-btn{color:#f29ca4}@media(max-width:720px){.editor-bar .tool-btn{min-width:36px;height:36px}.editor-bar .tool-select{min-height:36px}}
 
@@ -605,3 +606,30 @@ body.booting > :not(#loginGate){display:none!important}
 .doc-content ul.task-list>li[data-type="taskItem"][data-checked="true"]{color:var(--sub);text-decoration:line-through}
 @media(max-width:1150px){.note-shell:has(.editor-card){grid-template-columns:minmax(0,1fr);gap:18px}.note-shell:has(.editor-card)>.edit-inspector{display:none}.editor-outline-mobile{display:block;margin:8px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.editor-outline-mobile>summary{cursor:pointer;color:var(--sub);font-size:12px}.editor-outline-mobile[open] .editor-outline-links{margin-top:8px}}
 .action-dialog{width:min(460px,100%);max-height:min(90vh,640px)}.action-dialog .dialog-body{padding-top:20px;padding-bottom:12px}.action-dialog-message{margin:0;color:var(--text);line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}.action-dialog .form-label:not([hidden]){margin-top:20px}.action-dialog .form-text:not([hidden]){margin:8px 0 0}.action-dialog .primary-btn.danger-btn{background:#c3545d;color:#fff}.action-dialog :focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
+/* Vue feature island: keyboard-accessible global command palette. */
+.command-palette-backdrop{position:fixed;z-index:500;inset:0;display:flex;align-items:flex-start;justify-content:center;padding:12vh 18px 24px;background:rgba(20,26,42,.42);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);animation:command-backdrop-in .14s ease-out}
+.command-palette{width:min(100%,560px);overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 30px 90px rgba(20,28,60,.25);animation:command-panel-in .16s ease-out}
+.command-palette-search{display:flex;align-items:center;gap:12px;padding:17px 19px;border-bottom:1px solid var(--line)}
+.command-palette-search>svg{width:21px;height:21px;flex:0 0 auto;fill:none;stroke:var(--sub);stroke-width:1.8;stroke-linecap:round}
+.command-palette-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:16px}
+.command-palette-search input:focus-visible{outline:0}
+.command-palette-search input::placeholder{color:var(--sub);opacity:.78}
+.command-palette-search>kbd,.command-palette-footer kbd{display:inline-flex;min-width:22px;height:22px;align-items:center;justify-content:center;padding:0 5px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--sub);font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace}
+.command-palette-list{max-height:min(56vh,390px);overflow:auto;padding:8px}
+.command-palette-item{display:flex;width:100%;align-items:center;gap:12px;padding:10px 11px;border:0;border-radius:11px;background:transparent;color:var(--text);text-align:left;transition:background-color .12s ease,color .12s ease}
+.command-palette-item:hover,.command-palette-item.active{background:var(--accent2);color:var(--accent-text)}
+.command-palette-item-icon{display:grid;width:34px;height:34px;flex:0 0 auto;place-items:center;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--accent-text)}
+.command-palette-item-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.command-palette-item-copy{display:flex;min-width:0;flex:1;align-items:center;justify-content:space-between;gap:14px;font-size:14px;font-weight:620}
+.command-palette-item-copy small{color:var(--sub);font-size:11px;font-weight:500}
+.command-palette-enter{color:var(--accent-text);font-size:17px}
+.command-palette-empty{margin:0;padding:26px 12px;color:var(--sub);text-align:center}
+.command-palette-footer{display:flex;align-items:center;gap:18px;padding:10px 16px;border-top:1px solid var(--line);background:var(--panel2);color:var(--sub);font-size:11px}
+.command-palette-footer span{display:inline-flex;align-items:center;gap:4px}
+@keyframes command-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes command-panel-in{from{opacity:0;transform:translateY(-6px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:600px){.command-palette-backdrop{padding:7vh 10px 12px}.command-palette{border-radius:15px}.command-palette-search{padding:14px}.command-palette-footer{justify-content:space-between;gap:5px;padding:9px 11px;font-size:10px}}
+@media(prefers-reduced-motion:reduce){.command-palette-backdrop,.command-palette{animation:none}.command-palette-item{transition:none}}
+.action-dialog-overlay{z-index:600}
+
+.topbar-search-island{display:contents}.search-dismiss-layer{position:fixed;inset:0;z-index:129;background:transparent}

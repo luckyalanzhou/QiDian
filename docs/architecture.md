@@ -18,13 +18,60 @@ flowchart LR
 
 | 层 | 实现 |
 |---|---|
-| 前端 | 原生 JavaScript、Vite、Tiptap 3、ProseMirror、DOMPurify、fflate |
-| 服务端 | Node.js 24 HTTP 服务，提供静态资源、账号、知识库、附件、备份和版本 API |
+| 前端 | Vite、统一 TypeScript 启动入口、渐进迁移中的 Vue 3 / TypeScript / Pinia、Tiptap 3、ProseMirror、DOMPurify、fflate；`src/api/` 按领域封装同源请求和响应契约 |
+| 服务端 | Node.js 24 HTTP 服务（容器内固定监听 9908）；`server/config.mjs` 在启动前集中解析配置并校验可信代理名单，API 入口统一执行来源与会话校验；认证、账号、附件、备份和知识库用例由应用服务编排，Repository 承担 SQLite 读写 |
+| 共享领域 | `shared/` 保存浏览器与服务端共用的知识库、书签校验规则和 API 请求/响应契约；HTTP 错误映射留在服务端边界 |
 | 数据库 | Node 内置 SQLite，WAL 模式、同步事务和顺序迁移 |
 | 镜像 | `luckyalanzhou/qidian`，支持 `linux/amd64` 与 `linux/arm64` |
 | iStoreOS 24.10 / 25.12 与兼容的 OpenWrt | `.run` 自解压安装器部署 LuCI、Compose、管理脚本和受限更新代理，不调用系统包管理器 |
 
 正式入口是 `index.html`。前端代码位于 `src/`，服务端位于 `server/`，数据库迁移位于 `migrations/`。`private_wiki_prototype.html` 只作为原始设计基线，不参与构建。
+
+## 架构演进状态
+
+当前采用单体部署、模块化代码边界。前后端共享一个镜像和同源 API，避免引入独立服务后增加部署和维护负担。迁移按功能逐块进行，旧界面与 API 路径在对应模块完成替换前继续工作。
+
+## 重构阶段与验收
+
+为使进度和验收结果可核对，本次重构按以下四个交付阶段跟踪；阶段以验收结果为准，不按耗时划分。
+
+| 阶段 | 范围与完成标准 | 当前状态 |
+|---|---|---|
+| 1. 后端模块化 | 配置、HTTP 边界、应用服务、Repository 和共享 API 契约分层；验证鉴权、SQLite 事务、升级兼容与自托管 API。 | 已完成：模块边界和 9908 固定端口已验证；全量测试覆盖 SQLite 与自托管 API。 |
+| 2. 前端架构基础 | 建立唯一 Vue/TypeScript 入口、Pinia 状态所有权和按功能组织的页面与动作模块；保持既有功能与交互。 | 已完成：唯一入口、Vue 工作区、Pinia 和主要页面已建立；桌面本地浏览器 smoke test 通过。 |
+| 3. 前端迁移收尾 | 将剩余页面副作用、DOM 事件、数据适配和导航编排迁入明确的功能边界；移除生产路径中的旧 DOM 兼容实现及重复状态。 | 进行中：编辑器格式、段落与表格命令已统一委托给功能控制器；Vue 编辑器工具栏按钮直接绑定类型化命令，不再扫描 `data-*` 属性翻译动作；旧工具栏路由只在兼容路径创建；表单读取和正文清理已迁入 `features/editor/form-adapter.ts`；会话过期恢复已迁入 `features/auth/session-recovery-flow.ts`；笔记类型与快速收集的旧 DOM 表单已分别迁入 `features/notes/legacy-type-dialog.ts`、`features/capture/legacy-capture-dialog.ts`，Vue 生产路径不再创建这两个旧表单适配器；生产 Vue 路径也不再创建旧工作区渲染器；生产书签页不再实例化旧 DOM 视图，书签导航、目录偏好、选择清理与新建链接由 Pinia/Vue 路径接管；手机底栏“新建”直接发出类型化 Vue 导航命令；侧栏品牌/新建、桌面/手机搜索、顶栏主题和账号菜单、备份历史动作已由 Vue 组件直接处理；导航命令仍经统一控制器保留未保存编辑确认，壳层命令经显式动作 Store 执行；生产 Vue 路径不再挂载旧 `workspaceContentEvents`，也不再注册 `workspaceNavigationEvents` 与 `workspaceShellEvents` 的全局点击委派，这些 DOM 适配器仅供兼容路径；`src/app.js` 仍承担页面组合和部分适配。 |
+| 4. 系统验收 | 运行 `pnpm test`、`pnpm check`；分别验收 SQLite/DOM、桌面与手机浏览器、Docker 9908 和反向代理；需要的正式构建走远程流程。 | 部分完成：隔离提权执行全量测试通过，`pnpm check` 通过；当前源码的隔离 Vite 浏览器验证了 Vue 工作区、侧栏品牌返回首页、主题切换、账号菜单打开设置，控制台无错误；DOM 组件测试覆盖移动导航及搜索。本轮未运行本地打包；手机实机、Docker、反向代理和远程构建仍待验收。 |
+
+- 新交互从 `src/features/` 开始使用 Vue 3、TypeScript 和 Pinia；认证、账号、设置、提示通知、桌面顶栏菜单与面包屑、手机抽屉及底部导航、新建入口、快速操作面板、桌面侧栏、首页、笔记列表、阅读与编辑页面、书签和回收站均按功能拆分。导航 Pinia 保存页面、筛选、当前笔记、编辑草稿和返回上下文；工作区壳层 Pinia 持有主题/账号菜单、面包屑与移动抽屉状态、已解析主题和临时账号显示信息；Vault Pinia 持有账号知识库，首页、笔记列表、阅读、编辑、书签和回收站的激活状态直接从导航与 Vault 派生，不再由 `app.js` 逐页推送同步标志。首页和笔记列表从 Vault generation 派生视图快照。侧栏计数、类型和分类也由 Vault generation 驱动的 Pinia 视图快照提供。笔记筛选、阅读、删除、书签维护及回收站操作继续调用领域控制器，并通过原有保存队列或 SQLite 事务持久化。全局确认、输入、笔记类型、分类、网页摘录和新建菜单均由 Vue 组件与 Pinia 状态呈现；菜单动作通过类型化导航命令分派，保留离开未保存编辑时的确认。分类创建经过独立领域流程和 Vault 写事务，网页摘录由独立流程校验正文、构造草稿并等待 Vault 写事务成功。同步冲突复核界面由 Vue 弹窗呈现，控制器负责备份对照和用户确认。全局提示由 `app.js` 直接写入通知 Pinia Store，Vue 组件负责显示与自动消失。设备更新、备份恢复、笔记草稿与类型管理、编辑器生命周期和工具栏命令均拆入 `src/features/`。浏览器与服务端共用 `shared/` 领域规则；`src/api/` 按领域封装同源请求和响应校验；`src/features/sync/cloud-sync-engine.ts` 负责串行保存、多设备同步、revision 冲突合并及重试，`src/cloud.js` 组合认证、草稿恢复和备份 API 并提供兼容门面。生产入口要求 Vue 根挂载成功，失败时显示错误并停止；`features/navigation/legacy-workspace-renderer.js` 承载仅供迁移测试使用的旧 DOM 首页、笔记列表、阅读页和侧栏，`features/editor/legacy-editor-view.js` 保存旧编辑页模板。书签、笔记类型、快速收集、旧工作区渲染器和旧编辑工具栏只在非 Vue 兼容路径创建，生产的对应交互由 Vue/Pinia 处理；回收站与编辑器兼容入口仍保留在 `app.js`，生产不会回退到旧页面。Vue 阅读正文与目录只由 Pinia 快照生成。`src/app.js` 仍负责页面事件、数据适配与导航副作用，尚未完成 Vue Router/页面组件化迁移。
+- `features/vault/store.ts` 现作为当前账号 Vault 快照的 Pinia 所有者；兼容期仍以原始对象引用承载数据，但业务写入统一经过 `mutate`，完整快照替换经过 `replace`，两者都会递增 generation。笔记草稿保存策略位于独立类型化领域动作，书签与回收站控制器通过组合层注入写入动作；用于校验或事务的临时副本仍可由纯领域函数直接修改。Vue 页面继续通过功能快照适配器读取数据，后续迁移再让页面直接订阅领域状态。
+- `features/vault/mutation.ts` 为需要立即持久化的业务动作提供共享事务边界：复制 Vault 候选、运行共享校验、更新 Pinia 所有者、等待服务端提交，并仅在当前候选仍有效时回滚失败写入。笔记移入回收站与回收站还原、清空和过期清理已经使用该边界；其余写入流程按领域逐步迁入。
+- `features/notes/selectors.ts` 将草稿识别、已发布版本映射、笔记列表筛选、全文搜索和排序从应用组合层移出；HTML 正文转文本和草稿有效内容判断由调用层注入。Pinia 笔记列表状态结合 Vault generation 和导航查询条件派生卡片快照，Vue 页面直接订阅该状态，不再由应用组合层逐次推送列表副本。`features/dashboard/store.ts` 直接读取 Vault generation 并在功能边界内组合 `snapshot.ts`；`features/dashboard/actions.ts` 负责布局与分组展开偏好的 Vault 写入和持久化，不直接操作 DOM，Vue 页面通过响应式快照更新。
+- `features/navigation/sidebar-store.ts` 从 Vault generation 派生笔记、类型、分类、书签和回收站计数；`features/trash/store.ts` 直接订阅 Vault generation 并从现有回收站投影读取条目。两者移除了应用组合层逐次推送的 Vue 同步桥，回收、恢复和清空动作通过 Pinia 显式绑定事务控制器。
+- 侧栏兼容视图只在 Vue 实际未挂载时生成；Vue 页面折叠类型只更新 Vault 偏好，由 Pinia 响应式状态驱动属性，不再由应用层直接改写 Vue 管理的 DOM。
+- `features/bookmarks/store.ts` 直接订阅 Vault generation，并在 store 内持有目录、搜索、整理与选择状态；`features/bookmarks/snapshot.ts` 从当前 Vault 和界面状态生成书签页投影。页面操作仍由 store 绑定的书签事务控制器执行，持久化继续经过 Vault 保存队列。
+- `features/bookmarks/operations.ts` 集中处理收藏切换和同级排序，Vue 与兼容 DOM 入口共用不可变树变更函数，避免两套实现的行为分叉。
+  - `features/bookmarks/view-actions.ts` 在 Pinia 边界处理书签搜索、分组选择、整理模式和选择状态；书签编辑、删除、清空、批量移动/删除、HTML 导入/导出及目录偏好由功能事务控制器处理，数据写入经过 Vault 校验与持久化确认。Vue 页面提供一致的编辑、删除、批量操作和导入预览弹窗；旧 DOM 书签控制器只保留未挂载 Vue 时的备用页面入口。
+- `features/content/html-content.ts` 集中安全 URL 判定、HTML 白名单清理、Markdown 与纯文本结构转换、笔记正文展示和粘贴标题提取；DOM、DOMPurify 清理器及 Markdown 判定通过依赖注入提供，应用组合层继续负责将结果接入编辑器、阅读器和剪贴板流程。
+- `features/reader/store.ts` 从 Vault generation 和导航状态派生当前阅读页；`snapshot.ts` 统一生成正文标题锚点、目录、阅读时长、来源安全链接、日期和发布操作状态；`reader-actions-store.ts` 提供 Vue 阅读操作的类型化命令边界，`actions.ts` 编排编辑、预览、发布、收藏、副本和删除，收藏与副本经 Vault SQLite 事务提交成功后才报告或打开；`code-copy.ts` 管理正文代码块复制按钮、剪贴板回退和组件卸载清理。Vue 阅读页直接订阅 Pinia 并管理代码块增强生命周期，兼容 DOM 事件复用同一阅读动作控制器。
+- `features/editor/editor-page-actions-store.ts` 定义编辑页保存、附件、HTML 导出、图片选择和删除的类型化动作边界；Vue 页面显式分派动作，旧 DOM 兼容事件复用相同应用处理器。
+- `features/editor/page-actions.ts` 编排编辑页操作并确定 HTML 导出版本：编辑中先保存草稿，预览与草稿导出当前版本，普通阅读状态导出已发布快照。
+- Vue 编辑器工具栏由 `EditorPage.vue` 静态声明；`features/editor/store.ts` 持有选区格式、段落、表格、撤销重做和快捷插入菜单等状态快照，运行时更新 Pinia；`features/editor/command-controller.ts` 是格式、段落、表格和编辑命令的单一实现，应用组合层只保留委托入口；`SlashMenu.vue` 按类型化编辑命令操作 Tiptap。`features/editor/legacy-toolbar-view.ts` 集中管理仅供迁移测试使用的旧 DOM 工具栏状态与布局。
+- `features/editor/outline-controller.ts` 从 Tiptap 文档生成标题目录，并通过类型化编辑动作定位标题；目录快照由 Pinia 持有，桌面侧栏与手机目录均由 `EditorPage.vue` 响应式渲染。旧 DOM 回退保留原目录适配器，生产 Vue 页面不再由 `app.js` 注入目录 HTML 或逐项绑定事件。
+- `features/notes/draft-content.ts` 管理草稿有效内容判定与编辑基线比较；空白新笔记和未填写的结构化模板不会被当成已写内容，正文文本、图片和有效元数据会保留为草稿。
+- `features/notes/create-note-controller.ts` 编排新建笔记的类型与分类选择、活动草稿处理、Vault 写入及编辑页激活；笔记实体规则继续复用 `note-actions.ts`，页面组合层只注入导航和界面副作用。
+- `features/notes/html-export-service.ts` 将单篇 HTML 生成、本地附件内嵌和下载封装在笔记功能中；`features/sync/conflict-export-service.ts` 负责打包冲突双方的 Vault 与附件，`cloud.js` 仅注入 API 和下载能力。
+- `workspace-shell-events.ts` 负责主题与账户菜单、类型操作、删除确认和弹窗关闭等全局工作区交互；副作用通过显式依赖交给应用组合层，并由独立 DOM 事件测试覆盖。
+- `workspace-content-events.ts` 负责笔记编辑、发布、收藏、回收站、备份和移动端菜单入口；页面动作以同步路由为主，只有事务型动作异步等待结果。
+- `workspace-static-dom-events.ts` 集中挂载摘录粘贴、类型和分类快捷键及静态弹层关闭事件，并返回卸载函数；页面组合层只注入具体业务回调。`Ctrl+K` / `⌘K` 打开 Vue 快速操作面板，搜索查询与结果由 Pinia 管理；顶栏搜索也直接使用该 Store。
+- `features/appearance/theme-controller.ts` 管理系统主题偏好、操作系统主题监听、文档颜色属性与 Pinia 投影；`features/editor/remote-refresh.ts` 将远端 Vault 更新安全同步到活动编辑器，保留编辑基线、表单状态和光标位置。
+- Vue 仪表盘、笔记列表、笔记卡片、桌面侧栏、手机底栏与阅读/编辑返回按钮通过 `navigation-actions-store.ts` 发出类型化导航命令；侧栏类型和分类操作、笔记卡片删除通过 `workspace-shell-actions-store.ts` 发出类型化功能命令。应用组合层绑定对应控制器执行命令，并沿用统一的未保存编辑确认与删除事务。兼容 DOM 页面继续使用事件适配器，迁移中的 Vue 组件不再依赖全局 CSS 选择器路由处理这些动作。
+- 服务端 `server/api.js` 负责 Origin 校验、会话认证、公共响应策略和路由分发。账号、认证、设备更新、知识库、备份和附件分别位于 `server/features/`，继续使用现有 Request / Response 接口，供 Node.js HTTP 服务复用。`server/validation.js` 将共享领域校验错误映射为稳定的 HTTP 错误类型。
+- `shared/api-contracts.js` 定义 JSON API 请求与响应的运行时校验，`shared/api-contracts.d.ts` 提供同源 TypeScript 类型。前端对认证、密码、知识库写入和设备更新等 JSON 请求在发送前校验；服务端在进入领域处理前校验相同的请求契约。服务端 `server/http-responses.js` 集中安全响应头，并强制成功 JSON 响应声明契约、错误响应符合共享错误结构；前端 `src/api/client.ts` 验证成功响应及错误对象形状，避免仅靠 `as T` 掩盖服务端与前端的字段漂移。头像和附件等二进制响应不经过 JSON 契约。
+- `server/features/` 负责 HTTP 参数、限流和 Cookie、状态码及错误映射；首个管理员初始化、注册、登录挑战、凭据验证与会话创建由 `server/application/auth-service.js` 编排；账号资料、头像和密码用例由 `server/application/account-service.js` 编排验证、条件更新和 Repository 调用；附件上传、分块读取与基于当前知识库及历史快照的清理由 `server/application/asset-service.js` 编排；备份列表、创建与快照读取由 `server/application/backup-service.js` 编排；知识库读写用例由 `server/application/vault-service.js` 编排校验与 revision 冲突处理；设备版本检查和更新授权由 `server/application/system-update-service.js` 编排，HTTP 功能层负责读取请求并映射响应。容器密码重置命令通过本机 SQLite 仓储完成账号查询和事务更新。账号私有数据 SQL 始终带账号条件，revision 冲突仍返回原有 409 响应。
+- 这一步不改变 SQLite 表结构、数据 JSON、API 地址、9908 端口、`/data` 挂载或反向代理配置。全面切换框架与数据库结构都要另行经过兼容性验证，不能与界面迁移捆绑。
+- `src/main.ts` 是唯一前端启动入口，先挂载唯一 Vue 根应用，再加载 `src/application.ts` 处理认证引导和工作区启动，避免多个入口对 DOM 初始化顺序产生隐式依赖。
+
+导航状态转移和常规页面副作用已拆为可独立验证的功能模块。`src/workspace-app.ts` 是唯一 Vue 应用与 Pinia Store 注册点，`mountWorkspaceApp()` 保证应用只挂载一次；`src/main.ts` 先挂载该根应用，再动态加载 `src/application.ts`，由其协调认证引导和工作区启动；`src/app.js` 导出工作区组合函数，不再负责会话引导。云端同步轮询、页面恢复时刷新和过期回收站清理统一由 `features/lifecycle/workspace-lifecycle.ts` 管理，并可卸载其定时器与事件监听。下一阶段继续把 `app.js` 中的页面副作用迁入功能模块，并让 Vue 状态成为单一事实来源；达到页面完全由 Vue 管理后再评估 Vue Router。服务端保持单进程模块化结构；进程启动由 `server/selfhost.mjs` 管理，HTTP 与静态资源适配位于 `server/http-server.mjs`，设备更新文件通信位于 `server/host-updater.mjs`，先稳定领域 API 契约，再评估 TypeScript 与 HTTP 框架。每次迁移以需求文档、DOM、SQLite 和自托管集成测试验证。
 
 ## 数据目录
 

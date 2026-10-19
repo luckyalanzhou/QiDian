@@ -5,6 +5,7 @@ import { handle } from '../server/api.js';
 import { PASSWORD_ITERATIONS, SESSION_IDLE_TTL, SESSION_TTL, sessionTokenFromCookie, hashSession } from '../server/auth.js';
 import { makeRegistrationCredential, makeLoginVerifier } from '../src/credentials.js';
 import { sqliteAdapter } from '../scripts/sqlite-adapter.mjs';
+import { isApiErrorResponse } from '../shared/api-contracts.js';
 
 let env, alice, bob;
 const ALICE = { username: 'alice_notes', password: 'Correct horse battery 7!' };
@@ -77,6 +78,14 @@ test('first account adopts legacy notes, backups and attachment bytes', async ()
   assert.deepEqual(new Uint8Array(await (await call(`/assets/${legacyAssetId}`)).arrayBuffer()), new Uint8Array([1,2,3,4]));
 });
 
+test('API boundary returns errors matching the shared JSON error contract', async () => {
+  const response = await call('/missing-endpoint');
+  assert.equal(response.status, 404);
+  const body = await response.json();
+  assert.deepEqual(body, { error:'接口不存在' });
+  assert.equal(isApiErrorResponse(body), true);
+});
+
 test('account password sessions protect APIs on the self-hosted server', async () => {
   const config = await handle(new Request('https://qidian.local/api/auth/config'), env);
   assert.equal(config.status, 200);
@@ -132,7 +141,7 @@ test('self-hosted version checks require login and queue only a verified latest 
     fetchRelease:async url => { assert.equal(url,'https://api.github.com/repos/luckyalanzhou/qidian/releases/latest'); return Response.json(release); },
     requestQidianUpdate:async () => { queued++; return queued === 1; },
     isQidianUpdaterReady:async () => true,
-    readQidianUpdateStatus:async () => ({ state:'idle', version:'', updatedAt:null, log:'' })
+    readQidianUpdateStatus:async () => ({ state:'idle', version:'', updatedAt:null, logUpdatedAt:null, log:'' })
   };
   assert.equal((await handle(request('/system/version'), updateEnv)).status,401);
   const installed = await handle(request('/system/version?installed=1','GET',undefined,{},alice.cookie), {...updateEnv,fetchRelease:async()=>{throw Error('Release source offline')}});
@@ -143,21 +152,21 @@ test('self-hosted version checks require login and queue only a verified latest 
     currentVersion:'0.1.5', latestVersion:'0.1.6', updateAvailable:true, canUpdateDevice:true, installerAvailable:true, updaterAvailable:true,
     releaseUrl:release.html_url, notes:release.body, publishedAt:release.published_at
   });
-  const submitted = await handle(request('/system/update','POST','{}',{},alice.cookie), updateEnv);
+  const submitted = await handle(request('/system/update','POST','{"action":"update"}',{},alice.cookie), updateEnv);
   assert.equal(submitted.status,202);
   assert.deepEqual(await submitted.json(),{ accepted:true, version:'0.1.6' });
-  const duplicate = await handle(request('/system/update','POST','{}',{},alice.cookie), updateEnv);
+  const duplicate = await handle(request('/system/update','POST','{"action":"update"}',{},alice.cookie), updateEnv);
   assert.equal(duplicate.status,409);
   const secondary = await registerAccount({ username:'update_reader', password:'Another strong phrase 5!' });
-  const denied = await handle(request('/system/update','POST','{}',{},secondary.cookie), updateEnv);
+  const denied = await handle(request('/system/update','POST','{"action":"update"}',{},secondary.cookie), updateEnv);
   assert.equal(denied.status,403,'secondary accounts cannot update the host device');
   const status = await handle(request('/system/update-status','GET',undefined,{},alice.cookie), updateEnv);
-  assert.deepEqual(await status.json(),{ state:'idle', version:'', updatedAt:null, log:'' });
+  assert.deepEqual(await status.json(),{ state:'idle', version:'', updatedAt:null, logUpdatedAt:null, log:'' });
 });
 
 test('update API rejects unsupported deployments and releases without the checksummed installer', async () => {
   assert.equal((await handle(request('/system/version','GET',undefined,{},alice.cookie),env)).status,404);
-  const response = await handle(request('/system/update','POST','{}',{},alice.cookie), {
+  const response = await handle(request('/system/update','POST','{"action":"update"}',{},alice.cookie), {
     ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.1.5',
     fetchRelease:async () => Response.json({ tag_name:'v0.1.6', html_url:'https://github.com/luckyalanzhou/qidian/releases/tag/v0.1.6', assets:[] }),
     isQidianUpdaterReady:async () => true
@@ -422,6 +431,11 @@ test('invalid and oversized vault requests leave account data intact', async () 
   const current = await (await call('/vault')).json();
   const invalid = { ...noteData(), notes:[...noteData().notes,...noteData().notes] };
   assert.equal((await call('/vault','PUT',JSON.stringify({ revision:current.revision, data:invalid })).then(r=>r.status)),400);
+  for (const body of ['null', '[]', '"text"']) {
+    const response = await call('/vault','PUT',body);
+    assert.equal(response.status,400,`${body} is not a valid JSON request object`);
+    assert.deepEqual(await response.json(),{ error:'JSON 请求必须是对象' });
+  }
   assert.equal((await call('/vault','PUT','x'.repeat(1_020_000)).then(r=>r.status)),413);
   assert.equal((await (await call('/vault')).json()).revision,current.revision);
 });

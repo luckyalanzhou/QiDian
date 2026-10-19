@@ -68,12 +68,13 @@ cp packaging/docker/env.example packaging/docker/.env
 
 ```dotenv
 APP_BIND_ADDRESS=0.0.0.0
-APP_PORT=9908
 REGISTRATION_ENABLED=false
 TRUST_PROXY=false
 TRUSTED_PROXY_IPS=
 QIDIAN_IMAGE=docker.io/luckyalanzhou/qidian:latest
 ```
+
+服务固定监听并映射设备 TCP 端口 `9908`。
 
 启动服务：
 
@@ -108,7 +109,7 @@ TRUST_PROXY=true
 TRUSTED_PROXY_IPS=127.0.0.1
 ```
 
-`TRUSTED_PROXY_IPS` 填写直接连接容器的反向代理 IP，多个地址以英文逗号分隔。反向代理须正确设置 `X-Forwarded-Proto`、`X-Forwarded-Host`、`X-Forwarded-For`，并禁止公网绕过代理直接访问 9908。暂不填写受信地址时会保留旧版兼容行为并输出启动警告。局域网地址和域名都可以登录，但同一浏览器会按不同站点分别保存 Cookie。
+`TRUSTED_PROXY_IPS` 填写直接连接容器的反向代理 IP，多个地址以英文逗号分隔。反向代理须正确设置 `X-Forwarded-Proto`、`X-Forwarded-Host`、`X-Forwarded-For`，并禁止公网绕过代理直接访问 9908。启用 `TRUST_PROXY` 却未填写有效 IP 时，服务会在打开数据库前拒绝启动。局域网地址和域名都可以登录，但同一浏览器会按不同站点分别保存 Cookie。
 
 iStoreOS LuCI 可在 **基本设置** 中启用 **信任反向代理**，并填写直接连接栖点容器的代理 IP。点击 **保存并应用** 后，LuCI 会应用 UCI 配置并重建栖点容器；仅保存不会重建容器，也不会拉取新镜像。默认关闭；未使用反向代理时保持关闭即可。LuCI 当前仅接受一个代理 IP。
 

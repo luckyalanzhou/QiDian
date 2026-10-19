@@ -235,6 +235,7 @@ test('web updates use a limited host agent, verify the public release checksum, 
   assert.match(dockerfile, /FROM --platform=\$BUILDPLATFORM node:24-bookworm-slim AS build/);
   assert.match(dockerfile, /--mount=type=cache,id=pnpm-store,target=\/pnpm\/store/);
   assert.match(dockerfile, /pnpm install --frozen-lockfile --prefer-offline/);
+  assert.match(dockerfile, /COPY --from=build --chown=node:node \/app\/shared \.\/shared/);
 });
 
 test('generic Docker install uses a device-managed named volume and has no host updater privileges', async () => {
@@ -244,7 +245,8 @@ test('generic Docker install uses a device-managed named volume and has no host 
   assert.match(compose, /docker\.io\/luckyalanzhou\/qidian:latest/);
   assert.match(compose, /- qidian-data:\/data/);
   assert.match(compose, /name: qidian-data/);
-  assert.match(compose, /APP_PORT:-9908/);
+  assert.match(compose, /:9908:9908/);
+  assert.doesNotMatch(compose, /APP_PORT|PORT:/);
   assert.match(compose, /TRUST_PROXY: \$\{TRUST_PROXY:-false\}/);
   assert.match(compose, /TRUSTED_PROXY_IPS: \$\{TRUSTED_PROXY_IPS:-\}/);
   assert.doesNotMatch(compose, /docker\.sock|QIDIAN_UPDATE_REQUEST|QIDIAN_UPDATE_STATUS/);
@@ -260,8 +262,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   const applyTrigger = await read('../packaging/istoreos/luci-app-qidian/root/usr/share/ucitrack/luci-app-qidian.json');
 
   assert.match(controller, /admin", "services", "qidian/);
-  assert.match(model, /port\.default = "9908"/);
-  assert.match(model, /HTTP|端口/);
+  assert.doesNotMatch(model, /http_port|访问端口/);
   assert.match(manager, /data_dir=\$docker_root\/volumes\/qidian\/data/);
   assert.match(manager, /data_dir" = \/var\/lib\/docker\/volumes\/qidian\/data/);
   assert.match(manager, /\.qidian-storage/);
@@ -279,7 +280,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(model, /trusted_proxy_ip\.datatype = "ipaddr"/);
   assert.match(model, /trusted_proxy_ip:depends\("trust_proxy_enabled", "1"\)/);
   assert.doesNotMatch(model, /remove\.description\s*=/, 'keep the uninstall data-retention warning in one place before confirmation');
-  assert.ok(model.indexOf('local port = s:taboption("basic", Value') < model.indexOf('local install = s:taboption("basic", Button'), 'show settings before the deployment retry');
+  assert.ok(model.indexOf('local registration = s:taboption("basic", Flag') < model.indexOf('local install = s:taboption("basic", Button'), 'show settings before the deployment retry');
   assert.doesNotMatch(model, /data_path_display/, 'show the detected Docker data directory once in the service overview');
   assert.match(manager, /account-status\) account_status/);
   assert.match(manager, /set_env REGISTRATION_ENABLED/);
@@ -326,7 +327,13 @@ test('Docker service and LuCI use HTTP 9908 without requiring certificates', asy
   const view = await read('../packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/view/qidian/status.htm');
 
   assert.match(dockerfile, /node:http.*http:\/\/127\.0\.0\.1:9908\/readyz/);
-  assert.match(compose, /APP_PORT:-9908/);
+  assert.match(compose, /:9908:9908/);
+  assert.doesNotMatch(compose, /APP_PORT|PORT:/);
+  assert.doesNotMatch(manager, /qidian\.main\.http_port|APP_PORT/);
+  assert.match(manager, /http:\/\/127\.0\.0\.1:9908\/api\/auth\/config/);
+  assert.match(installer, /uci -q delete qidian\.main\.http_port/);
+  assert.match(view, /http:\/\/localhost:9908/);
+  assert.match(view, /var port = "9908"/);
   assert.match(compose, /QIDIAN_DATA_PATH:\?请先在LuCI执行安装或更新/);
   assert.match(compose, /QIDIAN_IMAGE:\?请先在LuCI执行安装或更新/);
   assert.doesNotMatch(compose, /TLS_CERT_PATH|TLS_KEY_PATH|certs\//);

@@ -1,4 +1,4 @@
-import { validateBookmarks, bookmarkURL } from '../server/bookmarks.js';
+import { validateBookmarks, bookmarkURL } from '../shared/bookmarks.js';
 let bookmarkSequence = 0;
 export function bookmarkId(random = globalThis.crypto) {
   if (typeof random?.randomUUID === 'function') return 'b' + random.randomUUID().replaceAll('-', '');

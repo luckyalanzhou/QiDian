@@ -46,7 +46,6 @@ docker run -d \
   --init \
   -p 9908:9908 \
   -e NODE_ENV=production \
-  -e PORT=9908 \
   -e HOST=0.0.0.0 \
   -e DATA_DIR=/data \
   -e REGISTRATION_ENABLED=false \
@@ -71,7 +70,7 @@ docker exec -it qidian node server/reset-password.mjs
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `PORT` | `9908` | 容器监听端口 |
+| 容器端口 | `9908` | 固定端口，不读取 `PORT` 环境变量 |
 | `HOST` | `0.0.0.0` | 容器监听地址 |
 | `DATA_DIR` | `/data` | SQLite、附件和迁移备份目录 |
 | `STATIC_DIR` | `/app/dist` | 前端静态文件目录 |
