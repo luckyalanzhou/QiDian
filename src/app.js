@@ -57,6 +57,7 @@ import { createCategoryDialogFlow } from './features/categories/category-dialog-
 import { createCategoryDialogController } from './features/categories/category-dialog-controller.ts';
 import { createLegacyCategoryDialog } from './features/categories/legacy-category-dialog.ts';
 import { createCaptureFlow } from './features/capture/capture-flow.ts';
+import { createCaptureDialogController } from './features/capture/capture-dialog-controller.ts';
 import { createCaptureDialogPresenter } from './features/capture/capture-dialog-presenter.ts';
 import { createCaptureDOMAdapter } from './features/capture/capture-dom-adapter.ts';
 import { createLegacyCaptureDialog } from './features/capture/legacy-capture-dialog.ts';
@@ -272,8 +273,9 @@ const legacyCategoryDialog=workspaceAppMounted?null:createLegacyCategoryDialog({
 const categoryDialogController=createCategoryDialogController({closeMenu,vueMounted:workspaceAppMounted,vueDialog:categoryDialogStore,legacyDialog:legacyCategoryDialog,save:name=>categoryDialogFlow.save(name),onCreated:name=>openHome(name)});
 const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>tinyText(html)});
 const legacyCaptureDialog=workspaceAppMounted?null:createLegacyCaptureDialog({document,escapeHtml:esc});
+const captureDialogController=createCaptureDialogController({save:input=>captureFlow.save(input),openNote:id=>openNote(id),legacyDialog:legacyCaptureDialog,notify:toast});
 const captureDialogPresenter=createCaptureDialogPresenter({closeMenu,vueMounted:workspaceAppMounted,getTypes:()=>getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),getCategories:()=>getVault().categories,getPasteMode:preferredPasteMode,getLegacyCategoryOptions:()=>categoryOptions('网页摘录'),vueDialog:captureDialogStore,legacyDialog:legacyCaptureDialog});
-if(workspaceAppMounted)captureDialogStore.bindSave(async input=>{const note=await captureFlow.save(input);openNote(note.id)});
+if(workspaceAppMounted)captureDialogStore.bindSave(input=>captureDialogController.saveVue(input));
 if(workspaceAppMounted)categoryDialogStore.bindSave(name=>categoryDialogController.saveVue(name));
 const trashWorkflows=workspaceAppMounted?createTrashWorkflows({
  getVault,
@@ -633,7 +635,7 @@ function pasteRich(event){return contentInsertion.handleCapturePaste(event)}
 if(workspaceAppMounted)captureDialogStore.bindPasteHandler(pasteRich);
 function openCapture(options={}){captureDialogPresenter.open(options)}
 function closeCapture(){captureDialogPresenter.close()}
-async function saveCapture(){if(!legacyCaptureDialog)return;try{const note=await captureFlow.save(legacyCaptureDialog.readInput());closeCapture();openNote(note.id)}catch(error){toast(error.message||'网页摘录尚未保存')}}
+async function saveCapture(){await captureDialogController.saveLegacy()}
 function openCategoryDialog(){categoryDialogController.open()}
 async function saveCategory(){await categoryDialogController.saveLegacy()}
 const backupHistoryOpenFlow=createBackupHistoryOpenFlow({isEditing:()=>navigationStore.editing,saveActiveDraft:()=>saveDraft(true),closeSettings:closeAccountSettings,closeMenu,showDialog:()=>backupHistoryStore.show(),refresh:()=>backupHistoryStore.refresh()});

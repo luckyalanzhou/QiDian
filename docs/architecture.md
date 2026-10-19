@@ -67,6 +67,7 @@ flowchart LR
 - `features/navigation/mobile-menu-focus-controller.ts` 统一抽屉关闭后的焦点恢复；只在抽屉已打开且原焦点位于抽屉内，或调用方明确要求时移动焦点。
 - `features/notes/type-dialog-open-flow.ts` 统一打开笔记类型弹窗前关闭菜单，并在编辑状态下先保存草稿、清理自动保存、退出编辑和刷新页面。
 - `features/capture/capture-dialog-presenter.ts` 统一快速收集弹窗的 Vue/兼容页面配置和关闭入口，按当前知识库提供类型、分类与粘贴模式。
+- `features/capture/capture-dialog-controller.ts` 统一快速收集提交后的页面跳转和兼容弹窗的关闭/失败提示；只有 Vault 事务成功后才打开新建的摘录笔记。
 - `features/account/sign-out-flow.ts` 在退出账号前保存当前编辑草稿并刷新待写入队列；只有数据写入成功后才注销并重新加载页面。
 - `features/settings/backup-history-open-flow.ts` 在打开备份历史前处理活动草稿、关闭遮挡菜单和设置弹窗，并等待快照列表刷新。
 - `features/reader/store.ts` 从 Vault generation 和导航状态派生当前阅读页；`snapshot.ts` 统一生成正文标题锚点、目录、阅读时长、来源安全链接、日期和发布操作状态；`reader-actions-store.ts` 提供 Vue 阅读操作的类型化命令边界，`actions.ts` 编排编辑、预览、发布、收藏、副本和删除，收藏与副本经 Vault SQLite 事务提交成功后才报告或打开；`code-copy.ts` 管理正文代码块复制按钮、剪贴板回退和组件卸载清理。Vue 阅读页直接订阅 Pinia 并管理代码块增强生命周期，兼容 DOM 事件复用同一阅读动作控制器。
