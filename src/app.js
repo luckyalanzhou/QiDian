@@ -54,6 +54,7 @@ import { mountHeadingObserver } from './features/reader/heading-observer.ts';
 import { createCategoryDialogFlow } from './features/categories/category-dialog-flow.ts';
 import { createLegacyCategoryDialog } from './features/categories/legacy-category-dialog.ts';
 import { createCaptureFlow } from './features/capture/capture-flow.ts';
+import { createCaptureDialogPresenter } from './features/capture/capture-dialog-presenter.ts';
 import { createCaptureDOMAdapter } from './features/capture/capture-dom-adapter.ts';
 import { createLegacyCaptureDialog } from './features/capture/legacy-capture-dialog.ts';
 import { createHtmlContentTools } from './features/content/html-content.ts';
@@ -267,6 +268,7 @@ const categoryDialogFlow=createCategoryDialogFlow({getVault,mutateVault:vaultMut
 const legacyCategoryDialog=workspaceAppMounted?null:createLegacyCategoryDialog({document,scheduleFocus:callback=>setTimeout(callback,50)});
 const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>tinyText(html)});
 const legacyCaptureDialog=workspaceAppMounted?null:createLegacyCaptureDialog({document,escapeHtml:esc});
+const captureDialogPresenter=createCaptureDialogPresenter({closeMenu,vueMounted:workspaceAppMounted,getTypes:()=>getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),getCategories:()=>getVault().categories,getPasteMode:preferredPasteMode,getLegacyCategoryOptions:()=>categoryOptions('网页摘录'),vueDialog:captureDialogStore,legacyDialog:legacyCaptureDialog});
 if(workspaceAppMounted)captureDialogStore.bindSave(async input=>{const note=await captureFlow.save(input);openNote(note.id)});
 if(workspaceAppMounted)categoryDialogStore.bindSave(async name=>{const saved=await categoryDialogFlow.save(name);openHome(saved)});
 const trashWorkflows=workspaceAppMounted?createTrashWorkflows({
@@ -625,8 +627,8 @@ function openSlashMenu(){const selection=window.getSelection(),rect=selection?.r
 function storeImage(file,destination,bookmark=null,range=null){return contentInsertion.storeImage(file,destination,bookmark,range)}
 function pasteRich(event){return contentInsertion.handleCapturePaste(event)}
 if(workspaceAppMounted)captureDialogStore.bindPasteHandler(pasteRich);
-function openCapture(options={}){closeMenu();if(workspaceAppMounted){captureDialogStore.open({types:getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),categories:getVault().categories,pasteMode:preferredPasteMode(),restoreFocusOnClose:options.restoreFocusOnClose});return}legacyCaptureDialog.open({types:getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),defaultType:getVault().noteTypes.find(type=>type.id==='clip')?.id||getVault().noteTypes[0].id,categoryOptions:categoryOptions('网页摘录'),pasteMode:preferredPasteMode()})}
-function closeCapture(){if(workspaceAppMounted){captureDialogStore.close();return}legacyCaptureDialog.close()}
+function openCapture(options={}){captureDialogPresenter.open(options)}
+function closeCapture(){captureDialogPresenter.close()}
 async function saveCapture(){if(!legacyCaptureDialog)return;try{const note=await captureFlow.save(legacyCaptureDialog.readInput());closeCapture();openNote(note.id)}catch(error){toast(error.message||'网页摘录尚未保存')}}
 function openCategoryDialog(){closeMenu();if(workspaceAppMounted){categoryDialogStore.open();return}legacyCategoryDialog?.open()}
 async function saveCategory(){if(!legacyCategoryDialog)return;try{const saved=await categoryDialogFlow.save(legacyCategoryDialog.readInput());legacyCategoryDialog.close();openHome(saved)}catch(error){legacyCategoryDialog.showError(error)}}

@@ -22,6 +22,7 @@ import { createLegacyNoteTypeDialog } from '../src/features/notes/legacy-type-di
 import { createCategoryDialogFlow } from '../src/features/categories/category-dialog-flow.ts';
 import { createLegacyCategoryDialog } from '../src/features/categories/legacy-category-dialog.ts';
 import { createCaptureFlow } from '../src/features/capture/capture-flow.ts';
+import { createCaptureDialogPresenter } from '../src/features/capture/capture-dialog-presenter.ts';
 import { createCaptureDOMAdapter } from '../src/features/capture/capture-dom-adapter.ts';
 import { createLegacyCaptureDialog } from '../src/features/capture/legacy-capture-dialog.ts';
 import { mountEditorSearch } from '../src/features/editor/search-controller.ts';
@@ -329,6 +330,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.createLegacyEditorOutlineView = createLegacyEditorOutlineView;
   w.createMobileMenuFocusController = createMobileMenuFocusController;
   w.createLegacyCategoryDialog = createLegacyCategoryDialog;
+  w.createCaptureDialogPresenter = createCaptureDialogPresenter;
   w.createNoteTypeDialogOpenFlow = createNoteTypeDialogOpenFlow;
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
