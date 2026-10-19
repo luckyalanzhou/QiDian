@@ -687,6 +687,7 @@ test('Vue note list and cards dispatch navigation commands directly without docu
   assert.equal(reader.active, true, 'the reader route is active in Pinia');
   assert.equal(reader.snapshot.title, '已发布版本');
   assert.ok(dom.window.document.querySelector('.reader-shell'), 'the Vue reader page is mounted');
+  assert.equal(dom.window.document.querySelector('#dashboardHost').getAttribute('aria-label'), '已发布版本');
   assert.equal(dom.window.document.querySelector('.reader-shell .doc-content h2').textContent, '网关配置');
   assert.ok(dom.window.document.querySelector('#showDraftView'));
   const clicksBeforeReaderActions = bubbledClicks;
@@ -709,4 +710,9 @@ test('Vue note list and cards dispatch navigation commands directly without docu
     { type: 'publish-current' }
   ]);
   assert.equal(bubbledClicks, clicksBeforeReaderActions, 'reader actions do not enter the document-level compatibility click router');
+
+  navigation.noteId = 'missing-note';
+  await nextTick();
+  await nextTick();
+  assert.deepEqual(commands.at(-1), { type: 'home', category: 'all' }, 'a stale reader route recovers through the typed navigation action');
 });

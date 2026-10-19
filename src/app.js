@@ -455,7 +455,6 @@ function noteCardSnapshot(note){return {id:note.id,title:note.title||'',type:not
 function readerSnapshot(stored,working,n){return createReaderSnapshot({document,stored,note:n,working,previewing:navigationStore.previewing,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish})}
 readerDataStore.configure({document,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish,publishedView});
 function listNotes(q=''){return selectNotes(getVault().notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
-function noteListHeading(){return navigationStore.typeFilter!=='all'?typeLabel(navigationStore.typeFilter):navigationStore.active==='all'?'全部笔记':navigationStore.active==='recent'?'最近编辑':navigationStore.active==='pinned'?'重要收藏':navigationStore.active==='drafts'?'草稿箱':navigationStore.active}
 function moveNoteToTrash(id){return noteDeleteWorkflow.moveToTrash(id)}
 function destroyRichEditor(){if(!richEditor)return;editorRuntime.destroy();richEditorDraftId=null}
 const editorOutlineController=createEditorOutlineController({getEditor:()=>richEditor,setOutline:items=>editorDataStore.setOutline(items)});
@@ -483,14 +482,7 @@ legacyWorkspaceRenderer=workspaceAppMounted?null:createLegacyWorkspaceRenderer({
 });
 function ensureDraft(){return editorDraftController.ensureDraft()}
 function editorSnapshot(note){return {noteId:note.id,title:note.title||'',type:note.type,category:note.category||'未分类',tags:(note.tags||[]).join(', '),source:note.source||'',noteTypes:getVault().noteTypes.map(type=>({id:type.id,label:displayTypeName(type)})),categories:[...getVault().categories],publishLabel:isDraft(note)?'发布笔记':'保存笔记',pasteMode:preferredPasteMode()}}
-function prepareVueEditorPage(){destroyRichEditor();const note=ensureDraft();setBreadcrumb(note.title||'新建笔记');editorDataStore.sync(editorSnapshot(note))}
-function prepareVueReaderPage(){
- const stored=getVault().notes.find(note=>note.id===navigationStore.noteId);
- if(!stored){openHome();return}
- const working=navigationStore.previewing||isDraft(stored),note=working?stored:publishedView(stored);
- setBreadcrumb(note.title);
- $('#dashboardHost')?.setAttribute('aria-label',note.title||'阅读笔记');
-}
+function prepareVueEditorPage(){destroyRichEditor();const note=ensureDraft();editorDataStore.sync(editorSnapshot(note))}
 function renderEditor(){if(!workspaceAppMounted){renderEditorLegacy();return}prepareVueEditorPage()}
 function hasVueEditorActions(){return workspaceAppMounted}
 const editorRuntime=createEditorRuntimeController({
@@ -587,9 +579,7 @@ const workspaceViewDispatcher=createWorkspaceViewDispatcher({
  renderSidebar:()=>legacyWorkspaceRenderer?.renderSidebar(),
  destroyRichEditor,
  setBreadcrumb,
- getNoteListHeading:noteListHeading,
  prepareVueEditorPage,
- prepareVueReaderPage,
  renderLegacyBookmarks:()=>bookmarksView?.renderLegacy(),
  renderLegacyTrash:()=>recycleBinView?.render(),
  renderLegacyDashboard:()=>legacyWorkspaceRenderer?.renderDashboard(),

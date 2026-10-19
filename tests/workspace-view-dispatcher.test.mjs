@@ -25,9 +25,7 @@ function harness({ page = 'dashboard', editing = false, vueMounted = true, lastP
     renderSidebar: callback('sidebar'),
     destroyRichEditor: callback('destroy-editor'),
     setBreadcrumb: value => events.push(`breadcrumb:${value}`),
-    getNoteListHeading: () => '全部笔记',
     prepareVueEditorPage: callback('vue-editor'),
-    prepareVueReaderPage: callback('vue-reader'),
     renderLegacyBookmarks: callback('legacy-bookmarks'),
     renderLegacyTrash: callback('legacy-trash'),
     renderLegacyDashboard: callback('legacy-dashboard'),
@@ -46,7 +44,7 @@ test('Vue workspace dispatch updates the shell and routes the active note to its
   assert.equal(h.host.hidden, false);
   assert.equal(h.host.attributes['aria-label'], '阅读笔记');
   assert.equal(h.lastPage, 'note');
-  assert.deepEqual(h.events, ['prune', 'disconnect-reader', 'sidebar', 'vue-reader']);
+  assert.deepEqual(h.events, ['prune', 'disconnect-reader', 'sidebar']);
 });
 
 test('Vue editor dispatch labels and prepares the editing page without legacy rendering', () => {
@@ -66,7 +64,7 @@ test('Vue bookmark dispatch relies on reactive page state instead of a manual re
   assert.equal(h.host.hidden, false);
   assert.equal(h.host.attributes['aria-label'], '书签');
   assert.equal(h.events.includes('legacy-bookmarks'), false);
-  assert.deepEqual(h.events, ['prune', 'disconnect-reader', 'sidebar', 'destroy-editor', 'breadcrumb:书签导航']);
+  assert.deepEqual(h.events, ['prune', 'disconnect-reader', 'sidebar', 'destroy-editor']);
 });
 
 test('legacy fallback renders the matching page and hides the Vue host', () => {

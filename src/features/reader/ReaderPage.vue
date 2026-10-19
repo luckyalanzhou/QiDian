@@ -56,6 +56,23 @@ watch(
   { flush: 'post' }
 );
 
+watch(
+  () => [reader.active, reader.snapshot.noteId, reader.snapshot.title] as const,
+  async ([active, noteId, title]) => {
+    if (!active) return;
+    await nextTick();
+    if (!reader.active || reader.snapshot.noteId !== noteId) return;
+    if (!noteId) {
+      navigationActions.execute({ type: 'home', category: 'all' });
+      return;
+    }
+    if (typeof document !== 'undefined') {
+      document.querySelector<HTMLElement>('#dashboardHost')?.setAttribute('aria-label', title || '阅读笔记');
+    }
+  },
+  { flush: 'post', immediate: true }
+);
+
 onBeforeUnmount(() => {
   disconnectHeadings();
   cleanupCodeCopies?.();

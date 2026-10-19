@@ -15,9 +15,7 @@ export type WorkspaceViewDispatcherDependencies = {
   renderSidebar: () => void;
   destroyRichEditor: () => void;
   setBreadcrumb: (title: string) => void;
-  getNoteListHeading: () => string;
   prepareVueEditorPage: () => void;
-  prepareVueReaderPage: () => void;
   renderLegacyBookmarks: () => void;
   renderLegacyTrash: () => void;
   renderLegacyDashboard: () => void;
@@ -61,23 +59,18 @@ export function createWorkspaceViewDispatcher(dependencies: WorkspaceViewDispatc
       switch (page) {
         case 'dashboard':
           dependencies.destroyRichEditor();
-          dependencies.setBreadcrumb('首页');
           break;
         case 'home':
           dependencies.destroyRichEditor();
-          dependencies.setBreadcrumb(dependencies.getNoteListHeading());
           break;
         case 'bookmarks':
           dependencies.destroyRichEditor();
-          dependencies.setBreadcrumb('书签导航');
           break;
         case 'trash':
           dependencies.destroyRichEditor();
-          dependencies.setBreadcrumb('回收站');
           break;
         case 'note':
           if (editing) dependencies.prepareVueEditorPage();
-          else dependencies.prepareVueReaderPage();
           break;
       }
       return;
