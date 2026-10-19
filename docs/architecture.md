@@ -61,7 +61,8 @@ flowchart LR
   - `features/bookmarks/view-actions.ts` 在 Pinia 边界处理书签搜索、分组选择、整理模式和选择状态；书签编辑、删除、清空、批量移动/删除、HTML 导入/导出及目录偏好由功能事务控制器处理，数据写入经过 Vault 校验与持久化确认。Vue 页面提供一致的编辑、删除、批量操作和导入预览弹窗；旧 DOM 书签控制器只保留未挂载 Vue 时的备用页面入口。
 - `features/content/html-content.ts` 集中安全 URL 判定、HTML 白名单清理、Markdown 与纯文本结构转换、笔记正文展示和粘贴标题提取；DOM、DOMPurify 清理器及 Markdown 判定通过依赖注入提供，应用组合层继续负责将结果接入编辑器、阅读器和剪贴板流程。
 - `features/content/pasted-title-autofill.ts` 将剪贴板标题填入空的笔记或摘录标题字段，并通过 `input` 事件接入编辑状态；已有标题保持不变。
-- `features/categories/legacy-category-dialog.ts` 封装兼容页面的分类弹窗重置、聚焦、读取和安全错误呈现；Vue 页面继续使用独立的分类弹窗组件。
+- `features/categories/category-dialog-controller.ts` 统一 Vue 与兼容页面的分类弹窗打开、关闭、保存成功跳转和失败反馈；分类内容仍通过 Vault 事务控制器写入。
+- `features/categories/legacy-category-dialog.ts` 封装兼容页面的分类弹窗重置、聚焦、读取和安全错误呈现；Vue 页面继续使用 Pinia 分类弹窗组件。
 - `features/editor/legacy-editor-outline-view.ts` 管理兼容编辑器的标题目录渲染、定位和事件清理；Vue 编辑器继续使用 Pinia 大纲快照。
 - `features/navigation/mobile-menu-focus-controller.ts` 统一抽屉关闭后的焦点恢复；只在抽屉已打开且原焦点位于抽屉内，或调用方明确要求时移动焦点。
 - `features/notes/type-dialog-open-flow.ts` 统一打开笔记类型弹窗前关闭菜单，并在编辑状态下先保存草稿、清理自动保存、退出编辑和刷新页面。
