@@ -29,6 +29,7 @@ import { createAttachmentUploadFlow } from './features/editor/attachment-upload.
 import { createAppSettingsActions } from './features/settings/app-settings-actions.ts';
 import { createBackupWorkflows } from './features/settings/backup-workflows.ts';
 import { createWorkspaceNavigationController } from './features/navigation/workspace-navigation-controller.ts';
+import { createMobileMenuFocusController } from './features/navigation/mobile-menu-focus-controller.ts';
 import { createWorkspaceViewDispatcher } from './features/navigation/workspace-view-dispatcher.ts';
 import { createLegacyWorkspaceRenderer } from './features/navigation/legacy-workspace-renderer.js';
 import { createWorkspaceNavigationEvents } from './features/navigation/workspace-navigation-events.ts';
@@ -296,6 +297,7 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
 });
 function workspaceNavigationState(){return navigationStore.getWorkspaceState()}
 function applyWorkspaceNavigationState(state){navigationStore.setWorkspaceState(state)}
+const mobileMenuFocusController=createMobileMenuFocusController({document,isOpen:()=>workspaceShellStore.mobileMenuOpen,close:()=>workspaceShellStore.closeMobileMenu(),getSidebar:()=>$('#sidebar'),getMenuButton:()=>$('#menuBtn'),getMain:()=>main,scheduleFocus:callback=>requestAnimationFrame(callback)});
 const workspaceNavigation=createWorkspaceNavigationController({getState:workspaceNavigationState,setState:applyWorkspaceNavigationState,findNote:id=>getVault().notes.find(n=>n.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>editorAutosave.clear(),closeMenu,render,getScrollY:()=>window.scrollY,scrollTo:position=>window.scrollTo({top:position}),openBookmarkFolder,resumeBookmarks});
 const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{unsavedNewNoteId=note.id;navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorBaseline=editorContentSnapshot(navigationStore.editingDraft);navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
@@ -458,7 +460,7 @@ const syncConflictController=createSyncConflictController({
 function openSyncConflict(){syncConflictController.open()}
 syncConflictStore.bindActions(action=>action==='download-backup'?syncConflictController.downloadBackup():syncConflictController.restoreCloudVersion());
 function nowString(t){return new Date(t).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'})};const fullDate=t=>new Date(t).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'});
-function closeMenu(returnToButton=false){const wasOpen=workspaceShellStore.mobileMenuOpen,focusInSidebar=$('#sidebar')?.contains(document.activeElement);workspaceShellStore.closeMobileMenu();if(wasOpen&&(returnToButton||focusInSidebar))requestAnimationFrame(()=>{(returnToButton?$('#menuBtn'):main)?.focus({preventScroll:true})})}
+function closeMenu(returnToButton=false){mobileMenuFocusController.close(returnToButton)}
 function categoryOptions(curr){return [...new Set(['未分类',...getVault().categories,curr].filter(Boolean))].map(x=>`<option value="${esc(x)}" ${curr===x?'selected':''}>${esc(x)}</option>`).join('')}
 function setBreadcrumb(s){workspaceShellStore.setBreadcrumbTitle(s)}
 function side(){legacyWorkspaceRenderer?.renderSidebar()}

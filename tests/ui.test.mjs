@@ -58,6 +58,7 @@ import { createNoteType, deleteNoteType, renameNoteType } from '../src/features/
 import { createHtmlContentTools } from '../src/features/content/html-content.ts';
 import { createPastedTitleAutofill } from '../src/features/content/pasted-title-autofill.ts';
 import { createLegacyEditorOutlineView } from '../src/features/editor/legacy-editor-outline-view.ts';
+import { createMobileMenuFocusController } from '../src/features/navigation/mobile-menu-focus-controller.ts';
 import { createReaderSnapshot } from '../src/features/reader/snapshot.ts';
 import { createReaderActions } from '../src/features/reader/actions.ts';
 import { mountCodeCopyButtons } from '../src/features/reader/code-copy.ts';
@@ -325,6 +326,7 @@ async function mount(vault=empty, initialOptions={}) {
   const appSource = (await readFile(new URL('../src/app.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
   w.createPastedTitleAutofill = createPastedTitleAutofill;
   w.createLegacyEditorOutlineView = createLegacyEditorOutlineView;
+  w.createMobileMenuFocusController = createMobileMenuFocusController;
   w.createLegacyCategoryDialog = createLegacyCategoryDialog;
   const start = appSource.indexOf("const authGate = document.querySelector('#loginGate');");
   const end = appSource.lastIndexOf('\n})();\n}');
