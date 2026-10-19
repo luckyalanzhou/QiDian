@@ -35,6 +35,7 @@ import { createWorkspaceShellEvents } from './features/navigation/workspace-shel
 import { createWorkspaceContentEvents } from './features/navigation/workspace-content-events.ts';
 import { createEditorToolbarEvents } from './features/editor/toolbar-events.ts';
 import { createEditorDraftController } from './features/editor/draft-controller.ts';
+import { createEditorAutosaveController } from './features/editor/autosave-controller.ts';
 import { createEditorFormAdapter } from './features/editor/form-adapter.ts';
 import { connectSessionRecoveryFlow } from './features/auth/session-recovery-flow.ts';
 import { createNoteDeleteWorkflow } from './features/notes/delete-workflow.ts';
@@ -86,7 +87,8 @@ function replaceVault(value){
 }
 function mutateVault(operation){return vaultDataStore.mutate(operation)}
 globalSearchDataStore.configure({bodyText:body=>tinyText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
-let lastRenderedPage='',editorBaseline=null,unsavedNewNoteId=null,editorFactory=window.__qidianTestEditorFactory||null,editorLoading=null,richEditor=null,editorCommands=null,richEditorDraftId=null,autoTimer=null;
+let lastRenderedPage='',editorBaseline=null,unsavedNewNoteId=null,editorFactory=window.__qidianTestEditorFactory||null,editorLoading=null,richEditor=null,editorCommands=null,richEditorDraftId=null;
+let editorAutosave=null;
 let legacyWorkspaceRenderer=null;
 const confirmAction=(message,options={})=>openActionDialog({message,...options}).then(Boolean);
 const promptAction=(message,defaultValue='',options={})=>openActionDialog({mode:'prompt',message,inputValue:defaultValue,...options});
@@ -109,13 +111,13 @@ const appSettingsActions=createAppSettingsActions({
  closeMenu,
  retrySync,
  confirmReload:()=>confirmAction('先导出未完成的修改，再载入当前 Docker 服务端版本。此操作会替换当前草稿。是否继续？',{title:'重新载入数据',confirmText:'重新载入',danger:true}),
- saveActiveEditor:()=>{if(navigationStore.editing){clearTimeout(autoTimer);autoTimer=null;saveDraft(true)}},
+ saveActiveEditor:()=>{if(navigationStore.editing){editorAutosave.clear();saveDraft(true)}},
  getCurrentData:()=>structuredClone(getVault()),
  exportBackup,
  reloadCloud,
  restoreIgnoredDraft,
  replaceWorkspace:restored=>{
-  clearTimeout(autoTimer);autoTimer=null;if(navigationStore.editing)destroyRichEditor();
+  editorAutosave.clear();if(navigationStore.editing)destroyRichEditor();
   unsavedNewNoteId=null;
   replaceVault({...restored,trash:restored.trash||[]});applyTheme(getVault().theme);syncBookmarkPreferences();
   workspaceNavigation.resetHome();
@@ -135,7 +137,7 @@ const notePublishFlow=createNotePublishFlow({
  getNoteId:()=>navigationStore.noteId,
  getEditingDraft:()=>navigationStore.editingDraft,
  isEditing:()=>navigationStore.editing,
- prepareEditor:()=>{clearTimeout(autoTimer);autoTimer=null;updateDraftFromDOM()},
+ prepareEditor:()=>{editorAutosave.clear();updateDraftFromDOM()},
  saveDraft:()=>saveDraft(true),
  isDraft:note=>isDraft(note),
  hasDraftContent:note=>hasDraftContent(note),
@@ -148,7 +150,7 @@ const notePublishFlow=createNotePublishFlow({
 });
 const backupWorkflows=createBackupWorkflows({
  getData:()=>structuredClone(getVault()),
- saveActiveEditor:()=>{if(navigationStore.editing){clearTimeout(autoTimer);autoTimer=null;return saveDraft(true)}},
+ saveActiveEditor:()=>{if(navigationStore.editing){editorAutosave.clear();return saveDraft(true)}},
  confirmAction,
  getBackup,
  exportBackup,
@@ -158,7 +160,7 @@ const backupWorkflows=createBackupWorkflows({
  cleanHTML,
  commitSave,
  replaceWorkspace:(restored,mode)=>{
-  clearTimeout(autoTimer);autoTimer=null;if(navigationStore.editing)destroyRichEditor();
+  editorAutosave.clear();if(navigationStore.editing)destroyRichEditor();
   editorBaseline=null;unsavedNewNoteId=null;
   replaceVault(restored);applyTheme(getVault().theme);syncBookmarkPreferences();
   if(mode==='import')workspaceNavigation.resetHome();else workspaceNavigation.returnHomePreservingList();
@@ -208,6 +210,13 @@ const editorDraftController=createEditorDraftController({
  resetPendingPublish:()=>notePublishFlow.resetPending(),
  mutateVault,
  persist
+});
+editorAutosave=createEditorAutosaveController({
+ isEditing:()=>navigationStore.editing,
+ hasEditingDraft:()=>!!navigationStore.editingDraft,
+ saveDraft:()=>editorDraftController.saveDraft(true),
+ setTimer:(callback,delay)=>window.setTimeout(callback,delay),
+ clearTimer:handle=>window.clearTimeout(handle)
 });
 const bookmarksView=workspaceAppMounted?null:createBookmarkView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},download,notify:toast,viewState:bookmarkDataStore.viewState,onChange:()=>{if(navigationStore.page==='bookmarks')bookmarksView?.renderLegacy()}});
 const isMobileViewport=()=>!!window.matchMedia?.('(max-width: 720px)').matches;
@@ -267,7 +276,7 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
  isDraft:note=>isDraft(note),
  hasDraftContent:note=>hasDraftContent(note),
  confirm:(message,options)=>confirmAction(message,options),
- clearAutosave:()=>{clearTimeout(autoTimer);autoTimer=null},
+ clearAutosave:()=>editorAutosave.clear(),
  discardDetachedNote:id=>mutateVault(vault=>{vault.notes=vault.notes.filter(note=>note.id!==id)}),
  storeEditingDraft:note=>{
   const index=getVault().notes.findIndex(item=>item.id===note.id);
@@ -281,7 +290,7 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
 });
 function workspaceNavigationState(){return navigationStore.getWorkspaceState()}
 function applyWorkspaceNavigationState(state){navigationStore.setWorkspaceState(state)}
-const workspaceNavigation=createWorkspaceNavigationController({getState:workspaceNavigationState,setState:applyWorkspaceNavigationState,findNote:id=>getVault().notes.find(n=>n.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>{clearTimeout(autoTimer);autoTimer=null},closeMenu,render,getScrollY:()=>window.scrollY,scrollTo:position=>window.scrollTo({top:position}),openBookmarkFolder,resumeBookmarks});
+const workspaceNavigation=createWorkspaceNavigationController({getState:workspaceNavigationState,setState:applyWorkspaceNavigationState,findNote:id=>getVault().notes.find(n=>n.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>editorAutosave.clear(),closeMenu,render,getScrollY:()=>window.scrollY,scrollTo:position=>window.scrollTo({top:position}),openBookmarkFolder,resumeBookmarks});
 const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{unsavedNewNoteId=note.id;navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorBaseline=editorContentSnapshot(navigationStore.editingDraft);navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
 function addBookmark(folderId=''){openBookmarks();if(workspaceAppMounted)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
@@ -396,7 +405,7 @@ const remoteVaultUpdateController=createRemoteVaultUpdateController({
  findNote:id=>getVault().notes.find(note=>note.id===id),
  restoreTransientDraft:note=>mutateVault(vault=>{vault.notes.unshift(note)}),
  persistRestoredDraft:persist,
- clearAutoSave:()=>{clearTimeout(autoTimer);autoTimer=null},
+ clearAutoSave:()=>editorAutosave.clear(),
  closeEditor:()=>{navigationStore.editing=false;destroyRichEditor();navigationStore.editingDraft=null;navigationStore.noteId=null},
  refreshEditor:(note,preserveLocalChanges)=>remoteEditorRefresh.refresh(note,preserveLocalChanges),
  refreshSidebar:side,
@@ -433,11 +442,11 @@ const syncConflictController=createSyncConflictController({
  store:syncConflictStore,
  getConflict:getSyncConflict,
  getPreviewText:html=>tinyText(cleanHTML(html,false)),
- prepareEditor:()=>{if(navigationStore.editing&&navigationStore.editingDraft){clearTimeout(autoTimer);autoTimer=null;updateDraftFromDOM();saveDraft(true)}},
+ prepareEditor:()=>{if(navigationStore.editing&&navigationStore.editingDraft){editorAutosave.clear();updateDraftFromDOM();saveDraft(true)}},
  exportConflict:exportSyncConflict,
  confirmRestore:()=>confirmAction('已下载修改对照备份。继续载入已保存版本？',{title:'载入已保存版本',confirmText:'载入'}),
  reloadCloud,
- replaceWorkspace:restored=>{clearTimeout(autoTimer);autoTimer=null;destroyRichEditor();replaceVault({...restored,trash:restored.trash||[]});applyTheme(getVault().theme);syncBookmarkPreferences();workspaceNavigation.resetHome()},
+ replaceWorkspace:restored=>{editorAutosave.clear();destroyRichEditor();replaceVault({...restored,trash:restored.trash||[]});applyTheme(getVault().theme);syncBookmarkPreferences();workspaceNavigation.resetHome()},
  notify:toast
 });
 function openSyncConflict(){syncConflictController.open()}
@@ -543,7 +552,7 @@ function renderEditorLegacy(){if(!editorFactory){if(!editorLoading){main.innerHT
 function openTypeDialog(mode,id=null){
  if(mode==='create'&&getVault().noteTypes.length>=50)return toast('最多支持 50 种笔记类型');
  closeMenu();
- if(navigationStore.editing){saveDraft(true);clearTimeout(autoTimer);navigationStore.editing=false;navigationStore.editingDraft=null;render()}
+ if(navigationStore.editing){saveDraft(true);editorAutosave.clear();navigationStore.editing=false;navigationStore.editingDraft=null;render()}
  const item=getVault().noteTypes.find(type=>type.id===id);
  const automaticFallback=getVault().noteTypes.length===1&&id!=='note';
  const replacementTypes=[...getVault().noteTypes.filter(type=>type.id!==id),...(automaticFallback?[DEFAULT_NOTE_TYPES.find(type=>type.id==='note')].filter(Boolean):[])];
@@ -594,8 +603,8 @@ function createNew(type='note'){return newNoteController.create(type)}
 function updateDraftFromDOM(){editorDraftController.updateFromEditor()}
 function editorHasChanges(){return editorDraftController.hasChanges()}
 function saveDraft(quiet=false){return editorDraftController.saveDraft(quiet)}
-function scheduleSave(){clearTimeout(autoTimer);autoTimer=setTimeout(()=>{autoTimer=null;saveDraft(true)},250)}
-function flushEditorSave(){if(!navigationStore.editing||!navigationStore.editingDraft||autoTimer===null)return;clearTimeout(autoTimer);autoTimer=null;saveDraft(true)}
+function scheduleSave(){editorAutosave.schedule()}
+function flushEditorSave(){return editorAutosave.flush()}
 function deleteEditorNote(){return editorDeleteWorkflow.removeCurrentNote()}
 
 async function publishCurrentNote(){await notePublishFlow.publish()}
@@ -650,7 +659,7 @@ trashDataStore.bindActions(trashWorkflows||{
  pruneExpired:()=>recycleBinView?.pruneExpired()||0
 });
 function openAppSettings(){closeAccountMenu();void appSettings.show()}
-async function signOut(){if(navigationStore.editing){clearTimeout(autoTimer);autoTimer=null;saveDraft(true)}if(!await flush()){toast('修改暂未写入；请到设置中重试保存后再退出');return}try{await logoutAccount();location.reload()}catch(error){toast(error.message)}}
+async function signOut(){if(navigationStore.editing){editorAutosave.clear();saveDraft(true)}if(!await flush()){toast('修改暂未写入；请到设置中重试保存后再退出');return}try{await logoutAccount();location.reload()}catch(error){toast(error.message)}}
 workspaceShellStore.setIdentity(initial.username||'本地预览',!!initial.local);
 if(!initial.local)void profileSettings.refresh().catch(()=>{});
 const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
@@ -686,6 +695,6 @@ const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
  }
 });
 applyTheme(getVault().theme);render();systemUpdates.renderBadge({currentVersion:APP_VERSION,updateAvailable:false});if(!initial.local)void systemUpdates.check();if(initial.restoreDraft&&!initial.restoreConflict)queueSave(getVault());
-return ()=>{disposeWorkspaceInteractions();disposeWorkspaceLifecycle();disposeTheme();clearTimeout(autoTimer);destroyRichEditor()};
+return ()=>{disposeWorkspaceInteractions();disposeWorkspaceLifecycle();disposeTheme();editorAutosave.clear();destroyRichEditor()};
 })();
 }

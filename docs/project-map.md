@@ -77,7 +77,7 @@
 | `src/features/content/html-content.ts` | 统一安全 URL 判定、HTML 白名单清理、纯文本结构化、Markdown 正文展示和粘贴标题提取；DOM 与清理器通过显式依赖注入 |
 | `src/features/navigation/` | Vue 桌面侧栏、手机底部导航、Pinia 工作区路由，以及基于 Vault generation 派生的侧栏状态 |
 | `src/features/navigation/WorkspaceTopbarMenus.vue` | Vue 主题与账号菜单；菜单展开状态、主题表现和账号头像由 Pinia 管理 |
-| `src/features/navigation/WorkspaceBreadcrumb.vue` | Vue 面包屑标题；标题文本由工作区壳层 Pinia 提供 |
+| `src/features/navigation/WorkspaceBreadcrumb.vue` | Vue 面包屑标题；按导航、笔记列表、编辑器和阅读器状态派生标题，并同步壳层投影 |
 | `src/features/navigation/MobileDrawerControls.vue` | Vue 移动端抽屉按钮和遮罩；抽屉状态由工作区壳层 Pinia 管理 |
 | `src/features/navigation/workspace-shell-store.ts` | 顶栏菜单、移动端抽屉、主题状态与临时账号标识的 Pinia 所有者 |
 | `src/features/navigation/sidebar-store.ts` | 笔记、书签、回收站计数及分类、类型导航快照；由 Pinia 订阅当前账号 Vault 和导航状态 |
@@ -95,6 +95,7 @@
 | `src/features/dialogs/modal-focus-loop.ts` | 让 Tab 键在最上层打开的弹窗内循环移动焦点 |
 | `src/features/editor/document-lifecycle.ts` | 处理离开页面提醒，以及编辑草稿在页面离开或隐藏时的保存 |
 | `src/features/editor/draft-controller.ts` | 管理编辑器草稿初始化、正文和元数据同步、变更判断及瞬时空白笔记持久化策略 |
+| `src/features/editor/autosave-controller.ts` | 统一管理编辑器防抖保存、清理待执行任务和提交待保存内容 |
 | `src/features/editor/file-input-events.ts` | 路由附件和图片选择器事件，并在处理后重置文件输入 |
 | `src/features/settings/import-file-events.ts` | 将备份文件选择事件交给设置页导入流程 |
 | `src/editor.js`、`src/editor-extensions.js` | 富文本编辑器及扩展配置 |
