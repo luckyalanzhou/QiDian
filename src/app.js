@@ -22,6 +22,7 @@ import { createLegacyEditorToolbarView } from './features/editor/legacy-toolbar-
 import { createEditorInsertController } from './features/editor/insert-controller.ts';
 import { createEditorRuntimeController } from './features/editor/runtime-controller.ts';
 import { createEditorOutlineController } from './features/editor/outline-controller.ts';
+import { createLegacyEditorOutlineView } from './features/editor/legacy-editor-outline-view.ts';
 import { createNotePublishFlow } from './features/editor/note-publish-flow.ts';
 import { createContentInsertionController } from './features/editor/content-insertion.ts';
 import { createAttachmentUploadFlow } from './features/editor/attachment-upload.ts';
@@ -470,19 +471,11 @@ function readerSnapshot(stored,working,n){return createReaderSnapshot({document,
 readerDataStore.configure({document,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish,publishedView});
 function listNotes(q=''){return selectNotes(getVault().notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
 function moveNoteToTrash(id){return noteDeleteWorkflow.moveToTrash(id)}
-function destroyRichEditor(){if(!richEditor)return;editorRuntime.destroy();richEditorDraftId=null}
+let legacyEditorOutlineView=null;
+function destroyRichEditor(){if(richEditor){editorRuntime.destroy();richEditorDraftId=null}legacyEditorOutlineView?.dispose()}
 const editorOutlineController=createEditorOutlineController({getEditor:()=>richEditor,setOutline:items=>editorDataStore.setOutline(items)});
-function refreshEditorOutline(editor=richEditor){
- editorOutlineController.sync(editor);
- if(workspaceAppMounted)return;
- const root=$('#editorSurface');if(!root)return;const scope=root.closest('.note-shell')||main,links=[...scope.querySelectorAll('.editor-outline-links')];if(!links.length)return;
- const headings=[...root.querySelectorAll('h1,h2,h3,h4,h5,h6')].map((heading,index)=>({heading,index,level:Number(heading.tagName.slice(1)),text:(heading.textContent||'').replace(/\s+/g,' ').trim()})).filter(item=>item.text);
-  if(root.closest('.editor-card'))scope.querySelectorAll('.editor-outline-mobile,.edit-inspector').forEach(panel=>{panel.hidden=!headings.length});
- const html=headings.length?headings.map(item=>`<button type="button" class="editor-outline-link level-${item.level}" data-outline-index="${item.index}">${esc(item.text)}</button>`).join(''):'<span class="hint">暂无标题</span>';
- links.forEach(nav=>nav.innerHTML=html);
- if(!editor)return;
- links.forEach(nav=>nav.querySelectorAll('[data-outline-index]').forEach(button=>button.addEventListener('click',()=>{const heading=headings[Number(button.dataset.outlineIndex)]?.heading;if(!heading)return;try{const from=editor.view.posAtDOM(heading,0);editor.commands.setTextSelection(Math.min(from+1,editor.state.doc.content.size));heading.scrollIntoView?.({block:'center'})}catch{heading.scrollIntoView?.({block:'center'})}})));
-}
+legacyEditorOutlineView=workspaceAppMounted?null:createLegacyEditorOutlineView({document,main});
+function refreshEditorOutline(editor=richEditor){editorOutlineController.sync(editor);if(!workspaceAppMounted)legacyEditorOutlineView?.render(editor)}
 dashboardDataStore.configure({isDraft,publishedView,noteCard:noteCardSnapshot,isSafeUrl:safeUrl});
 dashboardDataStore.bindActions(createDashboardActions({getVault,mutateVault,persist}));
 if(typeof sidebarDataStore!=='undefined')sidebarDataStore.configure({isDraft,needsPublish,hasDraftContent,displayTypeName});
