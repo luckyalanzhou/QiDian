@@ -2,23 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorkspaceViewDispatcher } from '../src/features/navigation/workspace-view-dispatcher.ts';
 
-function harness({ page = 'dashboard', editing = false, vueMounted = true, lastPage = '' } = {}) {
+function harness({ page = 'dashboard', editing = false, vueMounted = true } = {}) {
   const events = [];
+  let state = { page, editing };
   const main = { hidden: false };
   const host = {
     hidden: true,
     attributes: {},
     setAttribute(name, value) { this.attributes[name] = value; }
   };
-  let currentLastPage = lastPage;
   const callback = name => () => events.push(name);
   const dispatcher = createWorkspaceViewDispatcher({
-    getState: () => ({ page, editing }),
+    getState: () => state,
     vueMounted,
     main,
     getVueHost: () => host,
-    getLastRenderedPage: () => currentLastPage,
-    setLastRenderedPage: value => { currentLastPage = value; },
     pruneExpiredTrash: callback('prune'),
     leaveBookmarks: callback('leave-bookmarks'),
     disconnectReaderHeadingObserver: callback('disconnect-reader'),
@@ -33,7 +31,7 @@ function harness({ page = 'dashboard', editing = false, vueMounted = true, lastP
     renderLegacyEditor: callback('legacy-editor'),
     renderLegacyReader: callback('legacy-reader')
   });
-  return { dispatcher, events, main, host, get lastPage() { return currentLastPage; } };
+  return { dispatcher, events, main, host, setState: next => { state = next; } };
 }
 
 test('Vue workspace dispatch updates the shell and routes the active note to its page', () => {
@@ -43,7 +41,6 @@ test('Vue workspace dispatch updates the shell and routes the active note to its
   assert.equal(h.main.hidden, true);
   assert.equal(h.host.hidden, false);
   assert.equal(h.host.attributes['aria-label'], '阅读笔记');
-  assert.equal(h.lastPage, 'note');
   assert.deepEqual(h.events, ['prune', 'disconnect-reader', 'sidebar']);
 });
 
@@ -77,10 +74,12 @@ test('legacy fallback renders the matching page and hides the Vue host', () => {
 });
 
 test('leaving bookmarks runs its cleanup before dispatching another page', () => {
-  const h = harness({ page: 'trash', vueMounted: false, lastPage: 'bookmarks' });
+  const h = harness({ page: 'bookmarks', vueMounted: false });
+  h.dispatcher.render();
+  h.setState({ page: 'trash', editing: false });
+  const transitionStart = h.events.length;
   h.dispatcher.render();
 
-  assert.equal(h.events[0], 'prune');
-  assert.equal(h.events[1], 'leave-bookmarks');
+  assert.deepEqual(h.events.slice(transitionStart, transitionStart + 3), ['prune', 'leave-bookmarks', 'disconnect-reader']);
   assert.equal(h.events.at(-1), 'legacy-trash');
 });

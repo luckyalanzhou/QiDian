@@ -7,8 +7,6 @@ export type WorkspaceViewDispatcherDependencies = {
   vueMounted: boolean;
   main: HTMLElement;
   getVueHost: () => HTMLElement | null;
-  getLastRenderedPage: () => WorkspacePage | '';
-  setLastRenderedPage: (page: WorkspacePage) => void;
   pruneExpiredTrash: () => unknown;
   leaveBookmarks: () => void;
   disconnectReaderHeadingObserver: () => void;
@@ -33,14 +31,16 @@ const pageLabels: Record<WorkspacePage, string> = {
 };
 
 export function createWorkspaceViewDispatcher(dependencies: WorkspaceViewDispatcherDependencies) {
+  let lastRenderedPage: WorkspacePage | '' = '';
+
   function render() {
     dependencies.pruneExpiredTrash();
 
     const { page, editing } = dependencies.getState();
-    if (dependencies.getLastRenderedPage() === 'bookmarks' && page !== 'bookmarks') {
+    if (lastRenderedPage === 'bookmarks' && page !== 'bookmarks') {
       dependencies.leaveBookmarks();
     }
-    dependencies.setLastRenderedPage(page);
+    lastRenderedPage = page;
     dependencies.disconnectReaderHeadingObserver();
 
     const hasVuePage = dependencies.vueMounted;

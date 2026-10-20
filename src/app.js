@@ -113,7 +113,7 @@ function replaceVault(value){
 }
 function mutateVault(operation){return vaultDataStore.mutate(operation)}
 globalSearchDataStore.configure({bodyText:body=>htmlToCompactText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
-let lastRenderedPage='',editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null,richEditorDraftId=null;
+let editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null,richEditorDraftId=null;
 let editorAutosave=null;
 let workspaceReplacementFlow=null;
 let legacyWorkspaceRenderer=null;
@@ -616,8 +616,6 @@ const workspaceViewDispatcher=createWorkspaceViewDispatcher({
  vueMounted:usesVueWorkspace,
  main,
  getVueHost:()=>$('#dashboardHost'),
- getLastRenderedPage:()=>lastRenderedPage,
- setLastRenderedPage:page=>{lastRenderedPage=page},
  pruneExpiredTrash:()=>{if(trashWorkflows)trashWorkflows.pruneExpired();else recycleBinView?.pruneExpired()},
  leaveBookmarks,
  disconnectReaderHeadingObserver:()=>{main.__readerHeadingCleanup?.();main.__readerHeadingCleanup=null},
