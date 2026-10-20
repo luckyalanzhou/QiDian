@@ -82,9 +82,11 @@ import { DEFAULT_NOTE_TYPES, validateVault } from '../shared/vault-validation.js
 import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from './paste.js';
 const loadMarkdownTools = () => import('./markdown.js');
 const APP_VERSION = appPackage.version;
+const IS_PRODUCTION_BUILD = import.meta.env.PROD;
 export function launchWorkspace(initial, showAuthentication) {
  const authGate = document.querySelector('#loginGate'); if (authGate) { authGate.hidden = true; authGate.classList.remove('reauth'); } document.body.classList.remove('booting'); document.querySelector('.app').hidden = false;
  return (()=>{'use strict';
+const usesVueWorkspace=IS_PRODUCTION_BUILD||workspaceAppMounted;
 const navigationStore=workspaceNavigationStore;
 const icons=name=>`<span class="ico"><svg aria-hidden="true"><use href="#i-${name}"/></svg></span>`;
 const $=sel=>document.querySelector(sel);const main=$('#main');const displayTypeName=type=>type.id==='clip'&&type.name==='网页收藏'?'网页摘录':type.name;const typeLabel=id=>{const type=getVault().noteTypes.find(x=>x.id===id);return type?displayTypeName(type):'其他类型'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -190,14 +192,14 @@ backupHistoryStore.configure({
 });
 const noteTypesExpanded=()=>getVault().noteTypesExpanded!==false;
 const {persist,commitPersist}=createVaultPersistence({getVault,getUnsavedNewNoteId:()=>unsavedNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
-const legacyNoteTypeDialog=workspaceAppMounted?null:createLegacyNoteTypeDialog({document,escapeHtml:esc});
-const noteTypeDialogPresenter=createNoteTypeDialogPresenter({getVault,defaultNoteTypes:DEFAULT_NOTE_TYPES,displayTypeName,vueMounted:workspaceAppMounted,vueDialog:noteTypeDialogStore,legacyDialog:legacyNoteTypeDialog,notify:toast});
+const legacyNoteTypeDialog=usesVueWorkspace?null:createLegacyNoteTypeDialog({document,escapeHtml:esc});
+const noteTypeDialogPresenter=createNoteTypeDialogPresenter({getVault,defaultNoteTypes:DEFAULT_NOTE_TYPES,displayTypeName,vueMounted:usesVueWorkspace,vueDialog:noteTypeDialogStore,legacyDialog:legacyNoteTypeDialog,notify:toast});
 const noteTypeDialogOpenFlow=createNoteTypeDialogOpenFlow({closeMenu,isEditing:()=>navigationStore.editing,saveDraft:()=>saveDraft(true),clearAutosave:()=>editorAutosave.clear(),leaveEditor:()=>{navigationStore.editing=false;navigationStore.editingDraft=null},render,openDialog:(mode,id)=>noteTypeDialogPresenter.open(mode,id)});
-const noteTypeDialogFlow=createNoteTypeDialogFlow({getVault,mutateVault,replaceVault,getTypeFilter:()=>navigationStore.typeFilter,setTypeFilter:filter=>{navigationStore.typeFilter=filter},commit:()=>commitPersist(),close:()=>{if(workspaceAppMounted)noteTypeDialogStore.close();legacyNoteTypeDialog?.close()},render,notify:toast});
-if(workspaceAppMounted)noteTypeDialogStore.bindSave(input=>noteTypeDialogFlow.save(input));
+const noteTypeDialogFlow=createNoteTypeDialogFlow({getVault,mutateVault,replaceVault,getTypeFilter:()=>navigationStore.typeFilter,setTypeFilter:filter=>{navigationStore.typeFilter=filter},commit:()=>commitPersist(),close:()=>{if(usesVueWorkspace)noteTypeDialogStore.close();legacyNoteTypeDialog?.close()},render,notify:toast});
+if(usesVueWorkspace)noteTypeDialogStore.bindSave(input=>noteTypeDialogFlow.save(input));
 function versionOf(n){return {title:n.title,type:n.type,category:n.category,tags:[...(n.tags||[])],body:n.body,source:n.source||'',updated:n.updated}}
  const editorFormAdapter=createEditorFormAdapter({
-  getVueForm:()=>workspaceAppMounted?editorDataStore.form:null,
+  getVueForm:()=>usesVueWorkspace?editorDataStore.form:null,
   getLegacyForm:()=>{
    const title=$('#editTitle');if(!title)return null;
    return {title:title.value,type:$('#editType').value,category:$('#editCategory').value,tags:$('#editTags').value,source:$('#editSource').value};
@@ -231,14 +233,14 @@ editorAutosave=createEditorAutosaveController({
  setTimer:(callback,delay)=>window.setTimeout(callback,delay),
  clearTimer:handle=>window.clearTimeout(handle)
 });
-const bookmarksView=workspaceAppMounted?null:createBookmarkView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},download,notify:toast,viewState:bookmarkDataStore.viewState,onChange:()=>{if(navigationStore.page==='bookmarks')bookmarksView?.renderLegacy()}});
+const bookmarksView=usesVueWorkspace?null:createBookmarkView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},download,notify:toast,viewState:bookmarkDataStore.viewState,onChange:()=>{if(navigationStore.page==='bookmarks')bookmarksView?.renderLegacy()}});
 const isMobileViewport=()=>!!window.matchMedia?.('(max-width: 720px)').matches;
-function syncBookmarkPreferences(){if(workspaceAppMounted)bookmarkDataStore.syncPreferences(isMobileViewport());else bookmarksView?.syncPreferences()}
-function openBookmarkFolder(folderId){if(workspaceAppMounted)bookmarkDataStore.openFolder(folderId,isMobileViewport());else bookmarksView?.openFolder(folderId)}
-function resumeBookmarks(){if(workspaceAppMounted)window.scrollTo({top:bookmarkDataStore.resume(isMobileViewport())});else bookmarksView?.resume()}
-function leaveBookmarks(){if(workspaceAppMounted)bookmarkDataStore.leave(window.scrollY);else bookmarksView?.leave()}
-if(workspaceAppMounted)syncBookmarkPreferences();
-const recycleBinView=workspaceAppMounted?null:createRecycleBinView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},notify:toast,onChange:()=>{if(navigationStore.page==='trash'&&!trashDataStore.active)recycleBinView.render()}});
+function syncBookmarkPreferences(){if(usesVueWorkspace)bookmarkDataStore.syncPreferences(isMobileViewport());else bookmarksView?.syncPreferences()}
+function openBookmarkFolder(folderId){if(usesVueWorkspace)bookmarkDataStore.openFolder(folderId,isMobileViewport());else bookmarksView?.openFolder(folderId)}
+function resumeBookmarks(){if(usesVueWorkspace)window.scrollTo({top:bookmarkDataStore.resume(isMobileViewport())});else bookmarksView?.resume()}
+function leaveBookmarks(){if(usesVueWorkspace)bookmarkDataStore.leave(window.scrollY);else bookmarksView?.leave()}
+if(usesVueWorkspace)syncBookmarkPreferences();
+const recycleBinView=usesVueWorkspace?null:createRecycleBinView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},notify:toast,onChange:()=>{if(navigationStore.page==='trash'&&!trashDataStore.active)recycleBinView.render()}});
 const vaultMutation=createVaultMutation({getVault,replaceVault,save:()=>commitPersist()});
 const bookmarkMutationActions=createBookmarkMutationActions({
  getBookmarks:()=>getVault().bookmarks||[],
@@ -269,15 +271,15 @@ const bookmarkMutationActions=createBookmarkMutationActions({
  notify:toast
 });
 const categoryDialogFlow=createCategoryDialogFlow({getVault,mutateVault:vaultMutation});
-const legacyCategoryDialog=workspaceAppMounted?null:createLegacyCategoryDialog({document,scheduleFocus:callback=>setTimeout(callback,50)});
-const categoryDialogController=createCategoryDialogController({closeMenu,vueMounted:workspaceAppMounted,vueDialog:categoryDialogStore,legacyDialog:legacyCategoryDialog,save:name=>categoryDialogFlow.save(name),onCreated:name=>openHome(name)});
+const legacyCategoryDialog=usesVueWorkspace?null:createLegacyCategoryDialog({document,scheduleFocus:callback=>setTimeout(callback,50)});
+const categoryDialogController=createCategoryDialogController({closeMenu,vueMounted:usesVueWorkspace,vueDialog:categoryDialogStore,legacyDialog:legacyCategoryDialog,save:name=>categoryDialogFlow.save(name),onCreated:name=>openHome(name)});
 const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>tinyText(html)});
-const legacyCaptureDialog=workspaceAppMounted?null:createLegacyCaptureDialog({document,escapeHtml:esc});
+const legacyCaptureDialog=usesVueWorkspace?null:createLegacyCaptureDialog({document,escapeHtml:esc});
 const captureDialogController=createCaptureDialogController({save:input=>captureFlow.save(input),openNote:id=>openNote(id),legacyDialog:legacyCaptureDialog,notify:toast});
-const captureDialogPresenter=createCaptureDialogPresenter({closeMenu,vueMounted:workspaceAppMounted,getTypes:()=>getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),getCategories:()=>getVault().categories,getPasteMode:preferredPasteMode,getLegacyCategoryOptions:()=>categoryOptions('网页摘录'),vueDialog:captureDialogStore,legacyDialog:legacyCaptureDialog});
-if(workspaceAppMounted)captureDialogStore.bindSave(input=>captureDialogController.saveVue(input));
-if(workspaceAppMounted)categoryDialogStore.bindSave(name=>categoryDialogController.saveVue(name));
-const trashWorkflows=workspaceAppMounted?createTrashWorkflows({
+const captureDialogPresenter=createCaptureDialogPresenter({closeMenu,vueMounted:usesVueWorkspace,getTypes:()=>getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),getCategories:()=>getVault().categories,getPasteMode:preferredPasteMode,getLegacyCategoryOptions:()=>categoryOptions('网页摘录'),vueDialog:captureDialogStore,legacyDialog:legacyCaptureDialog});
+if(usesVueWorkspace)captureDialogStore.bindSave(input=>captureDialogController.saveVue(input));
+if(usesVueWorkspace)categoryDialogStore.bindSave(name=>categoryDialogController.saveVue(name));
+const trashWorkflows=usesVueWorkspace?createTrashWorkflows({
  getVault,
  mutateVault:vaultMutation,
  confirmClear:count=>confirmAction(`将永久删除回收站中的 ${count} 项内容，无法再还原。是否继续？`,{title:'永久清空回收站',confirmText:'永久清空回收站',danger:true}),
@@ -324,7 +326,7 @@ workspaceReplacementFlow=createWorkspaceReplacementFlow({
 });
 const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{unsavedNewNoteId=note.id;navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorBaseline=editorContentSnapshot(navigationStore.editingDraft);navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
-function addBookmark(folderId=''){openBookmarks();if(workspaceAppMounted)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
+function addBookmark(folderId=''){openBookmarks();if(usesVueWorkspace)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
 function openTrash(){workspaceNavigation.openTrash()}
 const workspaceNavigationActions=createWorkspaceNavigationActions({
  navigation:workspaceNavigation,
@@ -334,13 +336,13 @@ const workspaceNavigationActions=createWorkspaceNavigationActions({
  addBookmark,
  openCreateMenu,
  createNew,
-  createFromMenu:kind=>{if(workspaceAppMounted)createMenuStore.closeForNavigation();$('#createOverlay')?.classList.remove('open');if(kind==='bookmark')addBookmark();else if(kind==='capture')openCapture({restoreFocusOnClose:false});else createNew()},
+  createFromMenu:kind=>{if(usesVueWorkspace)createMenuStore.closeForNavigation();$('#createOverlay')?.classList.remove('open');if(kind==='bookmark')addBookmark();else if(kind==='capture')openCapture({restoreFocusOnClose:false});else createNew()},
  createQuickImage:()=>{createNew('note');setTimeout(()=>$('#imageFile').click(),250)},
  closeSearch
 });
-const workspaceNavigationEvents=createWorkspaceNavigationEventsForMode(workspaceAppMounted,{execute:workspaceNavigationActions.execute});
+const workspaceNavigationEvents=createWorkspaceNavigationEventsForMode(usesVueWorkspace,{execute:workspaceNavigationActions.execute});
 navigationActionsStore.bind(command=>workspaceNavigationActions.execute(command));
-const editorToolbarEvents=workspaceAppMounted?null:createEditorToolbarEvents({closeSlashMenu,format:doFormat,insert:doInsert,tableAction:runTableAction});
+const editorToolbarEvents=usesVueWorkspace?null:createEditorToolbarEvents({closeSlashMenu,format:doFormat,insert:doInsert,tableAction:runTableAction});
 const workspaceShellActions=createWorkspaceShellActions({
  closeThemeMenu,
  applyTheme:theme=>applyTheme(theme,{save:true}),
@@ -351,7 +353,7 @@ const workspaceShellActions=createWorkspaceShellActions({
  openAppSettings,
  signOut:()=>{void signOut()},
  closeSlashMenu,
- toggleNoteTypes:()=>{const next=!noteTypesExpanded();mutateVault(vault=>{vault.noteTypesExpanded=next});if(!workspaceAppMounted){const list=$('#sideTypes'),toggle=$('#toggleNoteTypes');if(list)list.hidden=!next;toggle?.setAttribute('aria-expanded',String(next));toggle?.setAttribute('aria-label',next?'折叠笔记类型':'展开笔记类型');toggle?.setAttribute('title',next?'折叠笔记类型':'展开笔记类型')}persist()},
+ toggleNoteTypes:()=>{const next=!noteTypesExpanded();mutateVault(vault=>{vault.noteTypesExpanded=next});if(!usesVueWorkspace){const list=$('#sideTypes'),toggle=$('#toggleNoteTypes');if(list)list.hidden=!next;toggle?.setAttribute('aria-expanded',String(next));toggle?.setAttribute('aria-label',next?'折叠笔记类型':'展开笔记类型');toggle?.setAttribute('title',next?'折叠笔记类型':'展开笔记类型')}persist()},
  addNoteType:()=>openTypeDialog('create'),
  addCategory:openCategoryDialog,
  openTypeDialog,
@@ -361,7 +363,7 @@ const workspaceShellActions=createWorkspaceShellActions({
  moveNoteToTrash,
  render
 });
-const workspaceShellEvents=workspaceAppMounted?null:createWorkspaceShellEvents({
+const workspaceShellEvents=usesVueWorkspace?null:createWorkspaceShellEvents({
  execute:workspaceShellActions.execute,
  closeThemeMenu,closeAccountMenu,closeSlashMenu,closeSearch,
  closeTarget:id=>{if(id==='profileSettingsOverlay')profileSettings.close();else if(id==='appSettingsOverlay')appSettings.close();else if(id==='backupHistoryOverlay')backupHistoryStore.close();else $('#'+id)?.classList.remove('open')}
@@ -400,7 +402,7 @@ const editorPageActions=createEditorPageActions({
  notify:toast
 });
 editorPageActionsStore.bind(editorPageActions.execute);
-const workspaceContentEvents=workspaceAppMounted?null:createWorkspaceContentEvents({
+const workspaceContentEvents=usesVueWorkspace?null:createWorkspaceContentEvents({
  openCreateMenu,
  openCapture,
  beginEdit:()=>readerActions.execute({type:'edit-current'}),
@@ -503,13 +505,13 @@ function moveNoteToTrash(id){return noteDeleteWorkflow.moveToTrash(id)}
 let legacyEditorOutlineView=null;
 function destroyRichEditor(){if(richEditor){editorRuntime.destroy();richEditorDraftId=null}legacyEditorOutlineView?.dispose()}
 const editorOutlineController=createEditorOutlineController({getEditor:()=>richEditor,setOutline:items=>editorDataStore.setOutline(items)});
-legacyEditorOutlineView=workspaceAppMounted?null:createLegacyEditorOutlineView({document,main});
-function refreshEditorOutline(editor=richEditor){editorOutlineController.sync(editor);if(!workspaceAppMounted)legacyEditorOutlineView?.render(editor)}
+legacyEditorOutlineView=usesVueWorkspace?null:createLegacyEditorOutlineView({document,main});
+function refreshEditorOutline(editor=richEditor){editorOutlineController.sync(editor);if(!usesVueWorkspace)legacyEditorOutlineView?.render(editor)}
 dashboardDataStore.configure({isDraft,publishedView,noteCard:noteCardSnapshot,isSafeUrl:safeUrl});
 dashboardDataStore.bindActions(createDashboardActions({getVault,mutateVault,persist}));
 if(typeof sidebarDataStore!=='undefined')sidebarDataStore.configure({isDraft,needsPublish,hasDraftContent,displayTypeName});
 if(typeof noteListDataStore!=='undefined')noteListDataStore.configure({hasDraftContent,bodyText:noteBodyText,noteCard:noteCardSnapshot,typeName:typeLabel,displayTypeName});
-legacyWorkspaceRenderer=workspaceAppMounted?null:createLegacyWorkspaceRenderer({
+legacyWorkspaceRenderer=usesVueWorkspace?null:createLegacyWorkspaceRenderer({
  document,window,main,getData:getVault,navigation:navigationStore,icons,escapeHtml:esc,displayTypeName,
  typeLabel,noteBodyText,nowString,fullDate,isDraft,needsPublish,hasDraftContent,publishedView,listNotes,
  readerSnapshot,safeUrl,dashboardStore:dashboardDataStore,destroyRichEditor,setBreadcrumb,openHome,
@@ -519,8 +521,8 @@ legacyWorkspaceRenderer=workspaceAppMounted?null:createLegacyWorkspaceRenderer({
 function ensureDraft(){return editorDraftController.ensureDraft()}
 function editorSnapshot(note){return {noteId:note.id,title:note.title||'',type:note.type,category:note.category||'未分类',tags:(note.tags||[]).join(', '),source:note.source||'',noteTypes:getVault().noteTypes.map(type=>({id:type.id,label:displayTypeName(type)})),categories:[...getVault().categories],publishLabel:isDraft(note)?'发布笔记':'保存笔记',pasteMode:preferredPasteMode()}}
 function prepareVueEditorPage(){destroyRichEditor();const note=ensureDraft();editorDataStore.sync(editorSnapshot(note))}
-function renderEditor(){if(!workspaceAppMounted){renderEditorLegacy();return}prepareVueEditorPage()}
-function hasVueEditorActions(){return workspaceAppMounted}
+function renderEditor(){if(!usesVueWorkspace){renderEditorLegacy();return}prepareVueEditorPage()}
+function hasVueEditorActions(){return usesVueWorkspace}
 const editorRuntime=createEditorRuntimeController({
  getEditor:()=>richEditor,
  setEditor:editor=>{richEditor=editor},
@@ -538,10 +540,10 @@ const editorRuntime=createEditorRuntimeController({
  onBlur:flushEditorSave,
  onSlashMenu:openSlashMenu,
  onFieldChange:()=>{updateDraftFromDOM();scheduleSave()},
- shouldListenToFieldEvents:()=>!workspaceAppMounted,
+ shouldListenToFieldEvents:()=>!usesVueWorkspace,
  onPasteModeChange:mode=>{mutateVault(vault=>{vault.pasteMode=mode});saveDraft(true)},
  onToolbarMouseDown:event=>{if(event.target.closest('button'))event.preventDefault()},
- onMounted:editor=>{richEditorDraftId=ensureDraft().id;syncToolbarState(editor);if(!workspaceAppMounted)organizeEditorTools();syncToolbarState(editor);refreshEditorOutline(editor);ensureEditorCommands()},
+ onMounted:editor=>{richEditorDraftId=ensureDraft().id;syncToolbarState(editor);if(!usesVueWorkspace)organizeEditorTools();syncToolbarState(editor);refreshEditorOutline(editor);ensureEditorCommands()},
  onBeforeDestroy:(_editor,draftId)=>{if(navigationStore.editing&&navigationStore.editingDraft&&draftId===navigationStore.editingDraft.id)updateDraftFromDOM();richEditorDraftId=null}
 });
 function ensureEditorCommands(){
@@ -590,7 +592,7 @@ function toggleThemeMenu(){workspaceShellStore.toggleThemeMenu()}
 const disposeTheme=themeController.mount();
 const workspaceViewDispatcher=createWorkspaceViewDispatcher({
  getState:()=>({page:navigationStore.page,editing:navigationStore.editing}),
- vueMounted:workspaceAppMounted,
+ vueMounted:usesVueWorkspace,
  main,
  getVueHost:()=>$('#dashboardHost'),
  getLastRenderedPage:()=>lastRenderedPage,
@@ -610,7 +612,7 @@ const workspaceViewDispatcher=createWorkspaceViewDispatcher({
  renderLegacyReader:()=>legacyWorkspaceRenderer?.renderReader()
 });
 function render(){workspaceViewDispatcher.render()}
-function cleanExpiredTrash(){const count=trashWorkflows?trashWorkflows.pruneExpired():recycleBinView?.pruneExpired()||0;if(count&&navigationStore.page==='trash'&&!workspaceAppMounted)recycleBinView?.render()}
+function cleanExpiredTrash(){const count=trashWorkflows?trashWorkflows.pruneExpired():recycleBinView?.pruneExpired()||0;if(count&&navigationStore.page==='trash'&&!usesVueWorkspace)recycleBinView?.render()}
 const disposeWorkspaceLifecycle=mountWorkspaceLifecycle({document,window,isLocal:!!initial.local,refreshCloud:()=>{void refreshCloud(snapshotCurrentVault)},pruneExpiredTrash:cleanExpiredTrash});
 function createNew(type='note'){return newNoteController.create(type)}
 function updateDraftFromDOM(){editorDraftController.updateFromEditor()}
@@ -621,7 +623,7 @@ function flushEditorSave(){return editorAutosave.flush()}
 function deleteEditorNote(){return editorDeleteWorkflow.removeCurrentNote()}
 
 async function publishCurrentNote(){await notePublishFlow.publish()}
-const legacyEditorToolbar=workspaceAppMounted?null:createLegacyEditorToolbarView({document,window,getToolbar:()=>$('#editorToolbar'),getMain:()=>main,getElement:$,getToolbarState:createEditorToolbarState,getEditing:()=>navigationStore.editing,icons,onEditorAction:runEditorAction,onParagraphAction:runParagraphAction,onDeleteCallout:()=>{if(!richEditor?.isActive('callout'))return;richEditor.chain().focus().deleteNode('callout').run();updateDraftFromDOM();scheduleSave()}});
+const legacyEditorToolbar=usesVueWorkspace?null:createLegacyEditorToolbarView({document,window,getToolbar:()=>$('#editorToolbar'),getMain:()=>main,getElement:$,getToolbarState:createEditorToolbarState,getEditing:()=>navigationStore.editing,icons,onEditorAction:runEditorAction,onParagraphAction:runParagraphAction,onDeleteCallout:()=>{if(!richEditor?.isActive('callout'))return;richEditor.chain().focus().deleteNode('callout').run();updateDraftFromDOM();scheduleSave()}});
 function syncToolbarState(editor){
  if(!editor)return;
  if(hasVueEditorActions()){
@@ -648,7 +650,7 @@ function handleEditorPaste(payload){return contentInsertion.handleEditorPaste(pa
 function openSlashMenu(){const selection=window.getSelection(),rect=selection?.rangeCount?selection.getRangeAt(0).getBoundingClientRect():null,x=rect?.left||window.innerWidth/2,y=(rect?.bottom||120)+8;editorDataStore.showSlashMenu({left:Math.max(12,Math.min(x,window.innerWidth-260)),top:Math.max(12,Math.min(y,window.innerHeight-355))})}function closeSlashMenu(){editorDataStore.closeSlashMenu()}function openSlashHint(){openSlashMenu()}
 function storeImage(file,destination,bookmark=null,range=null){return contentInsertion.storeImage(file,destination,bookmark,range)}
 function pasteRich(event){return contentInsertion.handleCapturePaste(event)}
-if(workspaceAppMounted)captureDialogStore.bindPasteHandler(pasteRich);
+if(usesVueWorkspace)captureDialogStore.bindPasteHandler(pasteRich);
 function openCapture(options={}){captureDialogPresenter.open(options)}
 function closeCapture(){captureDialogPresenter.close()}
 async function saveCapture(){await captureDialogController.saveLegacy()}
@@ -660,7 +662,7 @@ function downloadBackupSnapshot(revision){return backupWorkflows.downloadSnapsho
 function restoreBackupSnapshot(revision){return backupWorkflows.restoreSnapshot(revision)}
 function exportJSON(){return backupWorkflows.exportFullBackup()}
 function importJSON(file){return backupWorkflows.importBackup(file)}
-function openCreateMenu(){closeMenu();if(workspaceAppMounted){createMenuStore.open();return}if(!$('#createOverlay'))document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="createOverlay"><section class="dialog create-dialog" role="dialog" aria-modal="true" aria-labelledby="createTitle"><div class="dialog-head"><h2 id="createTitle">新建</h2><button class="round-btn" data-close="createOverlay" aria-label="关闭">${icons('close')}</button></div><div class="dialog-body create-options"><button data-create-kind="note">${icons('note')}<span><strong>笔记</strong><small>记录内容、命令与图片</small></span></button><button data-create-kind="bookmark">${icons('link')}<span><strong>书签</strong><small>保存网址并选择分组</small></span></button><button data-create-kind="capture">${icons('clip')}<span><strong>网页摘录</strong><small>将复制的内容整理为笔记</small></span></button></div></section></div>`);$('#createOverlay').classList.add('open');$('#createOverlay [data-create-kind]').focus()}
+function openCreateMenu(){closeMenu();if(usesVueWorkspace){createMenuStore.open();return}if(!$('#createOverlay'))document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="createOverlay"><section class="dialog create-dialog" role="dialog" aria-modal="true" aria-labelledby="createTitle"><div class="dialog-head"><h2 id="createTitle">新建</h2><button class="round-btn" data-close="createOverlay" aria-label="关闭">${icons('close')}</button></div><div class="dialog-body create-options"><button data-create-kind="note">${icons('note')}<span><strong>笔记</strong><small>记录内容、命令与图片</small></span></button><button data-create-kind="bookmark">${icons('link')}<span><strong>书签</strong><small>保存网址并选择分组</small></span></button><button data-create-kind="capture">${icons('clip')}<span><strong>网页摘录</strong><small>将复制的内容整理为笔记</small></span></button></div></section></div>`);$('#createOverlay').classList.add('open');$('#createOverlay [data-create-kind]').focus()}
 function openSearch(query=''){globalSearchDataStore.show(query)};function closeSearch(){globalSearchDataStore.close()}
 function toast(s){notificationDataStore.show(s)}
 function closeAccountMenu(){workspaceShellStore.closeAccountMenu()}
@@ -679,12 +681,12 @@ workspaceShellStore.setIdentity(initial.username||'本地预览',!!initial.local
 if(!initial.local)void profileSettings.refresh().catch(()=>{});
 const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
  document,window,
- staticDom:workspaceAppMounted?null:{closeCapture,handleCapturePaste:pasteRich,saveCategory,saveNoteType:saveTypeDialog},
+ staticDom:usesVueWorkspace?null:{closeCapture,handleCapturePaste:pasteRich,saveCategory,saveNoteType:saveTypeDialog},
  editorLifecycle:{isEditing:()=>navigationStore.editing,hasEditorChanges:editorHasChanges,saveDraft,hasUnsavedChanges:hasUnsaved},
  routeHandlers:[
-  ...(workspaceAppMounted?[]:[event=>workspaceNavigationEvents.handle(event)]),
+  ...(usesVueWorkspace?[]:[event=>workspaceNavigationEvents.handle(event)]),
   ...(editorToolbarEvents?[event=>editorToolbarEvents.handleClick(event.target)]:[]),
-  ...(workspaceAppMounted?[]:[event=>workspaceShellEvents.handle(event)]),
+  ...(usesVueWorkspace?[]:[event=>workspaceShellEvents.handle(event)]),
   ...(workspaceContentEvents?[event=>workspaceContentEvents.handleClick(event.target)]:[])
  ],
  handleChange:editorToolbarEvents?target=>editorToolbarEvents.handleChange(target):null,
