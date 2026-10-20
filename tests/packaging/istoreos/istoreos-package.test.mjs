@@ -120,15 +120,22 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /release_notes:/);
   assert.match(workflow, /fetch-depth: 0/);
+  assert.match(workflow, /permissions:\r?\n  contents: read/);
+  assert.match(workflow, /token: \$\{\{ inputs\.release_mode == 'publish' && secrets\.RELEASE_PUBLISH_TOKEN \|\| github\.token \}\}/);
   assert.match(workflow, /## 本版优化与新增/);
   assert.match(workflow, /while \[\[ "\$detail" =~/);
   assert.match(workflow, /prefix=\$\{BASH_REMATCH\[0\]\}/);
   assert.match(workflow, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(workflow, /^  push:/m);
+  assert.match(workflow, /release_mode:[\s\S]*?options:[\s\S]*?- verify[\s\S]*?- publish[\s\S]*?default: publish/);
   assert.match(workflow, /Verify publishing secrets/);
+  assert.match(workflow, /- name: Verify publishing secrets\r?\n        if: inputs\.release_mode == 'publish'/);
+  assert.match(workflow, /- name: Record verification-only mode\r?\n        if: inputs\.release_mode == 'verify'/);
+  assert.match(workflow, /No Docker Hub push, version commit, or GitHub Release will run/);
   assert.match(workflow, /test -n "\$DOCKERHUB_TOKEN"/);
   assert.match(workflow, /test -n "\$RELEASE_PUBLISH_TOKEN"/);
   assert.match(workflow, /Select or resume release version/);
+  assert.match(workflow, /if \[ "\$RELEASE_MODE" = "verify" \]; then[\s\S]*?node -p "require\('\.\/package\.json'\)\.version"/);
   assert.doesNotMatch(workflow, /openwrt\/gh-action-sdk|artifacts\/openwrt|\.ipk|\.apk/);
   assert.match(workflow, /release_bump:[\s\S]*?options:[\s\S]*?- patch[\s\S]*?- minor[\s\S]*?- major[\s\S]*?default: patch/);
   assert.match(workflow, /node scripts\/release-version\.mjs/);
@@ -136,9 +143,11 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /Commit version bump to main/);
   assert.match(workflow, /sha256sum --check/);
   assert.match(workflow, /docker\/login-action@v3/);
+  assert.match(workflow, /- name: Sign in to Docker Hub\r?\n        if: inputs\.release_mode == 'publish'/);
   assert.match(workflow, /username: luckyalanzhou/);
   assert.match(workflow, /password: \$\{\{ secrets\.DOCKERHUB_TOKEN \}\}/);
   assert.match(workflow, /docker\/build-push-action@v6/);
+  assert.match(workflow, /push: \$\{\{ inputs\.release_mode == 'publish' \}\}/);
   assert.match(workflow, /platforms: linux\/amd64,linux\/arm64/);
   assert.match(workflow, /cache: pnpm/);
   assert.match(workflow, /cache-dependency-path: pnpm-lock\.yaml/);
@@ -163,6 +172,14 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /--method PATCH/);
   assert.match(workflow, /gh release edit "v\$\{VERSION\}" --draft=false --latest/);
   assert.match(workflow, /docker buildx imagetools create/);
+  for (const step of [
+    'Commit version bump to main',
+    'Prepare verified GitHub Release',
+    'Publish verified GitHub Release',
+    'Promote released image to latest'
+  ]) {
+    assert.match(workflow, new RegExp(`- name: ${step}\\r?\\n        if: inputs\\.release_mode == 'publish'`));
+  }
   assert.ok(workflow.indexOf('name: Prepare verified GitHub Release') < workflow.indexOf('name: Publish verified GitHub Release'));
   assert.ok(workflow.indexOf('name: Publish verified GitHub Release') < workflow.indexOf('name: Promote released image to latest'));
   assert.match(workflow, /Prepare release checksum with the public asset name/);
