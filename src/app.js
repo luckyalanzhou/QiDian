@@ -74,6 +74,7 @@ import { createReaderSnapshot } from './features/reader/snapshot.ts';
 import { createReaderActions } from './features/reader/actions.ts';
 import { createDraftContentTools } from './features/notes/draft-content.ts';
 import { mountWorkspaceLifecycle } from './features/lifecycle/workspace-lifecycle.ts';
+import { mountWorkspaceSession } from './features/lifecycle/workspace-session.ts';
 import { mountWorkspaceInteractionRuntime } from './features/lifecycle/workspace-interaction-runtime.ts';
 import { createCurrentVaultSnapshot } from './features/sync/current-vault-snapshot.ts';
 import { createRemoteVaultUpdateController } from './features/sync/remote-vault-update-controller.ts';
@@ -710,7 +711,17 @@ const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
   openNote
  }
 });
-applyTheme(getVault().theme);render();systemUpdates.renderBadge({currentVersion:APP_VERSION,updateAvailable:false});if(!initial.local)void systemUpdates.check();if(initial.restoreDraft&&!initial.restoreConflict)queueSave(getVault());
-return ()=>{disposeWorkspaceInteractions();disposeWorkspaceLifecycle();disposeTheme();editorAutosave.clear();destroyRichEditor()};
+return mountWorkspaceSession({
+ initial,
+ theme:getVault().theme,
+ currentVersion:APP_VERSION,
+ vault:getVault(),
+ applyTheme,
+ render,
+ renderVersionBadge:state=>systemUpdates.renderBadge(state),
+ checkUpdates:()=>systemUpdates.check(),
+ queueSave,
+ dispose:[disposeWorkspaceInteractions,disposeWorkspaceLifecycle,disposeTheme,()=>editorAutosave.clear(),destroyRichEditor]
+});
 })();
 }

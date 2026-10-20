@@ -90,6 +90,7 @@ import { mountItemMenuController } from '../src/features/navigation/item-menu-co
 import { mountModalFocusLoop } from '../src/features/dialogs/modal-focus-loop.ts';
 import { mountEditorDocumentLifecycle } from '../src/features/editor/document-lifecycle.ts';
 import { mountWorkspaceLifecycle } from '../src/features/lifecycle/workspace-lifecycle.ts';
+import { mountWorkspaceSession } from '../src/features/lifecycle/workspace-session.ts';
 import { useNavigationStore } from '../src/features/navigation/store.ts';
 import { useCategoryDialogStore } from '../src/features/categories/category-dialog-store.ts';
 import { useNavigationActionsStore } from '../src/features/navigation/navigation-actions-store.ts';
@@ -307,6 +308,7 @@ async function mount(vault=empty, initialOptions={}) {
   Object.defineProperty(globalThis, 'cancelAnimationFrame', { configurable:true, value:w.cancelAnimationFrame.bind(w) });
   w.DEFAULT_NOTE_TYPES = DEFAULT_NOTE_TYPES;
   w.mountWorkspaceLifecycle = mountWorkspaceLifecycle;
+  w.mountWorkspaceSession = mountWorkspaceSession;
   w.validateVault = validateVault;
   w.createBookmarkView = createBookmarkView;
   w.createRecycleBinView = createRecycleBinView;
