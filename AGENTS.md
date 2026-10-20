@@ -19,3 +19,14 @@
 - 业务修改运行 `pnpm test`、`pnpm check`、`pnpm build`，或 README 中对应的直接 Node 命令。
 - 分别报告 SQLite、DOM 测试、桌面浏览器和手机实机验证。
 - Docker 部署状态与本地源码检查分开报告。
+
+## 技能选择
+
+开始代码优化、重构、性能、可靠性或可维护性改进前，先检查当前可用的 Matt Pocock skills，并按任务选择适用项：
+
+- 架构与代码结构：`improve-codebase-architecture`、`codebase-design`
+- 疑难问题与性能分析：`diagnosing-bugs`
+- 实现与重构：`tdd`、`implement`
+- 完成后审查改动：`code-review`
+
+只调用与当前任务相关的技能，并遵循对应技能说明。开始实施前简要说明选用的技能；完成后说明实际检查和结果。
