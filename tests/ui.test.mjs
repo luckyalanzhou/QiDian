@@ -7,6 +7,7 @@ import createDOMPurify from 'dompurify';
 import { createQidianEditor } from '../src/editor.js';
 import { createEditorPageLifecycle } from '../src/features/editor/page-lifecycle.ts';
 import { createLegacyEditorPageController } from '../src/features/editor/legacy-page-controller.ts';
+import { createEditorHtmlInserter } from '../src/features/editor/html-inserter.ts';
 import { createEditorActionDispatcher } from '../src/features/editor/action-dispatcher.ts';
 import { TextSelection } from '@tiptap/pm/state';
 import { DEFAULT_NOTE_TYPES, validateVault } from '../server/validation.js';
@@ -412,6 +413,7 @@ async function mount(vault=empty, initialOptions={}) {
   };
   w.createEditorPageLifecycle = createEditorPageLifecycle;
   w.createLegacyEditorPageController = createLegacyEditorPageController;
+  w.createEditorHtmlInserter = createEditorHtmlInserter;
   w.createEditorActionDispatcher = createEditorActionDispatcher;
   w.createWorkspaceNavigationActions = createWorkspaceNavigationActions;
   w.createWorkspaceNavigationEventsForMode = createWorkspaceNavigationEventsForMode;

@@ -26,6 +26,7 @@ import { createEditorInsertController } from './features/editor/insert-controlle
 import { createEditorRuntimeController } from './features/editor/runtime-controller.ts';
 import { createEditorPageLifecycle } from './features/editor/page-lifecycle.ts';
 import { createLegacyEditorPageController } from './features/editor/legacy-page-controller.ts';
+import { createEditorHtmlInserter } from './features/editor/html-inserter.ts';
 import { createEditorOutlineController } from './features/editor/outline-controller.ts';
 import { createLegacyEditorOutlineView } from './features/editor/legacy-editor-outline-view.ts';
 import { createNotePublishFlow } from './features/editor/note-publish-flow.ts';
@@ -655,7 +656,8 @@ function organizeEditorTools(){legacyEditorToolbar?.organize()}
 function runEditorAction(action){return ensureEditorCommands().runEditorAction(action)}
 function runParagraphAction(action){return ensureEditorCommands().runParagraphAction(action)}
 function runTableAction(action){return ensureEditorCommands().runTableAction(action)}
-function insertHTML(html){if(!richEditor)return;richEditor.chain().focus().insertContent(cleanHTML(html,true),{parseOptions:{preserveWhitespace:'full'}}).run();updateDraftFromDOM();scheduleSave()}
+const editorHtmlInserter=createEditorHtmlInserter({getEditor:()=>richEditor,sanitize:html=>cleanHTML(html,true),afterInsert:()=>{updateDraftFromDOM();scheduleSave()}});
+function insertHTML(html){editorHtmlInserter.insert(html)}
 function doFormat(cmd,arg=null){if(!richEditor)return;return ensureEditorCommands().doFormat(cmd,arg)}
 const editorInsertController=createEditorInsertController({getEditor:()=>richEditor,insertHTML,openImagePicker:()=>$('#imageFile').click(),prompt:promptAction,format:(command,value)=>doFormat(command,value),afterChange:editor=>{updateDraftFromDOM();scheduleSave();syncToolbarState(editor);refreshEditorOutline(editor)},safeUrl,escapeHTML:esc,toast});
 async function doInsert(kind){return editorInsertController.insert(kind)}
