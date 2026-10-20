@@ -73,6 +73,7 @@ import { createRemoteEditorRefresh } from './features/editor/remote-refresh.ts';
 import { createReaderSnapshot } from './features/reader/snapshot.ts';
 import { createReaderActions } from './features/reader/actions.ts';
 import { createDraftContentTools } from './features/notes/draft-content.ts';
+import { createNoteCardSnapshot } from './features/notes/card-snapshot.ts';
 import { mountWorkspaceLifecycle } from './features/lifecycle/workspace-lifecycle.ts';
 import { mountWorkspaceSession } from './features/lifecycle/workspace-session.ts';
 import { mountWorkspaceInteractionRuntime } from './features/lifecycle/workspace-interaction-runtime.ts';
@@ -497,7 +498,7 @@ function openHome(cat='all'){workspaceNavigation.openHome(cat)}
 function openDashboard(){workspaceNavigation.openDashboard()}
 function openNote(id,forceEdit=false){workspaceNavigation.openNote(id,forceEdit)}
 function backFromNotePage(){workspaceNavigation.backFromNote()}
-function noteCardSnapshot(note){return {id:note.id,title:note.title||'',type:note.type,typeName:typeLabel(note.type),category:note.category||'未分类',tags:[...(note.tags||[])],description:noteBodyText(note.body,note.title),updatedLabel:nowString(note.updated),pinned:!!note.pinned}}
+const noteCardSnapshot=createNoteCardSnapshot({typeName:typeLabel,bodyText:noteBodyText,formatDate:nowString});
 function readerSnapshot(stored,working,n){return createReaderSnapshot({document,stored,note:n,working,previewing:navigationStore.previewing,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish})}
 readerDataStore.configure({document,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish,publishedView});
 function listNotes(q=''){return selectNotes(getVault().notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
