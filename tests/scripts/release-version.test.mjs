@@ -50,6 +50,24 @@ test('a complete release causes the next manual build to advance Patch', () => {
   }), { version: '0.0.2', releaseExists: false });
 });
 
+test('a workflow retry resumes its completed release instead of selecting a new version', () => {
+  assert.deepEqual(resolveReleaseVersion({
+    currentVersion: '0.0.1',
+    lastPackageCommit: 'chore: release v0.0.1',
+    getRelease: (tag) => tag === 'v0.0.1' ? completeRelease('0.0.1') : null,
+    isWorkflowRetry: true,
+  }), { version: '0.0.1', releaseExists: true, promoteOnly: true });
+});
+
+test('a workflow retry with an incomplete release continues the normal repair flow', () => {
+  assert.deepEqual(resolveReleaseVersion({
+    currentVersion: '0.0.1',
+    lastPackageCommit: 'chore: release v0.0.1',
+    getRelease: (tag) => tag === 'v0.0.1' ? { isDraft: true, assets: [] } : null,
+    isWorkflowRetry: true,
+  }), { version: '0.0.1', releaseExists: true });
+});
+
 test('GitHub release asset labels count when the uploaded file names are internal', () => {
   const assets = [
     { name: 'qidian-0.0.1.run', label: '栖点-0.0.1.run' },

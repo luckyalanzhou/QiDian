@@ -12,13 +12,15 @@
 
 ## 发布产物
 
-GitHub Actions 的 `iStoreOS Docker release` 工作流由人工手动触发。每次成功的发布只提供 `.run` 管理安装包及 SHA-256 校验文件：
+GitHub Actions 的 `iStoreOS Docker verification and release` 工作流会在发往 `main` 的 Pull Request 上运行源码检查和容器 smoke test；手动 `workflow_dispatch` 始终执行正式发布。每次成功的发布只提供 `.run` 管理安装包及 SHA-256 校验文件：
 
 - iStoreOS / OpenWrt：`栖点-<版本>.run`
 
 普通推送到 `main` 不会触发发布构建。该工作流先构建并推送固定版本的多架构 Docker 镜像，校验并公开 GitHub Release 后再将该版本提升为 `latest`；安装包本身不包含应用镜像。
 
 镜像支持 `linux/amd64` 和 `linux/arm64`，Docker 会自动选择当前设备架构。设备无需安装 Node.js、pnpm，也不会在设备上构建前端。
+
+本地运行自托管服务需 Node.js 22.13 或更高版本；服务端使用内置 `node:sqlite` 模块。该 API 从 Node.js 22.5 提供，并从 22.13 起无需 `--experimental-sqlite` 参数；Node 22 中仍标记为实验功能。项目镜像使用 Node 24，该 API 从 24.15 起标记为 Release Candidate。[Node.js 22 SQLite 文档](https://nodejs.org/download/release/latest-jod/docs/api/sqlite.html)、[Node.js 24 SQLite 文档](https://nodejs.org/download/release/latest-v24.x/docs/api/sqlite.html)
 
 ## iStoreOS 与 OpenWrt 安装
 

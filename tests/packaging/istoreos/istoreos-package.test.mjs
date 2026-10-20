@@ -116,26 +116,38 @@ test('iStoreOS run payload stays lightweight and contains persistent manager UI 
 
 test('iStoreOS release is manual and uses package.json as its single version source', async () => {
   const workflow = await read('../../../.github/workflows/istoreos-release.yml');
+  const releaseVersionScript = await read('../../../scripts/release-version.mjs');
+  const releaseWorkflow = workflow.slice(workflow.indexOf('  package:'));
+  const pullRequestWorkflow = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  package:'));
 
+  assert.match(workflow, /pull_request:[\s\S]*?branches:[\s\S]*?- main/);
   assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /verify:\r?\n    if: github\.event_name == 'pull_request'/);
+  assert.match(workflow, /package:\r?\n    if: github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /group: qidian-manual-release[\s\S]*?cancel-in-progress: false/);
+  assert.match(workflow, /group: qidian-pr-\$\{\{ github\.event\.pull_request\.number \}\}[\s\S]*?cancel-in-progress: true/);
+  assert.match(workflow, /name: Verify PR source[\s\S]*?pnpm check[\s\S]*?pnpm test[\s\S]*?pnpm build/);
+  assert.match(workflow, /name: Smoke-test PR container/);
+  assert.match(pullRequestWorkflow, /persist-credentials: false/);
+  assert.doesNotMatch(pullRequestWorkflow, /secrets\.|push: true|gh release/);
+  assert.doesNotMatch(pullRequestWorkflow, /setup-qemu-action/);
   assert.match(workflow, /release_notes:/);
   assert.match(workflow, /fetch-depth: 0/);
   assert.match(workflow, /permissions:\r?\n  contents: read/);
-  assert.match(workflow, /token: \$\{\{ inputs\.release_mode == 'publish' && secrets\.RELEASE_PUBLISH_TOKEN \|\| github\.token \}\}/);
+  assert.match(workflow, /token: \$\{\{ secrets\.RELEASE_PUBLISH_TOKEN \}\}/);
   assert.match(workflow, /## 本版优化与新增/);
   assert.match(workflow, /while \[\[ "\$detail" =~/);
   assert.match(workflow, /prefix=\$\{BASH_REMATCH\[0\]\}/);
   assert.match(workflow, /--notes-file "\$notes_file"/);
   assert.doesNotMatch(workflow, /^  push:/m);
-  assert.match(workflow, /release_mode:[\s\S]*?options:[\s\S]*?- verify[\s\S]*?- publish[\s\S]*?default: publish/);
+  assert.doesNotMatch(workflow, /release_mode|verification-only|Remote verification only|仅运行远程验收/);
   assert.match(workflow, /Verify publishing secrets/);
-  assert.match(workflow, /- name: Verify publishing secrets\r?\n        if: inputs\.release_mode == 'publish'/);
-  assert.match(workflow, /- name: Record verification-only mode\r?\n        if: inputs\.release_mode == 'verify'/);
-  assert.match(workflow, /No Docker Hub push, version commit, or GitHub Release will run/);
+  assert.doesNotMatch(workflow, /- name: Verify publishing secrets\r?\n        if:/);
   assert.match(workflow, /test -n "\$DOCKERHUB_TOKEN"/);
   assert.match(workflow, /test -n "\$RELEASE_PUBLISH_TOKEN"/);
   assert.match(workflow, /Select or resume release version/);
-  assert.match(workflow, /if \[ "\$RELEASE_MODE" = "verify" \]; then[\s\S]*?node -p "require\('\.\/package\.json'\)\.version"/);
+  assert.match(workflow, /version=\$\(node scripts\/release-version\.mjs "\$RELEASE_BUMP"\)/);
+  assert.match(workflow, /WORKFLOW_RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}/);
   assert.doesNotMatch(workflow, /openwrt\/gh-action-sdk|artifacts\/openwrt|\.ipk|\.apk/);
   assert.match(workflow, /release_bump:[\s\S]*?options:[\s\S]*?- patch[\s\S]*?- minor[\s\S]*?- major[\s\S]*?default: patch/);
   assert.match(workflow, /node scripts\/release-version\.mjs/);
@@ -143,11 +155,11 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /Commit version bump to main/);
   assert.match(workflow, /sha256sum --check/);
   assert.match(workflow, /docker\/login-action@v3/);
-  assert.match(workflow, /- name: Sign in to Docker Hub\r?\n        if: inputs\.release_mode == 'publish'/);
+  assert.doesNotMatch(workflow, /- name: Sign in to Docker Hub\r?\n        if:/);
   assert.match(workflow, /username: luckyalanzhou/);
   assert.match(workflow, /password: \$\{\{ secrets\.DOCKERHUB_TOKEN \}\}/);
   assert.match(workflow, /docker\/build-push-action@v6/);
-  assert.match(workflow, /push: \$\{\{ inputs\.release_mode == 'publish' \}\}/);
+  assert.match(workflow, /push: true/);
   assert.match(workflow, /platforms: linux\/amd64,linux\/arm64/);
   assert.match(workflow, /cache: pnpm/);
   assert.match(workflow, /cache-dependency-path: pnpm-lock\.yaml/);
@@ -155,7 +167,7 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /DOCKER_BUILD_RECORD_UPLOAD: false/);
   assert.match(workflow, /setup-qemu-action@v3[\s\S]*?platforms: arm64/);
   assert.match(workflow, /pnpm install --frozen-lockfile --prefer-offline/);
-  assert.ok(workflow.indexOf('name: Verify source') < workflow.indexOf('docker/setup-qemu-action@v3'), 'source verification fails before Docker emulation setup');
+  assert.ok(releaseWorkflow.indexOf('name: Verify source') < releaseWorkflow.indexOf('docker/setup-qemu-action@v3'), 'source verification fails before Docker emulation setup');
   assert.ok(workflow.indexOf('name: Smoke-test self-hosted container') < workflow.indexOf('name: Sign in to Docker Hub'), 'Docker Hub login happens only after the local smoke test');
   assert.match(workflow, /Build amd64 image for smoke test[\s\S]*?platforms: linux\/amd64[\s\S]*?load: true/);
   assert.match(workflow, /curl --fail --silent http:\/\/127\.0\.0\.1:9908\/readyz/);
@@ -173,13 +185,21 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /gh release edit "v\$\{VERSION\}" --draft=false --latest/);
   assert.match(workflow, /docker buildx imagetools create/);
   for (const step of [
+    'Install dependencies',
+    'Verify source',
+    'Build amd64 image for smoke test',
+    'Smoke-test self-hosted container',
+    'Build multi-architecture Docker image',
+    'Build self-extracting .run installer',
     'Commit version bump to main',
     'Prepare verified GitHub Release',
     'Publish verified GitHub Release',
-    'Promote released image to latest'
   ]) {
-    assert.match(workflow, new RegExp(`- name: ${step}\\r?\\n        if: inputs\\.release_mode == 'publish'`));
+    assert.match(workflow, new RegExp(`- name: ${step}`));
+    assert.match(workflow, new RegExp(`- name: ${step}\\r?\\n        if: steps\\.version\\.outputs\\.promote_only != 'true'`));
   }
+  assert.match(releaseVersionScript, /promote_only=\$\{selection\.promoteOnly === true\}/);
+  assert.doesNotMatch(workflow, /- name: Promote released image to latest\r?\n        if:/);
   assert.ok(workflow.indexOf('name: Prepare verified GitHub Release') < workflow.indexOf('name: Publish verified GitHub Release'));
   assert.ok(workflow.indexOf('name: Publish verified GitHub Release') < workflow.indexOf('name: Promote released image to latest'));
   assert.match(workflow, /Prepare release checksum with the public asset name/);
@@ -191,6 +211,14 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /git add package\.json/);
   assert.equal((workflow.match(/gh release upload/g) ?? []).length, 1);
   assert.match(workflow, /gh release upload "\$tag"[\s\S]*?qidian-\$\{version\}\.run[\s\S]*?qidian-\$\{version\}\.run\.release\.sha256/);
+});
+
+test('the declared Node runtime supports the SQLite API used by the server', async () => {
+  const manifest = JSON.parse(await read('../../../package.json'));
+  const sqliteAdapter = await read('../../../server/adapters/sqlite-adapter.mjs');
+
+  assert.equal(manifest.engines.node, '>=22.13');
+  assert.match(sqliteAdapter, /from 'node:sqlite'/);
 });
 
 test('the iStoreOS self-extracting installer installs the LuCI manager and records its version', async () => {

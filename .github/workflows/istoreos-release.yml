@@ -1,18 +1,13 @@
 name: iStoreOS Docker verification and release
 
 on:
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
-      release_mode:
-        description: "verify 仅运行远程验收；publish 正式发布镜像与 Release"
-        required: true
-        type: choice
-        options:
-          - verify
-          - publish
-        default: publish
       release_bump:
-        description: "publish 模式的版本递增类型；verify 模式忽略"
+        description: "版本递增类型"
         required: true
         type: choice
         options:
@@ -21,19 +16,81 @@ on:
           - major
         default: patch
       release_notes:
-        description: "publish 模式的发布说明，每行一项；verify 模式忽略"
+        description: "发布说明，每行一项"
         required: false
         type: string
-
-concurrency:
-  group: qidian-manual-release
-  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  verify:
+    if: github.event_name == 'pull_request'
+    concurrency:
+      group: qidian-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install PR dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Verify PR source
+        run: |
+          pnpm check
+          pnpm test
+          pnpm build
+      - name: Read PR image version
+        id: pr-version
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build amd64 PR image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          pull: true
+          build-args: |
+            QIDIAN_VERSION=${{ steps.pr-version.outputs.value }}
+          tags: qidian-selfhost:pull-request
+          cache-from: type=gha,scope=qidian-image
+      - name: Smoke-test PR container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name qidian-pr-smoke -p 127.0.0.1:9908:9908 \
+            --tmpfs /data:uid=1000,gid=1000 \
+            -e REGISTRATION_ENABLED=false qidian-selfhost:pull-request
+          cleanup() { docker rm -f qidian-pr-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9908/readyz >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:9908/ >/dev/null
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9908/api/vault)
+          test "$status" = 401 || { docker logs qidian-pr-smoke; echo "Expected unauthenticated API status 401, got $status" >&2; exit 1; }
   package:
+    if: github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: qidian-manual-release
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -43,9 +100,8 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ inputs.release_mode == 'publish' && secrets.RELEASE_PUBLISH_TOKEN || github.token }}
+          token: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
       - name: Verify publishing secrets
-        if: inputs.release_mode == 'publish'
         env:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           RELEASE_PUBLISH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
@@ -64,40 +120,29 @@ jobs:
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_MODE: ${{ inputs.release_mode }}
           RELEASE_BUMP: ${{ inputs.release_bump }}
+          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "$RELEASE_MODE" = "verify" ]; then
-            version=$(node -p "require('./package.json').version")
-            echo "release_exists=false" >> "$GITHUB_OUTPUT"
-          else
-            version=$(node scripts/release-version.mjs "$RELEASE_BUMP")
-          fi
+          version=$(node scripts/release-version.mjs "$RELEASE_BUMP")
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Record verification-only mode
-        if: inputs.release_mode == 'verify'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          {
-            echo '## Remote verification only'
-            echo
-            echo "Using package version ${VERSION}. No Docker Hub push, version commit, or GitHub Release will run."
-          } >> "$GITHUB_STEP_SUMMARY"
       - name: Install dependencies
+        if: steps.version.outputs.promote_only != 'true'
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Verify source
+        if: steps.version.outputs.promote_only != 'true'
         run: |
           pnpm check
           pnpm test
           pnpm build
       - uses: docker/setup-qemu-action@v3
+        if: steps.version.outputs.promote_only != 'true'
         with:
           platforms: arm64
       - uses: docker/setup-buildx-action@v3
       - name: Build amd64 image for smoke test
+        if: steps.version.outputs.promote_only != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -109,6 +154,7 @@ jobs:
           tags: qidian-selfhost:release
           cache-from: type=gha,scope=qidian-image
       - name: Smoke-test self-hosted container
+        if: steps.version.outputs.promote_only != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -125,33 +171,37 @@ jobs:
           status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:9908/api/vault)
           test "$status" = 401 || { docker logs qidian-smoke; echo "Expected unauthenticated API status 401, got $status" >&2; exit 1; }
       - name: Sign in to Docker Hub
-        if: inputs.release_mode == 'publish'
         uses: docker/login-action@v3
         with:
           username: luckyalanzhou
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build multi-architecture Docker image
+        if: steps.version.outputs.promote_only != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ inputs.release_mode == 'publish' }}
+          push: true
           build-args: |
             QIDIAN_VERSION=${{ steps.version.outputs.version }}
           tags: docker.io/luckyalanzhou/qidian:${{ steps.version.outputs.version }}
           cache-from: type=gha,scope=qidian-image
           cache-to: type=gha,mode=max,scope=qidian-image
       - name: Install Makeself
+        if: steps.version.outputs.promote_only != 'true'
         run: sudo apt-get update && sudo apt-get install --yes makeself
       - name: Check packaging scripts
+        if: steps.version.outputs.promote_only != 'true'
         run: |
           bash -n packaging/istoreos/build-run.sh
           sh -n packaging/istoreos/install.sh
           sh -n packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian.sh
           sh -n packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh
       - name: Build self-extracting .run installer
+        if: steps.version.outputs.promote_only != 'true'
         run: bash packaging/istoreos/build-run.sh artifacts/istoreos
       - name: Prepare release checksum with the public asset name
+        if: steps.version.outputs.promote_only != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -162,13 +212,14 @@ jobs:
           printf '%s  栖点-%s.run\n' "$digest" "$VERSION" > "qidian-${VERSION}.run.release.sha256"
           test "$(awk '{print $1}' "qidian-${VERSION}.run.release.sha256")" = "$digest"
       - name: Verify self-extracting archive checksum
+        if: steps.version.outputs.promote_only != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           sh "artifacts/istoreos/qidian-${VERSION}.run" --check
           (cd artifacts/istoreos && sha256sum --check "qidian-${VERSION}.run.sha256")
       - name: Commit version bump to main
-        if: inputs.release_mode == 'publish'
+        if: steps.version.outputs.promote_only != 'true'
         id: release_commit
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -184,7 +235,7 @@ jobs:
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Prepare verified GitHub Release
-        if: inputs.release_mode == 'publish'
+        if: steps.version.outputs.promote_only != 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
@@ -259,13 +310,12 @@ jobs:
             }
           done
       - name: Publish verified GitHub Release
-        if: inputs.release_mode == 'publish'
+        if: steps.version.outputs.promote_only != 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PUBLISH_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: gh release edit "v${VERSION}" --draft=false --latest
       - name: Promote released image to latest
-        if: inputs.release_mode == 'publish'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |

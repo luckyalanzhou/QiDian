@@ -15,7 +15,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "dependencies": {
     "@tiptap/core": "3.31.3",
