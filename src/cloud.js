@@ -6,9 +6,9 @@ import { getSystemUpdateStatus, getSystemVersion, requestSystemUpdate } from './
 import { listBackups as requestListBackups, createBackupSnapshot as requestCreateBackupSnapshot, getBackupSnapshot } from './api/backups.ts';
 import { getAssetResponse, listAssets, pruneAssets as requestAssetPrune, uploadAsset } from './api/assets.ts';
 import { getVault, getVaultRevision, putVault } from './api/vault.ts';
-import { makeRegistrationCredential, makeLoginVerifier } from './credentials.js';
+import { makeRegistrationCredential, makeLoginVerifier } from './features/auth/credentials.js';
 import { draftRecoveryState } from './draft-recovery.js';
-import { mergeVault } from './vault-merge.js';
+import { mergeVault } from './features/sync/vault-merge.js';
 import { createBackupDataService } from './features/settings/backup-data-service.ts';
 import { createCloudSyncEngine } from './features/sync/cloud-sync-engine.ts';
 import { createDraftRepository } from './features/sync/draft-repository.ts';

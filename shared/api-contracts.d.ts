@@ -133,6 +133,8 @@ export type ApiResponseMap = {
 };
 
 export type ApiResponseName = keyof ApiResponseMap;
+export const API_REQUEST_NAMES: readonly ApiRequestName[];
+export const API_RESPONSE_NAMES: readonly ApiResponseName[];
 export type ApiErrorResponse = {
   error: string;
   code?: string;

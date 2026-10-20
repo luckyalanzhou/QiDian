@@ -160,9 +160,9 @@ watch(
           </div>
           <details v-if="editor.outline.length" class="editor-outline-mobile"><summary>本文目录</summary><nav class="outline editor-outline-links"><button v-for="heading in editor.outline" :key="heading.position" type="button" class="editor-outline-link" :class="`level-${heading.level}`" @click.stop="goToHeading(heading.position)">{{ heading.text }}</button></nav></details>
           <div id="editorSurface" />
-          <div class="editor-bottom"><span class="paste-modes">粘贴方式 <select id="editPasteMode"><option value="rich">保留网页格式 / 自动识别 Markdown</option><option value="match">整理纯文本（兼容）</option><option value="markdown">按 Markdown 解析</option><option value="plain">仅纯文本</option></select></span></div>
+          <div id="editorMarkdownPreview" class="doc-content editor-markdown-preview" hidden />
+          <div class="editor-bottom"><span class="paste-modes">粘贴方式 <select id="editPasteMode"><option value="rich">保留网页格式 / Markdown 原文</option><option value="match">整理纯文本（兼容）</option><option value="markdown">Markdown 转换为富文本</option><option value="plain">仅纯文本</option></select></span><button class="secondary-btn editor-preview-toggle" id="editorMarkdownPreviewToggle" type="button" aria-pressed="false">预览笔记格式</button></div>
         </div>
-        <div class="hint">默认保留网页格式；纯文本自动识别 Markdown，普通文字保持原样。输入 / 打开快捷菜单。</div>
       </section>
       <aside v-if="editor.outline.length" class="right-rail edit-inspector"><div class="inspector-card"><h3>本文目录</h3><nav class="outline editor-outline-links"><button v-for="heading in editor.outline" :key="heading.position" type="button" class="editor-outline-link" :class="`level-${heading.level}`" @click.stop="goToHeading(heading.position)">{{ heading.text }}</button></nav></div></aside>
     </div>

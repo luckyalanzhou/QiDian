@@ -10,7 +10,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "preview:sqlite": "node scripts/preview.mjs",
     "package:istoreos": "bash packaging/istoreos/build-run.sh",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --test",
     "check": "node scripts/check-sources.mjs && vue-tsc --noEmit",
     "typecheck": "vue-tsc --noEmit"
   },

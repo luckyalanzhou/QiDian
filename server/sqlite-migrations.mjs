@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdir, readFile, readdir, stat } from 'node:fs/promises';
 import { dirname, join, resolve, basename } from 'node:path';
-import { adaptDatabaseSync } from '../scripts/sqlite-adapter.mjs';
+import { adaptDatabaseSync } from './adapters/sqlite-adapter.mjs';
 
 const sqlLiteral = value => `'${String(value).replaceAll("'", "''")}'`;
 

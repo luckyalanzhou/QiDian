@@ -35,6 +35,8 @@ const requestContracts = {
   systemUpdateRequest: value => isObject(value) && value.action === 'update'
 };
 
+export const API_REQUEST_NAMES = Object.freeze(Object.keys(requestContracts));
+
 export function isApiErrorResponse(value) {
   return isObject(value) && isString(value.error)
     && isOptionalString(value, 'code')
@@ -91,6 +93,8 @@ const responseContracts = {
   updateAcceptance: value => isObject(value) && value.accepted === true && isString(value.version),
   updateStatus: isUpdateStatus
 };
+
+export const API_RESPONSE_NAMES = Object.freeze(Object.keys(responseContracts));
 
 export function isApiResponse(name, value) {
   return Object.prototype.hasOwnProperty.call(responseContracts, name) && responseContracts[name](value);

@@ -1,4 +1,4 @@
-import { mountWorkspaceApp } from './workspace-app';
+import { mountWorkspaceApp } from './app/workspace-app';
 
 // Mount one Vue application before its application adapters are initialized.
 if (!mountWorkspaceApp()) {
@@ -9,5 +9,5 @@ if (!mountWorkspaceApp()) {
   document.body.replaceChildren(message);
   throw new Error('Vue 工作区挂载失败：找不到 #qidianVueIslands 容器');
 }
-const { startApplication } = await import('./application.ts');
+const { startApplication } = await import('./app/application.ts');
 await startApplication();

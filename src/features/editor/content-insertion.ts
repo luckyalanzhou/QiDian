@@ -148,6 +148,12 @@ export function createContentInsertionController(dependencies: ContentInsertionD
       return true;
     }
     if (kind === 'markdown') {
+      // Automatic detection should keep Markdown source editable and copyable.
+      // The explicit conversion mode remains available for rich-text editing.
+      if (mode !== 'markdown') {
+        insertPlainDocument(editor, text);
+        return true;
+      }
       const bookmark = editor.state.selection.getBookmark();
       void insertMarkdownDocument(editor, text, bookmark)
         .then(safe => { if (safe && hasRemoteImage(safe)) dependencies.toast('已粘贴远程图片链接；原站可能限制访问，建议上传到私人空间保存'); })

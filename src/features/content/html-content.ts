@@ -117,7 +117,17 @@ export function createHtmlContentTools({
     }
 
     for (const child of input.body.childNodes) copy(child, output);
-    return String(sanitize(output.innerHTML));
+    const safeOutput = parseHTML(String(sanitize(output.innerHTML)));
+    safeOutput.querySelectorAll('a[href]').forEach(anchor => {
+      const href = anchor.getAttribute('href');
+      if (!safeUrl(href)) {
+        anchor.removeAttribute('href');
+        return;
+      }
+      anchor.setAttribute('target', '_blank');
+      anchor.setAttribute('rel', 'noopener noreferrer');
+    });
+    return safeOutput.body.innerHTML;
   }
 
   function plainTextToStructuredHTML(value: unknown, { inferHeadings = true, headingOffset = 1 }: StructuredTextOptions = {}): string {

@@ -1,5 +1,5 @@
 import type { VaultData } from '../../../shared/api-contracts.js';
-import { pruneExpiredTrash, restoreTrashEntry, TRASH_RETENTION_MS } from '../../trash-data.js';
+import { pruneExpiredTrash, restoreTrashEntry, TRASH_RETENTION_MS } from '../../domain/trash-data.js';
 import type { VaultMutationPort } from '../vault/mutation.ts';
 
 type Dependencies = {

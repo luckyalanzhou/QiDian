@@ -24,6 +24,7 @@ type EditorRuntimeDependencies = {
   getInitialContent: () => string;
   getPasteMode: () => string;
   getDraftId: () => string | null;
+  renderMarkdownPreview?: () => string;
   handlePaste: (payload: PastePayload) => boolean | void;
   onUpdate: (context: { editor: Editor; surface: HTMLElement }) => void;
   onSelectionUpdate: (payload: { editor: Editor }) => void;
@@ -48,6 +49,7 @@ export function createEditorRuntimeController({
   getInitialContent,
   getPasteMode,
   getDraftId,
+  renderMarkdownPreview = () => '',
   handlePaste,
   onUpdate,
   onSelectionUpdate,
@@ -78,7 +80,7 @@ export function createEditorRuntimeController({
   async function loadFactory(): Promise<EditorFactory> {
     const currentFactory = getEditorFactory();
     if (currentFactory) return currentFactory;
-    const module = await import('../../editor.js');
+    const module = await import('./editor.js');
     const factory = module.createQidianEditor as EditorFactory;
     setEditorFactory(factory);
     return factory;
@@ -125,6 +127,24 @@ export function createEditorRuntimeController({
       }
     }
     listen(pasteMode, 'change', event => onPasteModeChange((event.currentTarget as HTMLSelectElement).value));
+    const previewButton = getElement('#editorMarkdownPreviewToggle') as HTMLButtonElement | null;
+    const preview = getElement('#editorMarkdownPreview');
+    listen(previewButton, 'click', () => {
+      if (!previewButton || !preview || !surface) return;
+      if (preview.hidden) {
+        preview.innerHTML = renderMarkdownPreview();
+        surface.hidden = true;
+        preview.hidden = false;
+        previewButton.textContent = '继续编辑';
+        previewButton.setAttribute('aria-pressed', 'true');
+      } else {
+        preview.hidden = true;
+        surface.hidden = false;
+        previewButton.textContent = '预览笔记格式';
+        previewButton.setAttribute('aria-pressed', 'false');
+        editor.commands.focus();
+      }
+    });
     listen(getElement('#editorToolbar'), 'mousedown', onToolbarMouseDown);
     onMounted(editor);
 

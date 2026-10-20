@@ -1,12 +1,12 @@
 import type { BookmarkAction, BookmarkBulkDialogState, BookmarkDeleteDialogState, BookmarkDeleteRequest, BookmarkEditorDraft, BookmarkImportDialogState } from './types';
 import type { VaultMutationPort } from '../vault/mutation.ts';
 import { moveBookmark, toggleBookmarkPin } from './operations.ts';
-import { bookmarkId, bookmarksHTML, mergeBookmarks, parseBookmarks } from '../../bookmark-data.js';
+import { bookmarkId, bookmarksHTML, mergeBookmarks, parseBookmarks } from './data.js';
 import { bookmarkURL } from '../../../shared/bookmarks.js';
 import type { BookmarkItem, VaultData } from '../../../shared/api-contracts.js';
 import { bookmarkFolderPaths, bookmarkLinkCount, locateBookmark } from './snapshot.ts';
 import type { BookmarkViewState } from './snapshot.ts';
-import { createTrashEntry } from '../../trash-data.js';
+import { createTrashEntry } from '../../domain/trash-data.js';
 import { validateVault } from '../../../shared/vault-validation.js';
 
 type Dependencies = {
