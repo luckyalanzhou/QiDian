@@ -33,6 +33,8 @@ export const useEditorStore = defineStore('editor', () => {
   const toolbar = ref(emptyToolbar());
   const outline = ref<EditorOutlineItem[]>([]);
   const slashMenu = ref<SlashMenuState>({ visible: false, left: 0, top: 0 });
+  const baseline = ref<string | null>(null);
+  const transientNewNoteId = ref<string | null>(null);
   let runtime: EditorRuntimeActions = { initialize: () => undefined, dispatch: () => undefined };
 
   function sync(next: EditorSession) {
@@ -59,6 +61,18 @@ export const useEditorStore = defineStore('editor', () => {
     slashMenu.value.visible = false;
   }
 
+  function setBaseline(value: string | null) {
+    baseline.value = value;
+  }
+
+  function setTransientNewNoteId(value: string | null) {
+    transientNewNoteId.value = value;
+  }
+
+  function clearTransientNewNote() {
+    transientNewNoteId.value = null;
+  }
+
   function bindRuntime(actions: EditorRuntimeActions) {
     runtime = actions;
   }
@@ -79,5 +93,5 @@ export const useEditorStore = defineStore('editor', () => {
     runtime.formBlurred?.();
   }
 
-  return { active, snapshot, form, toolbar, outline, slashMenu, sync, setToolbarState, setOutline, showSlashMenu, closeSlashMenu, bindRuntime, initialize, dispatch, formChanged, formBlurred };
+  return { active, snapshot, form, toolbar, outline, slashMenu, baseline, transientNewNoteId, sync, setToolbarState, setOutline, showSlashMenu, closeSlashMenu, setBaseline, setTransientNewNoteId, clearTransientNewNote, bindRuntime, initialize, dispatch, formChanged, formBlurred };
 });

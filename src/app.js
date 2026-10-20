@@ -112,7 +112,7 @@ function replaceVault(value){
 }
 function mutateVault(operation){return vaultDataStore.mutate(operation)}
 globalSearchDataStore.configure({bodyText:body=>htmlToCompactText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
-let lastRenderedPage='',editorBaseline=null,unsavedNewNoteId=null,editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null,richEditorDraftId=null;
+let lastRenderedPage='',editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null,richEditorDraftId=null;
 let editorAutosave=null;
 let workspaceReplacementFlow=null;
 let legacyWorkspaceRenderer=null;
@@ -198,7 +198,7 @@ backupHistoryStore.configure({
  restoreSnapshot:revision=>backupWorkflows.restoreSnapshot(revision)
 });
 const noteTypesExpanded=()=>getVault().noteTypesExpanded!==false;
-const {persist,commitPersist}=createVaultPersistence({getVault,getUnsavedNewNoteId:()=>unsavedNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
+const {persist,commitPersist}=createVaultPersistence({getVault,getUnsavedNewNoteId:()=>editorDataStore.transientNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
 const legacyNoteTypeDialog=usesVueWorkspace?null:createLegacyNoteTypeDialog({document,escapeHtml:esc});
 const noteTypeDialogPresenter=createNoteTypeDialogPresenter({getVault,defaultNoteTypes:DEFAULT_NOTE_TYPES,displayTypeName,vueMounted:usesVueWorkspace,vueDialog:noteTypeDialogStore,legacyDialog:legacyNoteTypeDialog,notify:toast});
 const noteTypeDialogOpenFlow=createNoteTypeDialogOpenFlow({closeMenu,isEditing:()=>navigationStore.editing,saveDraft:()=>saveDraft(true),clearAutosave:()=>editorAutosave.clear(),leaveEditor:()=>{navigationStore.editing=false;navigationStore.editingDraft=null},render,openDialog:(mode,id)=>noteTypeDialogPresenter.open(mode,id)});
@@ -222,10 +222,10 @@ const editorDraftController=createEditorDraftController({
  isEditing:()=>navigationStore.editing,
  isDraft:note=>isDraft(note),
  hasDraftContent:note=>hasDraftContent(note),
- getBaseline:()=>editorBaseline,
- setBaseline:value=>{editorBaseline=value},
- getTransientNewNoteId:()=>unsavedNewNoteId,
- clearTransientNewNote:()=>{unsavedNewNoteId=null},
+ getBaseline:()=>editorDataStore.baseline,
+ setBaseline:value=>editorDataStore.setBaseline(value),
+ getTransientNewNoteId:()=>editorDataStore.transientNewNoteId,
+ clearTransientNewNote:()=>editorDataStore.clearTransientNewNote(),
  createPublishedSnapshot:versionOf,
  snapshot:editorContentSnapshot,
   readEditorFields:editorFormAdapter.readEditorFields,
@@ -298,7 +298,7 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
  getNoteId:()=>navigationStore.noteId,
  getEditingDraft:()=>navigationStore.editingDraft,
  prepareEditingDraft:()=>updateDraftFromDOM(),
- isTransientNewNote:id=>unsavedNewNoteId===id,
+ isTransientNewNote:id=>editorDataStore.transientNewNoteId===id,
  isDraft:note=>isDraft(note),
  hasDraftContent:note=>hasDraftContent(note),
  confirm:(message,options)=>confirmAction(message,options),
@@ -310,7 +310,7 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
   mutateVault(vault=>{if(index>=0)vault.notes[index]=saved;else vault.notes.unshift(saved)});
  },
  moveToTrash:id=>noteDeleteWorkflow.moveToTrash(id),
- clearTransientState:()=>{unsavedNewNoteId=null},
+ clearTransientState:()=>editorDataStore.clearTransientNewNote(),
  closeEditor:()=>{navigationStore.editing=false;destroyRichEditor();navigationStore.editingDraft=null;navigationStore.noteId=null},
  openHome:()=>openHome(navigationStore.active)
 });
@@ -322,8 +322,8 @@ workspaceReplacementFlow=createWorkspaceReplacementFlow({
  isEditing:()=>navigationStore.editing,
  clearAutosave:()=>editorAutosave.clear(),
  destroyEditor:destroyRichEditor,
- clearEditorBaseline:()=>{editorBaseline=null},
- clearUnsavedNewNote:()=>{unsavedNewNoteId=null},
+ clearEditorBaseline:()=>editorDataStore.setBaseline(null),
+ clearUnsavedNewNote:()=>editorDataStore.clearTransientNewNote(),
  replaceVault,
  applyTheme:theme=>applyTheme(theme),
  syncBookmarkPreferences,
@@ -331,7 +331,7 @@ workspaceReplacementFlow=createWorkspaceReplacementFlow({
  returnHomePreservingList:()=>workspaceNavigation.returnHomePreservingList(),
  closeBackupHistory:()=>backupHistoryStore.close()
 });
-const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{unsavedNewNoteId=note.id;navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorBaseline=editorContentSnapshot(navigationStore.editingDraft);navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
+const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{editorDataStore.setTransientNewNoteId(note.id);navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorDataStore.setBaseline(editorContentSnapshot(navigationStore.editingDraft));navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
 function addBookmark(folderId=''){openBookmarks();if(usesVueWorkspace)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
 function openTrash(){workspaceNavigation.openTrash()}
@@ -437,10 +437,10 @@ const workspaceContentEvents=usesVueWorkspace?null:createWorkspaceContentEvents(
 });
 function refreshSettingsIndicators(){appSettings.setIndicators({hasConflict:!!getSyncConflict(),hasIgnoredDraft:!!initial.ignoredDraft})}
 onStatus(refreshSettingsIndicators);refreshSettingsIndicators();
-const remoteEditorRefresh=createRemoteEditorRefresh({document,setEditingDraft:note=>{navigationStore.editingDraft=note},setBaseline:value=>{editorBaseline=value},snapshot:editorContentSnapshot,cleanBody:html=>cleanHTML(html,true),getEditor:()=>richEditor,syncToolbarState});
+const remoteEditorRefresh=createRemoteEditorRefresh({document,setEditingDraft:note=>{navigationStore.editingDraft=note},setBaseline:value=>editorDataStore.setBaseline(value),snapshot:editorContentSnapshot,cleanBody:html=>cleanHTML(html,true),getEditor:()=>richEditor,syncToolbarState});
 const remoteVaultUpdateController=createRemoteVaultUpdateController({
  getEditingState:()=>({editing:navigationStore.editing,noteId:navigationStore.noteId,draft:navigationStore.editingDraft}),
- getTransientNewNoteId:()=>unsavedNewNoteId,
+ getTransientNewNoteId:()=>editorDataStore.transientNewNoteId,
  hasLocalEditorChanges:editorHasChanges,
  isDraft,
  hasDraftContent,
@@ -720,7 +720,7 @@ const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
   isEditing:()=>navigationStore.editing,
   toggleCommandPalette:()=>commandPaletteStore.toggle(),
   saveDraft,
-  updateEditorBaseline:()=>{editorBaseline=editorContentSnapshot(navigationStore.editingDraft)},
+  updateEditorBaseline:()=>editorDataStore.setBaseline(editorContentSnapshot(navigationStore.editingDraft)),
   closeSearch,
   closeCapture,
   closeCreateMenu:()=>legacyCreateMenu?.close(),

@@ -27,6 +27,11 @@ test('editor store owns note projection and dispatches typed runtime actions', (
   };
   editor.sync(snapshot);
 
+  editor.setBaseline('baseline-v1');
+  editor.setTransientNewNoteId('transient-note-1');
+  assert.equal(editor.baseline, 'baseline-v1');
+  assert.equal(editor.transientNewNoteId, 'transient-note-1');
+
   assert.equal(editor.active, true);
   assert.equal(editor.snapshot.noteId, 'note-1');
   assert.equal(editor.snapshot.revision, 1);
@@ -41,6 +46,10 @@ test('editor store owns note projection and dispatches typed runtime actions', (
   assert.deepEqual(editor.slashMenu, { visible: true, left: 32, top: 64 });
   editor.closeSlashMenu();
   assert.equal(editor.slashMenu.visible, false, 'the slash menu is controlled by editor state');
+  editor.clearTransientNewNote();
+  editor.setBaseline(null);
+  assert.equal(editor.transientNewNoteId, null);
+  assert.equal(editor.baseline, null);
 
   navigation.editing = false;
   assert.equal(editor.active, false);
