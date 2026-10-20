@@ -61,6 +61,7 @@ import { mountHeadingObserver } from './features/reader/heading-observer.ts';
 import { createCategoryDialogFlow } from './features/categories/category-dialog-flow.ts';
 import { createCategoryDialogController } from './features/categories/category-dialog-controller.ts';
 import { createLegacyCategoryDialog } from './features/categories/legacy-category-dialog.ts';
+import { renderLegacyCategoryOptions } from './features/categories/legacy-option-markup.ts';
 import { createCaptureFlow } from './features/capture/capture-flow.ts';
 import { createCaptureDialogController } from './features/capture/capture-dialog-controller.ts';
 import { createCaptureDialogPresenter } from './features/capture/capture-dialog-presenter.ts';
@@ -493,7 +494,7 @@ function openSyncConflict(){syncConflictController.open()}
 syncConflictStore.bindActions(action=>action==='download-backup'?syncConflictController.downloadBackup():syncConflictController.restoreCloudVersion());
 function nowString(t){return new Date(t).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'})};const fullDate=t=>new Date(t).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'});
 function closeMenu(returnToButton=false){mobileMenuFocusController.close(returnToButton)}
-function categoryOptions(curr){return [...new Set(['未分类',...getVault().categories,curr].filter(Boolean))].map(x=>`<option value="${esc(x)}" ${curr===x?'selected':''}>${esc(x)}</option>`).join('')}
+function categoryOptions(curr){return renderLegacyCategoryOptions(getVault().categories,curr,esc)}
 function setBreadcrumb(s){workspaceShellStore.setBreadcrumbTitle(s)}
 function side(){legacyWorkspaceRenderer?.renderSidebar()}
 function openHome(cat='all'){workspaceNavigation.openHome(cat)}
