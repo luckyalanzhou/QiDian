@@ -75,6 +75,7 @@ import { createReaderActions } from './features/reader/actions.ts';
 import { createDraftContentTools } from './features/notes/draft-content.ts';
 import { createNoteCardSnapshot } from './features/notes/card-snapshot.ts';
 import { createEditorSessionSnapshot, normalizeEditorPasteMode } from './features/editor/session-snapshot.ts';
+import { createSlashMenuController } from './features/editor/slash-menu-controller.ts';
 import { mountWorkspaceLifecycle } from './features/lifecycle/workspace-lifecycle.ts';
 import { mountWorkspaceSession } from './features/lifecycle/workspace-session.ts';
 import { mountWorkspaceInteractionRuntime } from './features/lifecycle/workspace-interaction-runtime.ts';
@@ -649,7 +650,8 @@ const {captureSelection,insertHTML:insertCaptureHTML,insertText:insertCaptureTex
 const contentInsertion=createContentInsertionController({window,document,purifier:DOMPurify,getMode:id=>$('#'+id)?.value||'rich',classifyClipboard,plainTextToDocument,sanitizeMarkdownDocument,loadMarkdownTools,cleanHTML,plainTextToStructuredHTML,safeUrl,escapeHTML:esc,autofillPastedTitle,upload,insertEditorHTML:insertHTML,getEditor:()=>richEditor,insertCaptureHTML,captureSelection,insertCaptureText,toast});
 const attachmentUpload=createAttachmentUploadFlow({upload,insertHTML,escapeHTML:esc,notify:toast});
 function handleEditorPaste(payload){return contentInsertion.handleEditorPaste(payload)}
-function openSlashMenu(){const selection=window.getSelection(),rect=selection?.rangeCount?selection.getRangeAt(0).getBoundingClientRect():null,x=rect?.left||window.innerWidth/2,y=(rect?.bottom||120)+8;editorDataStore.showSlashMenu({left:Math.max(12,Math.min(x,window.innerWidth-260)),top:Math.max(12,Math.min(y,window.innerHeight-355))})}function closeSlashMenu(){editorDataStore.closeSlashMenu()}function openSlashHint(){openSlashMenu()}
+const slashMenuController=createSlashMenuController({window,show:position=>editorDataStore.showSlashMenu(position),close:()=>editorDataStore.closeSlashMenu()});
+function openSlashMenu(){slashMenuController.open()}function closeSlashMenu(){slashMenuController.close()}function openSlashHint(){openSlashMenu()}
 function storeImage(file,destination,bookmark=null,range=null){return contentInsertion.storeImage(file,destination,bookmark,range)}
 function pasteRich(event){return contentInsertion.handleCapturePaste(event)}
 if(usesVueWorkspace)captureDialogStore.bindPasteHandler(pasteRich);
