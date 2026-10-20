@@ -584,7 +584,7 @@ const editorPageLifecycle=createEditorPageLifecycle({
  }
 });
 function initializeEditorView(){return editorPageLifecycle.initialize()}
-const legacyEditorPageController=createLegacyEditorPageController({
+const legacyEditorPageController=usesVueWorkspace?null:createLegacyEditorPageController({
  getFactory:()=>editorFactory,
  setFactory:factory=>{editorFactory=factory},
  loadFactory:()=>import('./editor.js').then(module=>module.createQidianEditor),
@@ -595,7 +595,7 @@ const legacyEditorPageController=createLegacyEditorPageController({
  renderFailure:()=>{main.innerHTML='<div class="empty editor-loading">编辑器加载失败，请刷新后重试。</div>'},
  onLoadError:error=>toast(error?.message||'编辑器加载失败')
 });
-function renderEditorLegacy(){return legacyEditorPageController.render()}
+function renderEditorLegacy(){return legacyEditorPageController?.render()}
 function renderEditorLegacyReady(){destroyRichEditor();const n=ensureDraft();setBreadcrumb(n.title||'新建笔记');const publishLabel=isDraft(n)?'发布笔记':'保存笔记';main.innerHTML=renderLegacyEditorMarkup({note:n,noteTypes:getVault().noteTypes,publishLabel,icons,escapeHtml:esc,displayTypeName,categoryOptions,preferredPasteMode});mountEditorSurface()}
 
 function openTypeDialog(mode,id=null){
