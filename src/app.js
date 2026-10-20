@@ -552,7 +552,7 @@ const editorRuntime=createEditorRuntimeController({
  onFieldChange:()=>{updateDraftFromDOM();scheduleSave()},
  shouldListenToFieldEvents:()=>!usesVueWorkspace,
  onPasteModeChange:mode=>{mutateVault(vault=>{vault.pasteMode=mode});saveDraft(true)},
- onToolbarMouseDown:event=>{if(event.target.closest('button'))event.preventDefault()},
+ onToolbarMouseDown:event=>{ensureEditorCommands().captureToolbarSelection();if(event.target.closest('button, summary'))event.preventDefault()},
  onMounted:editor=>{syncToolbarState(editor);if(!usesVueWorkspace)organizeEditorTools();syncToolbarState(editor);refreshEditorOutline(editor);ensureEditorCommands()},
  onBeforeDestroy:(_editor,draftId)=>{if(navigationStore.editing&&navigationStore.editingDraft&&draftId===navigationStore.editingDraft.id)updateDraftFromDOM()}
 });

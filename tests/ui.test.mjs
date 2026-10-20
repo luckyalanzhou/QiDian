@@ -1828,6 +1828,27 @@ test('contextual editor action removes only the active command block', async () 
   assert.match(editor.getHTML(),/保留在后/);
   } finally { dom.window.close(); }
 });
+test('editor toolbar disclosure preserves the active command block selection', async () => {
+  const { dom, w } = await mount();
+  try {
+    w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+    const editor=w.currentEditor;
+    editor.commands.setContent('<p>保留在前</p><pre><code>docker ps</code></pre><p>保留在后</p>');
+    let codePosition=-1;
+    editor.state.doc.descendants((node,pos)=>{if(node.isText&&node.text==='docker ps')codePosition=pos});
+    editor.commands.setTextSelection({from:codePosition+2,to:codePosition+2});
+    const disclosure=w.document.querySelector('summary[aria-label="更多格式"]');
+    const mouseDown=new w.MouseEvent('mousedown',{bubbles:true,cancelable:true});
+    disclosure.dispatchEvent(mouseDown);
+    assert.equal(mouseDown.defaultPrevented,true,'opening contextual tools must not take focus away from the editor');
+    disclosure.click();
+    assert.equal(disclosure.parentElement.open,true,'the disclosure still opens after preserving the editor selection');
+    w.document.querySelector('[data-editor-action="delete-code-block"]').click();
+    assert.doesNotMatch(editor.getHTML(),/<pre[\s>]/);
+    assert.match(editor.getHTML(),/保留在前/);
+    assert.match(editor.getHTML(),/保留在后/);
+  } finally { dom.window.close(); }
+});
 test('deleting the final table row or column removes the table instead of leaving an undeletable cell', async () => {
   for (const { rows, cols, action } of [
     { rows: 1, cols: 2, action: 'deleteRow' },
@@ -1909,6 +1930,23 @@ test('paragraph and font color controls dispatch typed changes to the active edi
   color.value = '#ff0000';
   color.dispatchEvent(new w.Event('change', { bubbles: true }));
   assert.match(editor.getHTML(), /style="color:\s*(#ff0000|rgb\(255, 0, 0\))/i);
+});
+test('paragraph format restores its selection after the toolbar control takes focus', async t => {
+  const { dom, w } = await mount();
+  t.after(() => dom.window.close());
+  w.document.querySelector('#newSide').click();w.document.querySelector('[data-create-kind="note"]').click();
+  const editor=w.currentEditor;
+  editor.commands.setContent('<p>第一段</p><p>第二段</p><p>第三段</p>');
+  const positions=new Map();
+  editor.state.doc.descendants((node,pos)=>{if(node.isText)positions.set(node.text,pos)});
+  editor.commands.setTextSelection(positions.get('第二段')+1);
+  const block=w.document.querySelector('#blockSelect');
+  block.dispatchEvent(new w.MouseEvent('mousedown',{bubbles:true,cancelable:true}));
+  editor.commands.setTextSelection(positions.get('第三段')+1);
+  block.value='h2';
+  block.dispatchEvent(new w.Event('change',{bubbles:true}));
+  assert.match(editor.getHTML(),/<h2>第二段<\/h2>/);
+  assert.doesNotMatch(editor.getHTML(),/<h2>第三段<\/h2>/);
 });
 test('link toolbar applies a safe link to selected text and unlink preserves the text', async t => {
   const { dom, w } = await mount();
@@ -2096,6 +2134,14 @@ test('account settings keep the footer visible while long dialog content scrolls
   assert.match(styles,/\.account-password-section\{border-top:1px solid var\(--line\);padding-top:12px;margin-top:12px\}/,'profile sections use compact spacing');
   assert.match(styles,/\.bookmark-page \.bookmark-card:focus-within>\.item-menu/);
   assert.match(styles,/@media\(hover:none\), \(max-width:720px\)\{\.bookmark-page \.bookmark-card>\.item-menu,.bookmark-page \.bookmark-section-heading>\.item-menu\{opacity:1\}\}/);
+});
+test('dashboard bookmark SVGs use bounded shared icon wrappers', async () => {
+  const component = await readFile(new URL('../src/features/dashboard/DashboardBookmarkTree.vue', import.meta.url), 'utf8');
+  const styles = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.match(component, /class="dashboard-group-icon"><span class="ico"><svg/, 'folder icons need the shared SVG sizing wrapper');
+  assert.match(component, /class="dashboard-preview-icon"><span class="ico"><svg/, 'bookmark preview icons need the shared SVG sizing wrapper');
+  assert.match(styles, /\.dashboard-group-icon \.ico\{width:17px;height:17px\}/);
+  assert.match(styles, /\.dashboard-preview-icon \.ico\{width:12px;height:12px\}/);
 });
 test('profile settings keep local preview read-only and clear password fields when closed', async () => {
   let requests=0;

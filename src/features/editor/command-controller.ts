@@ -1,5 +1,6 @@
 import type { Editor, JSONContent } from '@tiptap/core';
 import { Fragment } from '@tiptap/pm/model';
+import type { SelectionBookmark } from '@tiptap/pm/state';
 
 export type EditorCommand = 'undo' | 'redo' | 'clear-format' | 'unlink' | 'delete-code-block' | 'delete-callout' | 'convert-table';
 export type ParagraphCommand = 'duplicate' | 'delete' | 'moveUp' | 'moveDown';
@@ -72,10 +73,28 @@ export function parseDelimitedTable(value: unknown): string[][] | null {
 
 export function createEditorCommandController({ getEditor, afterChange, toast }: EditorCommandDependencies) {
   const changed = () => afterChange(getEditor());
+  let toolbarSelection: SelectionBookmark | null = null;
+
+  function captureToolbarSelection() {
+    toolbarSelection = getEditor()?.state.selection.getBookmark() || null;
+  }
+
+  function restoreToolbarSelection(editor: Editor) {
+    const bookmark = toolbarSelection;
+    toolbarSelection = null;
+    if (!bookmark) return;
+    try {
+      const selection = bookmark.resolve(editor.state.doc);
+      if (!selection.eq(editor.state.selection)) editor.view.dispatch(editor.state.tr.setSelection(selection));
+    } catch {
+      // Ignore bookmarks that no longer resolve after an intervening document change.
+    }
+  }
 
   function runEditorAction(action: EditorCommand) {
     const editor = getEditor();
     if (!editor) return;
+    restoreToolbarSelection(editor);
     const chain = focusedChain(editor);
     if (action === 'undo') chain.undo().run();
     else if (action === 'redo') chain.redo().run();
@@ -109,6 +128,7 @@ export function createEditorCommandController({ getEditor, afterChange, toast }:
   function runParagraphAction(action: ParagraphCommand) {
     const editor = getEditor();
     if (!editor) return;
+    restoreToolbarSelection(editor);
     const { $from } = editor.state.selection;
     let depth = $from.depth;
     while (depth > 0 && !$from.node(depth).isTextblock) depth--;
@@ -151,7 +171,9 @@ export function createEditorCommandController({ getEditor, afterChange, toast }:
 
   function runTableAction(action: TableCommand) {
     const editor = getEditor();
-    if (!editor?.isActive('table')) return;
+    if (!editor) return;
+    restoreToolbarSelection(editor);
+    if (!editor.isActive('table')) return;
     const { $from } = editor.state.selection;
     let tableDepth = $from.depth;
     while (tableDepth > 0 && $from.node(tableDepth).type.name !== 'table') tableDepth--;
@@ -172,6 +194,7 @@ export function createEditorCommandController({ getEditor, afterChange, toast }:
   function doFormat(command: FormatCommand, value: string | null = null) {
     const editor = getEditor();
     if (!editor) return;
+    restoreToolbarSelection(editor);
     const chain = focusedChain(editor);
     if (command === 'bold') chain.toggleBold().run();
     else if (command === 'italic') chain.toggleItalic().run();
@@ -193,5 +216,5 @@ export function createEditorCommandController({ getEditor, afterChange, toast }:
     changed();
   }
 
-  return { runEditorAction, runParagraphAction, runTableAction, doFormat };
+  return { captureToolbarSelection, runEditorAction, runParagraphAction, runTableAction, doFormat };
 }

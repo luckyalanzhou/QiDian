@@ -28,7 +28,7 @@ function icon(name: string) {
 <template>
   <details v-if="folder" :class="depth ? 'dashboard-bookmark-branch' : 'dashboard-bookmark-card'" :data-dashboard-folder="folder.id" :open="isOpen">
     <summary class="dashboard-bookmark-group" :data-dashboard-bookmark-folder="folder.id" :aria-expanded="isOpen" @click.prevent.stop="toggleFolder">
-      <span class="dashboard-group-icon"><svg aria-hidden="true"><use :href="icon('folder')" /></svg></span>
+      <span class="dashboard-group-icon"><span class="ico"><svg aria-hidden="true"><use :href="icon('folder')" /></svg></span></span>
       <span class="dashboard-group-copy">
         <strong>{{ folder.title }}</strong>
         <small>{{ folder.linkCount }} 个网址</small>
@@ -43,7 +43,7 @@ function icon(name: string) {
     </div>
   </details>
   <a v-else-if="link" class="dashboard-bookmark-preview-link" :href="link.url" target="_blank" rel="noopener noreferrer" :title="link.url">
-    <span class="dashboard-preview-icon"><svg aria-hidden="true"><use :href="icon('link')" /></svg></span>
+    <span class="dashboard-preview-icon"><span class="ico"><svg aria-hidden="true"><use :href="icon('link')" /></svg></span></span>
     <span class="dashboard-preview-copy">
       <strong>{{ link.title }}</strong>
       <small>{{ link.path }}</small>
