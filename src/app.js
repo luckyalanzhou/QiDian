@@ -27,6 +27,7 @@ import { createEditorRuntimeController } from './features/editor/runtime-control
 import { createEditorPageLifecycle } from './features/editor/page-lifecycle.ts';
 import { createLegacyEditorPageController } from './features/editor/legacy-page-controller.ts';
 import { createEditorHtmlInserter } from './features/editor/html-inserter.ts';
+import { createEditorPagePreparation } from './features/editor/page-preparation.ts';
 import { createEditorOutlineController } from './features/editor/outline-controller.ts';
 import { createLegacyEditorOutlineView } from './features/editor/legacy-editor-outline-view.ts';
 import { createNotePublishFlow } from './features/editor/note-publish-flow.ts';
@@ -528,7 +529,8 @@ legacyWorkspaceRenderer=usesVueWorkspace?null:createLegacyWorkspaceRenderer({
  enabled:false,notify:toast
 });
 function ensureDraft(){return editorDraftController.ensureDraft()}
-function prepareVueEditorPage(){destroyRichEditor();const note=ensureDraft(),vault=getVault();editorDataStore.sync(editorSessionSnapshot({note,noteTypes:vault.noteTypes,categories:vault.categories,pasteMode:preferredPasteMode()}))}
+const editorPagePreparation=createEditorPagePreparation({destroyEditor:destroyRichEditor,ensureDraft,getOptions:()=>({noteTypes:getVault().noteTypes,categories:getVault().categories}),getPasteMode:preferredPasteMode,createSession:input=>editorSessionSnapshot(input),sync:session=>editorDataStore.sync(session)});
+function prepareVueEditorPage(){editorPagePreparation.prepare()}
 function renderEditor(){if(!usesVueWorkspace){renderEditorLegacy();return}prepareVueEditorPage()}
 function hasVueEditorActions(){return usesVueWorkspace}
 const editorRuntime=createEditorRuntimeController({
