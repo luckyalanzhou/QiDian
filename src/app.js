@@ -74,6 +74,7 @@ import { createReaderSnapshot } from './features/reader/snapshot.ts';
 import { createReaderActions } from './features/reader/actions.ts';
 import { createDraftContentTools } from './features/notes/draft-content.ts';
 import { createNoteCardSnapshot } from './features/notes/card-snapshot.ts';
+import { createEditorSessionSnapshot, normalizeEditorPasteMode } from './features/editor/session-snapshot.ts';
 import { mountWorkspaceLifecycle } from './features/lifecycle/workspace-lifecycle.ts';
 import { mountWorkspaceSession } from './features/lifecycle/workspace-session.ts';
 import { mountWorkspaceInteractionRuntime } from './features/lifecycle/workspace-interaction-runtime.ts';
@@ -499,6 +500,7 @@ function openDashboard(){workspaceNavigation.openDashboard()}
 function openNote(id,forceEdit=false){workspaceNavigation.openNote(id,forceEdit)}
 function backFromNotePage(){workspaceNavigation.backFromNote()}
 const noteCardSnapshot=createNoteCardSnapshot({typeName:typeLabel,bodyText:noteBodyText,formatDate:nowString});
+const editorSessionSnapshot=createEditorSessionSnapshot({displayTypeName,isDraft});
 function readerSnapshot(stored,working,n){return createReaderSnapshot({document,stored,note:n,working,previewing:navigationStore.previewing,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish})}
 readerDataStore.configure({document,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish,publishedView});
 function listNotes(q=''){return selectNotes(getVault().notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
@@ -520,8 +522,7 @@ legacyWorkspaceRenderer=usesVueWorkspace?null:createLegacyWorkspaceRenderer({
  enabled:false,notify:toast
 });
 function ensureDraft(){return editorDraftController.ensureDraft()}
-function editorSnapshot(note){return {noteId:note.id,title:note.title||'',type:note.type,category:note.category||'未分类',tags:(note.tags||[]).join(', '),source:note.source||'',noteTypes:getVault().noteTypes.map(type=>({id:type.id,label:displayTypeName(type)})),categories:[...getVault().categories],publishLabel:isDraft(note)?'发布笔记':'保存笔记',pasteMode:preferredPasteMode()}}
-function prepareVueEditorPage(){destroyRichEditor();const note=ensureDraft();editorDataStore.sync(editorSnapshot(note))}
+function prepareVueEditorPage(){destroyRichEditor();const note=ensureDraft(),vault=getVault();editorDataStore.sync(editorSessionSnapshot({note,noteTypes:vault.noteTypes,categories:vault.categories,pasteMode:preferredPasteMode()}))}
 function renderEditor(){if(!usesVueWorkspace){renderEditorLegacy();return}prepareVueEditorPage()}
 function hasVueEditorActions(){return usesVueWorkspace}
 const editorRuntime=createEditorRuntimeController({
@@ -642,7 +643,7 @@ function insertHTML(html){if(!richEditor)return;richEditor.chain().focus().inser
 function doFormat(cmd,arg=null){if(!richEditor)return;return ensureEditorCommands().doFormat(cmd,arg)}
 const editorInsertController=createEditorInsertController({getEditor:()=>richEditor,insertHTML,openImagePicker:()=>$('#imageFile').click(),prompt:promptAction,format:(command,value)=>doFormat(command,value),afterChange:editor=>{updateDraftFromDOM();scheduleSave();syncToolbarState(editor);refreshEditorOutline(editor)},safeUrl,escapeHTML:esc,toast});
 async function doInsert(kind){return editorInsertController.insert(kind)}
-function preferredPasteMode(){return ['rich','match','markdown','plain'].includes(getVault().pasteMode)?getVault().pasteMode:'rich'}
+function preferredPasteMode(){return normalizeEditorPasteMode(getVault().pasteMode)}
 const captureDOM=createCaptureDOMAdapter({window,document,getPad:()=>$('#capturePad')});
 const {captureSelection,insertHTML:insertCaptureHTML,insertText:insertCaptureText}=captureDOM;
 const contentInsertion=createContentInsertionController({window,document,purifier:DOMPurify,getMode:id=>$('#'+id)?.value||'rich',classifyClipboard,plainTextToDocument,sanitizeMarkdownDocument,loadMarkdownTools,cleanHTML,plainTextToStructuredHTML,safeUrl,escapeHTML:esc,autofillPastedTitle,upload,insertEditorHTML:insertHTML,getEditor:()=>richEditor,insertCaptureHTML,captureSelection,insertCaptureText,toast});
