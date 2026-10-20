@@ -269,6 +269,14 @@ export function createHtmlContentTools({
     return visit(root).replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   }
 
+  function htmlToCompactText(html: unknown): string {
+    const holder = document.createElement('div');
+    holder.innerHTML = String(html || '');
+    holder.querySelectorAll('br').forEach(node => node.replaceWith(' '));
+    holder.querySelectorAll('p,div,li,blockquote,pre,h1,h2,h3,h4,h5,h6,tr').forEach(node => node.append(' '));
+    return (holder.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
   function readableNoteBody(body: unknown, title = ''): ReadableNoteBody {
     const safe = cleanHTML(body, true);
     const holder = document.createElement('div');
@@ -307,5 +315,5 @@ export function createHtmlContentTools({
     return '';
   }
 
-  return { safeUrl, cleanHTML, plainTextToStructuredHTML, textWithBlockBreaks, readableNoteBody, extractPastedTitle };
+  return { safeUrl, cleanHTML, plainTextToStructuredHTML, textWithBlockBreaks, htmlToCompactText, readableNoteBody, extractPastedTitle };
 }

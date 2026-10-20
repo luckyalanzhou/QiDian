@@ -78,3 +78,14 @@ test('readable note conversion avoids duplicate titles and pasted title extracti
     dom.window.close();
   }
 });
+
+test('compact HTML text keeps word boundaries between blocks and line breaks', () => {
+  const { dom, tools } = createTools();
+  try {
+    assert.equal(tools.htmlToCompactText('<p>第一段</p><p>第二段<br>续行</p><ul><li>条目</li></ul>'), '第一段 第二段 续行 条目');
+    assert.equal(tools.htmlToCompactText('  普通&nbsp;文本  '), '普通 文本');
+    assert.equal(tools.htmlToCompactText(''), '');
+  } finally {
+    dom.window.close();
+  }
+});

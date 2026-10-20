@@ -90,8 +90,7 @@ const usesVueWorkspace=IS_PRODUCTION_BUILD||workspaceAppMounted;
 const navigationStore=workspaceNavigationStore;
 const icons=name=>`<span class="ico"><svg aria-hidden="true"><use href="#i-${name}"/></svg></span>`;
 const $=sel=>document.querySelector(sel);const main=$('#main');const displayTypeName=type=>type.id==='clip'&&type.name==='网页收藏'?'网页摘录':type.name;const typeLabel=id=>{const type=getVault().noteTypes.find(x=>x.id===id);return type?displayTypeName(type):'其他类型'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const tinyText=s=>{let box=document.createElement('div');box.innerHTML=s;box.querySelectorAll('br').forEach(node=>node.replaceWith(' '));box.querySelectorAll('p,div,li,blockquote,pre,h1,h2,h3,h4,h5,h6,tr').forEach(node=>node.append(' '));return (box.textContent||'').replace(/\s+/g,' ').trim()};
-const {safeUrl,cleanHTML,plainTextToStructuredHTML,textWithBlockBreaks,readableNoteBody,extractPastedTitle}=createHtmlContentTools({document,sanitize:html=>DOMPurify.sanitize(html),parseHTML:html=>new DOMParser().parseFromString(html,'text/html'),escapeHtml:esc,looksLikeMarkdown});
+const {safeUrl,cleanHTML,plainTextToStructuredHTML,textWithBlockBreaks,htmlToCompactText,readableNoteBody,extractPastedTitle}=createHtmlContentTools({document,sanitize:html=>DOMPurify.sanitize(html),parseHTML:html=>new DOMParser().parseFromString(html,'text/html'),escapeHtml:esc,looksLikeMarkdown});
 const {editorContentSnapshot,hasDraftContent}=createDraftContentTools({cleanHTML,parseHTML:html=>new DOMParser().parseFromString(html,'text/html')});
 vaultDataStore.replace({ ...initial.data, noteTypes: initial.data.noteTypes || structuredClone(DEFAULT_NOTE_TYPES), trash: initial.data.trash || [] }); setOwner(initial.owner);
 function getVault(){
@@ -104,7 +103,7 @@ function replaceVault(value){
  return vaultDataStore.replace(normalized);
 }
 function mutateVault(operation){return vaultDataStore.mutate(operation)}
-globalSearchDataStore.configure({bodyText:body=>tinyText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
+globalSearchDataStore.configure({bodyText:body=>htmlToCompactText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
 let lastRenderedPage='',editorBaseline=null,unsavedNewNoteId=null,editorFactory=window.__qidianTestEditorFactory||null,editorLoading=null,richEditor=null,editorCommands=null,richEditorDraftId=null;
 let editorAutosave=null;
 let workspaceReplacementFlow=null;
@@ -273,7 +272,7 @@ const bookmarkMutationActions=createBookmarkMutationActions({
 const categoryDialogFlow=createCategoryDialogFlow({getVault,mutateVault:vaultMutation});
 const legacyCategoryDialog=usesVueWorkspace?null:createLegacyCategoryDialog({document,scheduleFocus:callback=>setTimeout(callback,50)});
 const categoryDialogController=createCategoryDialogController({closeMenu,vueMounted:usesVueWorkspace,vueDialog:categoryDialogStore,legacyDialog:legacyCategoryDialog,save:name=>categoryDialogFlow.save(name),onCreated:name=>openHome(name)});
-const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>tinyText(html)});
+const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>htmlToCompactText(html)});
 const legacyCaptureDialog=usesVueWorkspace?null:createLegacyCaptureDialog({document,escapeHtml:esc});
 const captureDialogController=createCaptureDialogController({save:input=>captureFlow.save(input),openNote:id=>openNote(id),legacyDialog:legacyCaptureDialog,notify:toast});
 const captureDialogPresenter=createCaptureDialogPresenter({closeMenu,vueMounted:usesVueWorkspace,getTypes:()=>getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),getCategories:()=>getVault().categories,getPasteMode:preferredPasteMode,getLegacyCategoryOptions:()=>categoryOptions('网页摘录'),vueDialog:captureDialogStore,legacyDialog:legacyCaptureDialog});
@@ -473,12 +472,12 @@ const snapshotCurrentVault=createCurrentVaultSnapshot({
   },
   notify:toast
  });
-function noteBodyText(body,title=''){return tinyText(readableNoteBody(body,title).html)}
+function noteBodyText(body,title=''){return htmlToCompactText(readableNoteBody(body,title).html)}
 const autofillPastedTitle=createPastedTitleAutofill({document,extractPastedTitle});
 const syncConflictController=createSyncConflictController({
  store:syncConflictStore,
  getConflict:getSyncConflict,
- getPreviewText:html=>tinyText(cleanHTML(html,false)),
+ getPreviewText:html=>htmlToCompactText(cleanHTML(html,false)),
  prepareEditor:()=>{if(navigationStore.editing&&navigationStore.editingDraft){editorAutosave.clear();updateDraftFromDOM();saveDraft(true)}},
  exportConflict:exportSyncConflict,
  confirmRestore:()=>confirmAction('已下载修改对照备份。继续载入已保存版本？',{title:'载入已保存版本',confirmText:'载入'}),
