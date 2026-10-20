@@ -208,6 +208,7 @@ test('web updates use a limited host agent, verify the public release checksum, 
   const updater = await read('../../../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh');
   const init = await read('../../../packaging/istoreos/luci-app-qidian/root/etc/init.d/qidian-updater');
   const dockerfile = await read('../../../Dockerfile');
+  const dockerignore = await read('../../../.dockerignore');
 
   assert.match(updater, /api\.github\.com\/repos\/\$REPOSITORY\/releases\/latest/);
   assert.match(updater, /@\.assets\[@\.label='\$asset_label'\]/);
@@ -233,9 +234,17 @@ test('web updates use a limited host agent, verify the public release checksum, 
   assert.doesNotMatch(compose, /docker\.sock/);
   assert.match(dockerfile, /ARG QIDIAN_VERSION/);
   assert.match(dockerfile, /FROM --platform=\$BUILDPLATFORM node:24-bookworm-slim AS build/);
-  assert.match(dockerfile, /--mount=type=cache,id=pnpm-store,target=\/pnpm\/store/);
-  assert.match(dockerfile, /pnpm install --frozen-lockfile --prefer-offline/);
-  assert.match(dockerfile, /COPY --from=build --chown=node:node \/app\/shared \.\/shared/);
+  assert.match(dockerfile, /FROM gcr\.io\/distroless\/nodejs24-debian13:nonroot AS runtime/);
+  assert.ok(dockerfile.indexOf('RUN pnpm fetch --frozen-lockfile') < dockerfile.indexOf('COPY package.json ./'), 'fetch dependencies before copying the versioned package manifest');
+  assert.match(dockerfile, /pnpm install --offline --frozen-lockfile/);
+  assert.match(dockerfile, /COPY --chown=1000:1000 server \.\/server/);
+  assert.match(dockerfile, /COPY --from=build --chown=1000:1000 \/qidian-runtime\/data \/data/);
+  assert.match(dockerfile, /COPY --from=build --chown=0:0 \/qidian-runtime\/run\/qidian-update-status \/run\/qidian-update-status/);
+  assert.match(dockerfile, /USER 1000:1000/);
+  assert.match(dockerfile, /\/nodejs\/bin\/node/);
+  assert.match(dockerignore, /^\*\*$/m);
+  assert.match(dockerignore, /^!src\/\*\*$/m);
+  assert.doesNotMatch(dockerignore, /^!tests(?:\/|$)/m);
 });
 
 test('generic Docker install uses a device-managed named volume and has no host updater privileges', async () => {
