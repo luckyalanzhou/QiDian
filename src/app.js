@@ -113,7 +113,7 @@ function replaceVault(value){
 }
 function mutateVault(operation){return vaultDataStore.mutate(operation)}
 globalSearchDataStore.configure({bodyText:body=>htmlToCompactText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
-let editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null,richEditorDraftId=null;
+let editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null;
 let editorAutosave=null;
 let workspaceReplacementFlow=null;
 let legacyWorkspaceRenderer=null;
@@ -513,7 +513,7 @@ readerDataStore.configure({document,readableNoteBody,typeLabel,formatDate:fullDa
 function listNotes(q=''){return selectNotes(getVault().notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
 function moveNoteToTrash(id){return noteDeleteWorkflow.moveToTrash(id)}
 let legacyEditorOutlineView=null;
-function destroyRichEditor(){if(richEditor){editorRuntime.destroy();richEditorDraftId=null}legacyEditorOutlineView?.dispose()}
+function destroyRichEditor(){if(richEditor)editorRuntime.destroy();legacyEditorOutlineView?.dispose()}
 const editorOutlineController=createEditorOutlineController({getEditor:()=>richEditor,setOutline:items=>editorDataStore.setOutline(items)});
 legacyEditorOutlineView=usesVueWorkspace?null:createLegacyEditorOutlineView({document,main});
 function refreshEditorOutline(editor=richEditor){editorOutlineController.sync(editor);if(!usesVueWorkspace)legacyEditorOutlineView?.render(editor)}
@@ -553,8 +553,8 @@ const editorRuntime=createEditorRuntimeController({
  shouldListenToFieldEvents:()=>!usesVueWorkspace,
  onPasteModeChange:mode=>{mutateVault(vault=>{vault.pasteMode=mode});saveDraft(true)},
  onToolbarMouseDown:event=>{if(event.target.closest('button'))event.preventDefault()},
- onMounted:editor=>{richEditorDraftId=ensureDraft().id;syncToolbarState(editor);if(!usesVueWorkspace)organizeEditorTools();syncToolbarState(editor);refreshEditorOutline(editor);ensureEditorCommands()},
- onBeforeDestroy:(_editor,draftId)=>{if(navigationStore.editing&&navigationStore.editingDraft&&draftId===navigationStore.editingDraft.id)updateDraftFromDOM();richEditorDraftId=null}
+ onMounted:editor=>{syncToolbarState(editor);if(!usesVueWorkspace)organizeEditorTools();syncToolbarState(editor);refreshEditorOutline(editor);ensureEditorCommands()},
+ onBeforeDestroy:(_editor,draftId)=>{if(navigationStore.editing&&navigationStore.editingDraft&&draftId===navigationStore.editingDraft.id)updateDraftFromDOM()}
 });
 function ensureEditorCommands(){
  if(!editorCommands)editorCommands=createEditorCommandController({getEditor:()=>richEditor,afterChange:editor=>{if(!editor)return;updateDraftFromDOM();scheduleSave();syncToolbarState(editor);refreshEditorOutline(editor)},toast});
