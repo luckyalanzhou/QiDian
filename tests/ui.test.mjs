@@ -479,6 +479,8 @@ test('topbar version badge shows release details and the unified action refreshe
   assert.equal(initialOptions.updateRequests,1);
   assert.match(w.document.querySelector('#versionState').textContent,/已提交/);
   assert.match(w.document.querySelector('#updateProgressLog').textContent,/发现新版本 v0\.1\.6/);
+  w.document.querySelector('#versionInfoOverlay [data-close="versionInfoOverlay"]').click();
+  assert.equal(w.document.querySelector('#versionInfoOverlay').classList.contains('open'),false,'the close button dismisses the version dialog in the Vue workspace');
   dom.window.close();
 });
 test('version details reuse the startup release check and refresh cached information without blocking the dialog', async () => {

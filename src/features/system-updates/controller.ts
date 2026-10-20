@@ -482,6 +482,7 @@ export function createSystemUpdateController(dependencies: Dependencies) {
   function handleClick(event: MouseEvent) {
     const target = event.target as Element | null;
     if (!target?.closest) return;
+    if (target.closest('[data-close="versionInfoOverlay"]')) { closeVersionInfo(); return; }
     if (target.closest('#versionButton')) { void openVersionInfo(); return; }
     if (target.closest('#checkAndUpdateVersion')) void checkAndUpdateVersion();
   }
