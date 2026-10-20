@@ -1,5 +1,6 @@
 export type WorkspaceStaticDomEventsDependencies = {
   closeCapture: () => void;
+  closeCreateMenu: () => void;
   handleCapturePaste: (event: ClipboardEvent) => unknown;
   saveCategory: () => unknown;
   saveNoteType: () => unknown;
@@ -23,7 +24,7 @@ export function mountWorkspaceStaticDomEvents(
 
   const preventSlashMenuBlur = (event: Event) => event.preventDefault();
   const closeCreateOverlay = (event: Event) => {
-    if (element(event.target)?.id === 'createOverlay') element(event.target)?.classList.remove('open');
+    if (element(event.target)?.id === 'createOverlay') dependencies.closeCreateMenu();
   };
   const handleTypeDialogKeydown = (event: Event) => {
     const keyboard = event as KeyboardEvent;

@@ -5,6 +5,7 @@ export type WorkspaceKeyboardActions = {
   updateEditorBaseline: () => void;
   closeSearch: () => void;
   closeCapture: () => void;
+  closeCreateMenu: () => void;
   closeBackupHistory: () => void;
   closeAccountSettings: () => void;
   closeThemeMenu: () => void;
@@ -37,7 +38,7 @@ export function mountWorkspaceKeyboardEvents(
       document.querySelectorAll<HTMLDetailsElement>('.item-menu[open]').forEach(menu => { menu.open = false; });
       actions.closeSearch();
       actions.closeCapture();
-      document.querySelector('#createOverlay')?.classList.remove('open');
+      actions.closeCreateMenu();
       document.querySelector('#typeOverlay')?.classList.remove('open');
       actions.closeAccountSettings();
       actions.closeBackupHistory();

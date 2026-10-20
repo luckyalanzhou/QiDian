@@ -14,6 +14,7 @@ test('workspace keyboard events route the command palette, save, escape, and not
     updateEditorBaseline: () => calls.push('baseline'),
     closeSearch: () => calls.push('close-search'),
     closeCapture: () => calls.push('close-capture'),
+    closeCreateMenu: () => calls.push('close-create-menu'),
     closeBackupHistory: () => calls.push('close-backup-history'),
     closeAccountSettings: () => calls.push('close-account-settings'),
     closeThemeMenu: () => calls.push('close-theme'),
@@ -36,8 +37,8 @@ test('workspace keyboard events route the command palette, save, escape, and not
   const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
   document.dispatchEvent(escape);
   assert.equal(document.querySelector('.item-menu').open, false);
-  assert.deepEqual(calls.slice(-8), [
-    'close-search', 'close-capture', 'close-account-settings', 'close-backup-history', 'close-theme',
+  assert.deepEqual(calls.slice(-9), [
+    'close-search', 'close-capture', 'close-create-menu', 'close-account-settings', 'close-backup-history', 'close-theme',
     'close-account', 'close-workspace-menu', 'close-slash'
   ]);
 
@@ -60,7 +61,7 @@ test('workspace shortcuts leave browser defaults intact outside their actions', 
   mountWorkspaceKeyboardEvents(document, {
     isEditing: () => false,
     toggleCommandPalette: () => calls.push('palette'), saveDraft: () => calls.push('save'), updateEditorBaseline: () => calls.push('baseline'),
-    closeSearch() {}, closeCapture() {}, closeBackupHistory() {}, closeAccountSettings() {}, closeThemeMenu() {}, closeAccountMenu() {}, closeWorkspaceMenu() {}, closeSlashMenu() {}, openNote: id => calls.push(id)
+    closeSearch() {}, closeCapture() {}, closeCreateMenu() {}, closeBackupHistory() {}, closeAccountSettings() {}, closeThemeMenu() {}, closeAccountMenu() {}, closeWorkspaceMenu() {}, closeSlashMenu() {}, openNote: id => calls.push(id)
   });
   const save = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true });
   document.dispatchEvent(save);

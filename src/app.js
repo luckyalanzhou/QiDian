@@ -65,6 +65,7 @@ import { renderLegacyCategoryOptions } from './features/categories/legacy-option
 import { createCaptureFlow } from './features/capture/capture-flow.ts';
 import { createCaptureDialogController } from './features/capture/capture-dialog-controller.ts';
 import { createCaptureDialogPresenter } from './features/capture/capture-dialog-presenter.ts';
+import { createLegacyCreateMenu } from './features/create-menu/legacy-create-menu.ts';
 import { createCaptureDOMAdapter } from './features/capture/capture-dom-adapter.ts';
 import { createLegacyCaptureDialog } from './features/capture/legacy-capture-dialog.ts';
 import { createHtmlContentTools } from './features/content/html-content.ts';
@@ -332,6 +333,7 @@ const newNoteController=createNewNoteController({getContext:()=>({editing:naviga
 function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
 function addBookmark(folderId=''){openBookmarks();if(usesVueWorkspace)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
 function openTrash(){workspaceNavigation.openTrash()}
+const legacyCreateMenu=usesVueWorkspace?null:createLegacyCreateMenu({document,icons});
 const workspaceNavigationActions=createWorkspaceNavigationActions({
  navigation:workspaceNavigation,
  isEditing:()=>navigationStore.editing,
@@ -340,7 +342,7 @@ const workspaceNavigationActions=createWorkspaceNavigationActions({
  addBookmark,
  openCreateMenu,
  createNew,
-  createFromMenu:kind=>{if(usesVueWorkspace)createMenuStore.closeForNavigation();$('#createOverlay')?.classList.remove('open');if(kind==='bookmark')addBookmark();else if(kind==='capture')openCapture({restoreFocusOnClose:false});else createNew()},
+  createFromMenu:kind=>{if(usesVueWorkspace)createMenuStore.closeForNavigation();legacyCreateMenu?.close();if(kind==='bookmark')addBookmark();else if(kind==='capture')openCapture({restoreFocusOnClose:false});else createNew()},
  createQuickImage:()=>{createNew('note');setTimeout(()=>$('#imageFile').click(),250)},
  closeSearch
 });
@@ -667,7 +669,7 @@ function downloadBackupSnapshot(revision){return backupWorkflows.downloadSnapsho
 function restoreBackupSnapshot(revision){return backupWorkflows.restoreSnapshot(revision)}
 function exportJSON(){return backupWorkflows.exportFullBackup()}
 function importJSON(file){return backupWorkflows.importBackup(file)}
-function openCreateMenu(){closeMenu();if(usesVueWorkspace){createMenuStore.open();return}if(!$('#createOverlay'))document.body.insertAdjacentHTML('beforeend',`<div class="overlay" id="createOverlay"><section class="dialog create-dialog" role="dialog" aria-modal="true" aria-labelledby="createTitle"><div class="dialog-head"><h2 id="createTitle">新建</h2><button class="round-btn" data-close="createOverlay" aria-label="关闭">${icons('close')}</button></div><div class="dialog-body create-options"><button data-create-kind="note">${icons('note')}<span><strong>笔记</strong><small>记录内容、命令与图片</small></span></button><button data-create-kind="bookmark">${icons('link')}<span><strong>书签</strong><small>保存网址并选择分组</small></span></button><button data-create-kind="capture">${icons('clip')}<span><strong>网页摘录</strong><small>将复制的内容整理为笔记</small></span></button></div></section></div>`);$('#createOverlay').classList.add('open');$('#createOverlay [data-create-kind]').focus()}
+function openCreateMenu(){closeMenu();if(usesVueWorkspace){createMenuStore.open();return}legacyCreateMenu?.open()}
 function openSearch(query=''){globalSearchDataStore.show(query)};function closeSearch(){globalSearchDataStore.close()}
 function toast(s){notificationDataStore.show(s)}
 function closeAccountMenu(){workspaceShellStore.closeAccountMenu()}
@@ -686,7 +688,7 @@ workspaceShellStore.setIdentity(initial.username||'本地预览',!!initial.local
 if(!initial.local)void profileSettings.refresh().catch(()=>{});
 const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
  document,window,
- staticDom:usesVueWorkspace?null:{closeCapture,handleCapturePaste:pasteRich,saveCategory,saveNoteType:saveTypeDialog},
+ staticDom:usesVueWorkspace?null:{closeCapture,closeCreateMenu:()=>legacyCreateMenu?.close(),handleCapturePaste:pasteRich,saveCategory,saveNoteType:saveTypeDialog},
  editorLifecycle:{isEditing:()=>navigationStore.editing,hasEditorChanges:editorHasChanges,saveDraft,hasUnsavedChanges:hasUnsaved},
  routeHandlers:[
   ...(usesVueWorkspace?[]:[event=>workspaceNavigationEvents.handle(event)]),
@@ -707,6 +709,7 @@ const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
   updateEditorBaseline:()=>{editorBaseline=editorContentSnapshot(navigationStore.editingDraft)},
   closeSearch,
   closeCapture,
+  closeCreateMenu:()=>legacyCreateMenu?.close(),
   closeBackupHistory:()=>backupHistoryStore.close(),
   closeAccountSettings,
   closeThemeMenu,
