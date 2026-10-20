@@ -25,6 +25,7 @@ import { createLegacyEditorToolbarView } from './features/editor/legacy-toolbar-
 import { createEditorInsertController } from './features/editor/insert-controller.ts';
 import { createEditorRuntimeController } from './features/editor/runtime-controller.ts';
 import { createEditorPageLifecycle } from './features/editor/page-lifecycle.ts';
+import { createLegacyEditorPageController } from './features/editor/legacy-page-controller.ts';
 import { createEditorOutlineController } from './features/editor/outline-controller.ts';
 import { createLegacyEditorOutlineView } from './features/editor/legacy-editor-outline-view.ts';
 import { createNotePublishFlow } from './features/editor/note-publish-flow.ts';
@@ -110,7 +111,7 @@ function replaceVault(value){
 }
 function mutateVault(operation){return vaultDataStore.mutate(operation)}
 globalSearchDataStore.configure({bodyText:body=>htmlToCompactText(body),typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
-let lastRenderedPage='',editorBaseline=null,unsavedNewNoteId=null,editorFactory=window.__qidianTestEditorFactory||null,editorLoading=null,richEditor=null,editorCommands=null,richEditorDraftId=null;
+let lastRenderedPage='',editorBaseline=null,unsavedNewNoteId=null,editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null,richEditorDraftId=null;
 let editorAutosave=null;
 let workspaceReplacementFlow=null;
 let legacyWorkspaceRenderer=null;
@@ -580,8 +581,19 @@ const editorPageLifecycle=createEditorPageLifecycle({
  }
 });
 function initializeEditorView(){return editorPageLifecycle.initialize()}
-function renderEditorLegacy(){if(!editorFactory){if(!editorLoading){main.innerHTML='<div class="empty editor-loading">正在加载富文本编辑器…</div>';editorLoading=import('./editor.js').then(module=>{editorFactory=module.createQidianEditor;editorLoading=null;if(navigationStore.editing&&navigationStore.page==='note'){renderEditor();setTimeout(()=>$('#editTitle')?.focus(),0)}}).catch(error=>{editorLoading=null;main.innerHTML='<div class="empty editor-loading">编辑器加载失败，请刷新后重试。</div>';toast(error.message||'编辑器加载失败')})}return}destroyRichEditor();const n=ensureDraft();setBreadcrumb(n.title||'新建笔记');const publishLabel=isDraft(n)?'发布笔记':'保存笔记';main.innerHTML=renderLegacyEditorMarkup({note:n,noteTypes:getVault().noteTypes,publishLabel,icons,escapeHtml:esc,displayTypeName,categoryOptions,preferredPasteMode});mountEditorSurface();
-}
+const legacyEditorPageController=createLegacyEditorPageController({
+ getFactory:()=>editorFactory,
+ setFactory:factory=>{editorFactory=factory},
+ loadFactory:()=>import('./editor.js').then(module=>module.createQidianEditor),
+ isActive:()=>navigationStore.editing&&navigationStore.page==='note',
+ renderLoading:()=>{main.innerHTML='<div class="empty editor-loading">正在加载富文本编辑器…</div>'},
+ renderPage:renderEditorLegacyReady,
+ focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),0),
+ renderFailure:()=>{main.innerHTML='<div class="empty editor-loading">编辑器加载失败，请刷新后重试。</div>'},
+ onLoadError:error=>toast(error?.message||'编辑器加载失败')
+});
+function renderEditorLegacy(){return legacyEditorPageController.render()}
+function renderEditorLegacyReady(){destroyRichEditor();const n=ensureDraft();setBreadcrumb(n.title||'新建笔记');const publishLabel=isDraft(n)?'发布笔记':'保存笔记';main.innerHTML=renderLegacyEditorMarkup({note:n,noteTypes:getVault().noteTypes,publishLabel,icons,escapeHtml:esc,displayTypeName,categoryOptions,preferredPasteMode});mountEditorSurface()}
 
 function openTypeDialog(mode,id=null){
  noteTypeDialogOpenFlow.open(mode,id);
