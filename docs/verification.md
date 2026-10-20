@@ -4,17 +4,9 @@
 
 ## 自动化验证
 
-GitHub Actions 执行源码检查、测试、前端构建和 Docker 验证。
+开发验收运行 `pnpm check`、`pnpm test` 和 `pnpm build`。同一个 GitHub Actions 工作流会在面向 `main` 的 Pull Request 上运行这些检查及 amd64 容器 smoke test；手动 `workflow_dispatch` 则始终是正式发布流程，检查通过后继续发布镜像、安装包和 Release，没有手动验证模式。
 
-2026-10-16 数据事务、附件维护与发布流程优化后的验证结果：
-
-| 项目 | 结果 | 覆盖范围 |
-|---|---|---|
-| `pnpm check` | 通过 | 递归检查 `src/`、`server/`、`scripts/` 和 `tests/` 下 42 个 JavaScript / MJS 文件 |
-| `pnpm test` | 183/183 通过 | SQLite、账号、事务确认、附件回收、编辑器、书签、更新代理、`.run` 发布配置与 LuCI 管理脚本 |
-| `pnpm build` | 通过 | Vite 生产资源构建，最大编辑器扩展块 460.82 kB（gzip 145.53 kB） |
-
-编辑器扩展已使用动态导入，当前生产块低于 Vite 的 500 kB 提示阈值。是否继续拆分应以真实设备的首次打开时间和缓存命中数据为依据。
+验证结果应记录执行日期、命令、通过数量和环境，并明确区分自动化测试、桌面浏览器、手机实机与 Docker/iStoreOS 验收。历史迁移记录不代表当前分支已经重新执行过相同检查。
 
 ## 自动化覆盖
 
@@ -60,6 +52,7 @@ GitHub Actions 执行源码检查、测试、前端构建和 Docker 验证。
 - 通用 Compose 使用本机命名卷，容器没有宿主更新权限。
 - `.run` 只包含 LuCI、Compose 和管理脚本，不包含应用构建产物；发布不生成 `.ipk` 或 `.apk`。
 - 发布工作流校验 `.run` 自解压归档和 SHA-256，并只上传 `.run` 及其校验文件；GitHub Release 公开后才把已发布的版本镜像提升为 `latest`。
+- 若正式发布已完成但 `latest` 提升失败，重跑该 workflow 只会重新提升当前已发布版本；不重建镜像、不覆盖 Release 资产，也不递增版本。
 - 重装保留 `.env`、LuCI 配置和知识库目录。
 - LuCI 自动读取 Docker Root Dir，默认 HTTP 9908。
 - 更新代理只接受固定任务，校验 Release SHA-256，不挂载 Docker Socket。

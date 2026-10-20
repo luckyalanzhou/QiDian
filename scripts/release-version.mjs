@@ -42,12 +42,18 @@ function isCompleteRelease(release, version) {
   return REQUIRED_ASSETS(version).every((name) => assetNames.has(name));
 }
 
-export function resolveReleaseVersion({ currentVersion, lastPackageCommit, getRelease, bumpType = 'patch' }) {
+export function resolveReleaseVersion({ currentVersion, lastPackageCommit, getRelease, bumpType = 'patch', isWorkflowRetry = false }) {
   parseVersion(currentVersion);
   if (!['patch', 'minor', 'major'].includes(bumpType)) {
     throw new Error(`Unknown release bump type: ${bumpType}`);
   }
   const currentRelease = getRelease(`v${currentVersion}`);
+
+  // A rerun after publishing the release only needs to repair the `latest` image
+  // alias. Rebuilding or selecting a new version here could publish unrelated code.
+  if (isWorkflowRetry && currentRelease && isCompleteRelease(currentRelease, currentVersion)) {
+    return { version: currentVersion, releaseExists: true, promoteOnly: true };
+  }
 
   // A draft or incomplete release is an unfinished attempt. Keep its version so
   // a rerun can replace partial assets and publish the same tag.
@@ -107,6 +113,7 @@ function main() {
     lastPackageCommit,
     getRelease,
     bumpType,
+    isWorkflowRetry: Number(process.env.WORKFLOW_RUN_ATTEMPT) > 1,
   });
 
   if (selection.version !== manifest.version) {
@@ -118,6 +125,7 @@ function main() {
     appendFileSync(process.env.GITHUB_OUTPUT, [
       `version=${selection.version}`,
       `release_exists=${selection.releaseExists}`,
+      `promote_only=${selection.promoteOnly === true}`,
       '',
     ].join('\n'));
   }
