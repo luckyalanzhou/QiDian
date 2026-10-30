@@ -1,0 +1,18 @@
+# Only ship files that the image build and runtime actually need.
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!index.html
+!vite.config.js
+!tsconfig.json
+!public
+!public/**
+!src
+!src/**
+!shared
+!shared/**
+!server
+!server/**
+!migrations
+!migrations/**

@@ -1,0 +1,4 @@
+config qidian 'main'
+	option registration_enabled '0'
+	option data_path ''
+	option update_control_path ''

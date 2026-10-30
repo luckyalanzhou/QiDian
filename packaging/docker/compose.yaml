@@ -1,0 +1,23 @@
+services:
+  qidian:
+    image: ${QIDIAN_IMAGE:-docker.io/luckyalanzhou/qidian:latest}
+    container_name: qidian
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+      STATIC_DIR: /app/dist
+      MIGRATIONS_DIR: /app/migrations
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+    volumes:
+      - qidian-data:/data
+    ports:
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:9908:9908"
+
+volumes:
+  qidian-data:
+    name: qidian-data

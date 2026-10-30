@@ -1,0 +1,26 @@
+#!/bin/sh /etc/rc.common
+
+START=95
+USE_PROCD=1
+
+start_service() {
+	control_dir=$(/usr/libexec/istorec/qidian-updater.sh control-dir 2>/dev/null || true)
+	[ "$control_dir" = /opt/qidian/update-control ] || return 0
+	[ ! -L "$control_dir" ] && [ ! -L "$control_dir/inbox" ] && [ ! -L "$control_dir/outbox" ] || return 0
+	mkdir -p "$control_dir/inbox" "$control_dir/outbox"
+	chown root:1000 "$control_dir/inbox"
+	chmod 1730 "$control_dir/inbox"
+	chown root:root "$control_dir/outbox"
+	chmod 755 "$control_dir/outbox"
+	procd_open_instance
+	procd_set_param command /usr/libexec/istorec/qidian-updater.sh serve "$control_dir"
+	procd_set_param respawn 3600 5 5
+	procd_close_instance
+}
+
+stop_service() {
+	control_dir=$(/usr/libexec/istorec/qidian-updater.sh control-dir 2>/dev/null || true)
+	[ "$control_dir" = /opt/qidian/update-control ] || return 0
+	[ ! -L "$control_dir" ] && [ ! -L "$control_dir/outbox" ] || return 0
+	rm -f "$control_dir/outbox/update-agent-ready"
+}

@@ -1,0 +1,4 @@
+{
+	"config": "qidian",
+	"exec": "/usr/libexec/istorec/qidian.sh apply-config"
+}

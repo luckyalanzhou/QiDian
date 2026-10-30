@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>栖点书签</title>
+  </head>
+  <body>
+    <main>
+      <h1>栖点书签</h1>
+      <section id="pairingView" hidden>
+        <p>连接你的栖点实例。扩展只会新增书签。</p>
+        <form id="pairingForm">
+          <label for="instanceUrl">栖点地址</label>
+          <input id="instanceUrl" type="url" inputmode="url" placeholder="https://qidian.example.com" autocomplete="url" required>
+          <label for="pairingCode">一次性配对码</label>
+          <input id="pairingCode" type="text" autocomplete="off" required>
+          <button type="submit">配对扩展</button>
+        </form>
+      </section>
+      <section id="connectedView" hidden>
+        <p>已连接：<strong id="instanceLabel"></strong></p>
+        <button id="saveCurrent" type="button">保存当前网页</button>
+        <button id="disconnect" type="button">解除本机连接</button>
+      </section>
+      <p id="message" role="status" aria-live="polite"></p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

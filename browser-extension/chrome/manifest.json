@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "栖点书签",
+  "version": "@@VERSION@@",
+  "description": "将当前网页保存到你的栖点书签。",
+  "permissions": ["activeTab", "storage"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "action": {
+    "default_title": "保存到栖点",
+    "default_popup": "popup.html"
+  }
+}

@@ -1,0 +1,95 @@
+<% local sys = require "luci.sys"; local util = require "luci.util" %>
+<% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
+<% local log = sys.exec("tail -c 65536 /tmp/qidian-operation.log 2>/dev/null") %>
+<% local log_endpoint = luci.dispatcher.build_url("admin/services/qidian/log-data") %>
+
+<div id="qidian-log-toolbar" class="qidian-log-toolbar"></div>
+<div class="cbi-value qidian-log-output">
+	<div class="cbi-value-field"><textarea id="qidian-panel-log" class="cbi-input-textarea" rows="18" readonly spellcheck="false" wrap="off" aria-label="<%:日志内容%>"><% if log == "" then %><%:暂无日志。%><% else %><%=util.pcdata(log)%><% end %></textarea></div>
+</div>
+<div class="cbi-value">
+	<div class="cbi-value-field"><button id="qidian-log-bottom" class="cbi-button" type="button"><%:滚动到底部%></button></div>
+</div>
+
+<script>
+(function () {
+	var panelLog = document.getElementById("qidian-panel-log");
+	var previousLog = panelLog.value;
+	var followLog = true;
+	var endpoint = "<%=log_endpoint%>";
+	var operationBusy = <%=busy and "true" or "false"%>;
+	var tabActivationAttempts = 0;
+	var clearLogsButton = document.querySelector('input[type="submit"][name$="._clear_logs"]');
+	if (clearLogsButton) {
+		var clearLogsRow = clearLogsButton.closest(".cbi-value");
+		if (clearLogsRow) document.getElementById("qidian-log-toolbar").appendChild(clearLogsRow);
+	}
+	function activateLogTab() {
+		if (!operationBusy) return;
+		var tab = document.querySelector('.cbi-tabmenu li[data-tab="logs"] a');
+		if (tab) {
+			if (!tab.parentNode.classList.contains("cbi-tab")) tab.click();
+			return;
+		}
+		if (++tabActivationAttempts < 30) window.setTimeout(activateLogTab, 100);
+	}
+	function isAtBottom(element) {
+		return element.scrollHeight - element.scrollTop <= element.clientHeight + 32;
+	}
+	function updateOverview(data) {
+		var title = document.getElementById("qidian-service-title");
+		var openRow = document.getElementById("qidian-open-row");
+		if (!title || !openRow) return;
+		if (data.busy) title.textContent = "操作进行中";
+		else if (data.state === "running") title.textContent = "栖点服务运行中";
+		else if (data.state === "error" || data.result === "failed") title.textContent = data.state === "error" ? "Docker 服务不可用" : "上次操作失败";
+		else title.textContent = "服务未启动";
+		openRow.hidden = data.busy || data.state !== "running";
+		var startButton = document.querySelector('input[type="submit"][name$="._start"]');
+		var stopButton = document.querySelector('input[type="submit"][name$="._stop"]');
+		var removeButton = document.querySelector('input[type="submit"][name$="._remove"]');
+		if (startButton) startButton.disabled = data.busy || data.state === "running";
+		if (stopButton) stopButton.disabled = data.busy || data.state !== "running";
+		if (removeButton) removeButton.disabled = data.busy;
+		["_install", "_check_update"].forEach(function (suffix) {
+			var button = document.querySelector('input[type="submit"][name$=".' + suffix + '"]');
+			if (button) button.disabled = data.busy;
+			if (button && suffix === "_install" && !data.busy && data.result === "success" && (data.state === "running" || data.state === "stopped")) {
+				var field = button.closest(".cbi-value");
+				if (field) field.hidden = true;
+			}
+		});
+	}
+	function pollLog() {
+		fetch(endpoint, { credentials: "same-origin", cache: "no-store" }).then(function (response) {
+			if (!response.ok) throw new Error("log request failed");
+			return response.json();
+		}).then(function (data) {
+			if (data.log !== previousLog) {
+				panelLog.value = data.log || "暂无日志。";
+				previousLog = panelLog.value;
+				if (followLog) panelLog.scrollTop = panelLog.scrollHeight;
+			}
+			updateOverview(data);
+			if (data.busy) window.setTimeout(pollLog, 1800);
+		}).catch(function () { window.setTimeout(pollLog, 3500); });
+	}
+	document.getElementById("qidian-log-bottom").addEventListener("click", function () { panelLog.scrollTop = panelLog.scrollHeight; followLog = true; });
+	panelLog.addEventListener("scroll", function () { followLog = isAtBottom(panelLog); });
+	panelLog.scrollTop = panelLog.scrollHeight;
+	if (operationBusy) {
+		pollLog();
+		activateLogTab();
+	}
+})();
+</script>
+
+<style>
+.cbi-value.qidian-log-output { display: block; }
+.qidian-log-toolbar { margin: 0 0 1em; }
+.qidian-log-toolbar .cbi-value { display: block; margin: 0; }
+.qidian-log-toolbar .cbi-value-title { display: none; }
+.qidian-log-toolbar .cbi-value-field { display: block; float: none; width: auto; max-width: none; margin: 0; }
+.qidian-log-output .cbi-value-field { display: block; float: none; width: 100%; max-width: none; margin: 0; }
+textarea#qidian-panel-log { display: block; box-sizing: border-box; width: 100% !important; max-width: none !important; min-width: 0; min-height: 32em; resize: vertical; }
+</style>

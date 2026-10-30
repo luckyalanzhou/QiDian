@@ -1,0 +1,23 @@
+services:
+  qidian:
+    image: ${QIDIAN_IMAGE:?请先在LuCI执行安装或更新}
+    container_name: qidian
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+      STATIC_DIR: /app/dist
+      MIGRATIONS_DIR: /app/migrations
+      UPDATE_REQUEST_DIR: /run/qidian-update-inbox
+      UPDATE_STATUS_DIR: /run/qidian-update-status
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+    volumes:
+      - ${QIDIAN_DATA_PATH:?请先在LuCI执行安装或更新}:/data
+      - ${QIDIAN_UPDATE_REQUEST_PATH:?请先在LuCI执行安装或更新}:/run/qidian-update-inbox
+      - ${QIDIAN_UPDATE_STATUS_PATH:?请先在LuCI执行安装或更新}:/run/qidian-update-status:ro
+    ports:
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:9908:9908"

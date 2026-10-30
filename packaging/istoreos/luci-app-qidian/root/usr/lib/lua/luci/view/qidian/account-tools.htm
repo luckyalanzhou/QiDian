@@ -1,0 +1,28 @@
+<% local sys = require "luci.sys"; local util = require "luci.util" %>
+<% local state = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh status 2>/dev/null")) %>
+<% local account_status = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh account-status 2>/dev/null")) %>
+
+<div id="qidian-account-tools" <% if state ~= "running" or account_status ~= "ready" then %>hidden<% end %>>
+	<div class="cbi-value">
+		<div class="cbi-value-title"><%:重置密码命令%></div>
+		<div class="cbi-value-field"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code> <button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制命令%></button><div id="qidian-copy-message" role="status" aria-live="polite"></div></div>
+	</div>
+</div>
+
+<script>
+(function () {
+	function copyText(value, onResult) {
+		var fallback = function () {
+			var field = document.createElement("textarea"); field.value = value; field.setAttribute("readonly", ""); field.style.position = "fixed"; field.style.opacity = "0"; document.body.appendChild(field); field.select();
+			var copied = false; try { copied = document.execCommand("copy"); } catch (error) {} document.body.removeChild(field);
+			onResult(copied);
+		};
+		if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(function () { onResult(true); }).catch(fallback); else fallback();
+	}
+	document.getElementById("qidian-copy-reset").addEventListener("click", function () {
+		copyText(document.getElementById("qidian-reset-command").textContent, function (copied) {
+			document.getElementById("qidian-copy-message").textContent = copied ? "命令已复制" : "复制失败，请手动选择命令";
+		});
+	});
+})();
+</script>

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.env*
+!.env.example
+backups/
+test-results/
+.local/
+*.log
+/artifacts/
+/packaging/istoreos/VERSION
+*.sqlite
+*.sqlite-*

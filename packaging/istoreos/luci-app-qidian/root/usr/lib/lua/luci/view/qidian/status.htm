@@ -1,0 +1,116 @@
+<% local sys = require "luci.sys"; local util = require "luci.util" %>
+<% local state = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh status 2>/dev/null")) %>
+<% local result = util.trim(sys.exec("cat /tmp/qidian-operation.result 2>/dev/null")) %>
+<% local busy = sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 %>
+<% local plugin_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null")); if plugin_version == "" then plugin_version = translate("尚未安装") end %>
+<% local app_version = util.trim(sys.exec("docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' qidian 2>/dev/null | sed -n 's/^QIDIAN_VERSION=//p' | sed -n '1p'")); if app_version == "" then app_version = translate("尚未部署") end %>
+<% local version_text = plugin_version == app_version and plugin_version or (translate("管理插件") .. " " .. plugin_version .. " · " .. translate("镜像") .. " " .. app_version) %>
+<% local initial_status = busy and "操作进行中" or (state == "running" and "栖点服务运行中" or (state == "error" and "Docker 服务不可用" or (result == "failed" and "上次操作失败" or "服务未启动"))) %>
+
+<div class="cbi-section qidian-overview">
+	<h3><%:服务概览%></h3>
+	<table class="table cbi-section-table">
+		<tbody>
+			<tr><th scope="row"><%:服务状态%></th><td><strong id="qidian-service-title"><%=util.pcdata(initial_status)%></strong></td></tr>
+			<tr><th scope="row"><%:版本%></th><td><span id="qidian-version-text"><%=util.pcdata(version_text)%></span><span id="qidian-version-actions"></span></td></tr>
+			<tr id="qidian-open-row" <% if state ~= "running" or busy then %>hidden<% end %>><th scope="row"><%:网页入口%></th><td><a id="qidian-open" class="cbi-button cbi-button-apply" href="http://localhost:9908" target="_blank" rel="noopener"><%:打开栖点%> ↗</a></td></tr>
+		</tbody>
+	</table>
+	<div id="qidian-service-operations" class="cbi-value"><div class="cbi-value-title"><%:服务控制%></div><div id="qidian-service-action-fields" class="cbi-value-field"></div></div>
+</div>
+
+<script>
+(function () {
+	var port = "9908";
+	var openRow = document.getElementById("qidian-open-row");
+	var serviceActionFields = document.getElementById("qidian-service-action-fields");
+	var serviceActions = document.getElementById("qidian-service-operations");
+	function organizeServiceActions() {
+		var moved = 0;
+		["_start", "_stop", "_remove"].forEach(function (suffix) {
+			var button = document.querySelector('input[type="submit"][name$=".' + suffix + '"]');
+			var field = button && button.closest(".cbi-value");
+			if (field) {
+				var label = field.querySelector(".cbi-value-title");
+				if (label) label.remove();
+				serviceActionFields.appendChild(button);
+				field.remove();
+				moved += 1;
+			}
+		});
+		serviceActions.hidden = moved === 0;
+	}
+	function initialize() {
+		organizeServiceActions();
+		var updateButton = document.querySelector('input[type="submit"][name$="._check_update"]');
+		var updateField = updateButton && updateButton.closest(".cbi-value");
+		if (updateField) {
+			document.getElementById("qidian-version-actions").appendChild(updateButton);
+			updateField.remove();
+		}
+		document.getElementById("qidian-open").href = "http://" + window.location.hostname + ":" + port;
+		var status = document.getElementById("qidian-service-title").textContent.trim();
+		var busy = status === "操作进行中";
+		var running = status === "栖点服务运行中";
+		var startButton = document.querySelector('input[type="submit"][name$="._start"]');
+		var stopButton = document.querySelector('input[type="submit"][name$="._stop"]');
+		var removeButton = document.querySelector('input[type="submit"][name$="._remove"]');
+		if (startButton) startButton.disabled = busy || running;
+		if (stopButton) stopButton.disabled = busy || !running;
+		if (removeButton) removeButton.disabled = busy;
+		["_install", "_check_update"].forEach(function (suffix) {
+			var button = document.querySelector('input[type="submit"][name$=".' + suffix + '"]');
+			if (button) button.disabled = busy;
+		});
+	}
+	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, { once: true });
+	else initialize();
+	var confirmedRemoval = false;
+	document.addEventListener("click", function (event) {
+		var removeButton = event.target && event.target.closest ? event.target.closest('input[type="submit"][name$="._remove"]') : null;
+		if (!removeButton) return;
+		if (confirmedRemoval) {
+			confirmedRemoval = false;
+			return;
+		}
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		ui.showModal(_("确认卸载服务"), [
+			E("p", {}, _("卸载会移除栖点容器，但会保留知识库数据、附件、证书和配置。")),
+			E("div", { "class": "right" }, [
+				E("button", { "class": "btn", "click": function () { ui.hideModal(); } }, _("取消")),
+				E("button", { "class": "btn cbi-button-negative", "click": function () {
+					ui.hideModal();
+					confirmedRemoval = true;
+					removeButton.click();
+				} }, _("卸载服务"))
+			])
+		]);
+	}, true);
+})();
+</script>
+
+<style>
+.qidian-overview .cbi-section-table { width: 100%; table-layout: fixed; }
+.qidian-overview .cbi-section-table tr,
+.qidian-overview .cbi-section-table th,
+.qidian-overview .cbi-section-table td { border: 0; }
+.qidian-overview .cbi-section-table th { width: 30%; text-align: start; vertical-align: middle; }
+.qidian-overview .cbi-section-table td { min-width: 0; overflow-wrap: anywhere; vertical-align: middle; }
+.qidian-overview code { overflow-wrap: anywhere; }
+.qidian-overview #qidian-version-text, .qidian-overview #qidian-version-actions { display: inline-flex; align-items: center; vertical-align: middle; }
+.qidian-overview #qidian-version-actions { margin-inline-start: .75em; }
+.qidian-overview #qidian-service-action-fields { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .5em; }
+@media screen and (max-width: 600px) {
+	.qidian-overview .cbi-section-table,
+	.qidian-overview .cbi-section-table tbody,
+	.qidian-overview .cbi-section-table tr { display: block; width: 100%; }
+	.qidian-overview .cbi-section-table tr { padding: .45em 0; }
+	.qidian-overview .cbi-section-table th,
+	.qidian-overview .cbi-section-table td { display: block; box-sizing: border-box; width: 100%; padding: .2em 0; text-align: start; }
+	.qidian-overview .cbi-section-table th { white-space: normal; }
+	.qidian-overview #qidian-version-actions { margin-inline-start: .5em; }
+	.qidian-overview #qidian-service-operations { display: block; }
+	.qidian-overview #qidian-service-action-fields { display: flex; }
+}
+</style>
