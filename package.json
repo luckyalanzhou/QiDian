@@ -2,7 +2,6 @@
   "name": "qidian-private-wiki",
   "version": "0.0.48",
   "private": true,
-  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",

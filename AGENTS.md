@@ -4,7 +4,6 @@
 - 栖点是自托管软件，以 Docker 和 iStoreOS（LuCI 插件与 `.run` 包）发布；保持轻量并继续使用 SQLite。
 - 个人私有产品；未经明确要求，不增加公开分享、协作、注册或付费功能。
 - 使用简体中文；保留桌面侧栏、手机底部导航、深浅主题和现有内容类型。
-- 功能与界面遵循 `docs/requirements.md` 和 `private_wiki_prototype.html`；保留原型，不直接修改。
 - 不引入新依赖、Tailwind 或第三方 UI 库。界面样式只改 `src/styles.css`、`src/styles/workspace.css`，沿用现有 CSS 变量。
 - 不使用 Vue Router；页面通过 Pinia 导航状态切换。
 

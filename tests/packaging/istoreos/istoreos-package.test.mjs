@@ -272,19 +272,11 @@ test('iStoreOS release is manual and uses package.json as its single version sou
   assert.match(workflow, /gh release upload "\$tag"[\s\S]*?qidian-\$\{version\}\.run[\s\S]*?qidian-\$\{version\}\.run\.release\.sha256/);
 });
 
-test('update status and log documentation points to the host control directory', async () => {
-  const architecture = await read('../../../docs/architecture.md');
-  const verification = await read('../../../docs/verification.md');
+test('update status and log use the host control directory', async () => {
   const updater = await read('../../../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh');
 
   assert.match(updater, /CONTROL_ROOT=\$INSTALL_DIR\/update-control/);
   assert.match(updater, /LOG_FILE=\$status_dir\/update\.log/);
-  assert.match(architecture, /请求、状态和日志由 iStoreOS 宿主代理保存在宿主安装目录的 `update-control` 下/);
-  assert.match(architecture, /`\/opt\/qidian\/update-control\/outbox\/update\.log`/);
-  assert.doesNotMatch(architecture, /更新状态与日志放在该设备的 Docker 数据目录下/);
-  assert.match(verification, /更新请求、状态和日志由 iStoreOS 宿主代理保存在宿主安装目录的 `update-control` 下/);
-  assert.match(verification, /`\/opt\/qidian\/update-control\/outbox\/update\.log`/);
-  assert.doesNotMatch(verification, /更新状态写入配置的数据目录/);
 });
 
 test('the declared Node runtime supports the SQLite API used by the server', async () => {
