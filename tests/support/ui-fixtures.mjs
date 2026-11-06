@@ -567,6 +567,7 @@ async function mount(vault=empty, initialOptions={}) {
   w.createEditorPagePreparation = createEditorPagePreparation;
   w.createEditorActionDispatcher = createEditorActionDispatcher;
   w.createWorkspaceNavigationActions = createWorkspaceNavigationActions;
+  w.createWorkspaceNoteTypeLabels = createWorkspaceNoteTypeLabels;
   w.createWorkspaceNavigationFeature = createWorkspaceNavigationFeature;
   w.createWorkspaceNavigationEventsForMode = createWorkspaceNavigationEventsForMode;
   w.createWorkspaceReplacementFlow = createWorkspaceReplacementFlow;
