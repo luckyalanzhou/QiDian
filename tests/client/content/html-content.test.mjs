@@ -166,3 +166,26 @@ test('compact HTML text keeps word boundaries between blocks and line breaks', (
     dom.window.close();
   }
 });
+
+test('fast note body text matches rendered text and excludes executable content', () => {
+  const { dom, tools } = createTools();
+  try {
+    const bodies = [
+      '<p>第一段</p><p>第二段<br>续行</p><ul><li>条目</li></ul>',
+      '<section>未知容器 <strong>强调</strong></section><img src="javascript:alert(1)" alt="图片说明">',
+      '<script>secret()</script><style>.hidden {}</style><p>可搜索文字</p>',
+      '<h2>标题</h2><table><tr><th>名称</th><td>值</td></tr></table>',
+      '<p>## Markdown 标题<br><br>正文内容</p>'
+    ];
+    for (const body of bodies) {
+      assert.equal(
+        tools.noteBodyCompactText(body, '标题'),
+        tools.htmlToCompactText(tools.readableNoteBody(body, '标题').html),
+        body
+      );
+    }
+    assert.doesNotMatch(tools.noteBodyCompactText('<script>secret()</script><p>可搜索文字</p>'), /secret/);
+  } finally {
+    dom.window.close();
+  }
+});

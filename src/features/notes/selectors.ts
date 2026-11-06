@@ -8,6 +8,7 @@ export type NoteListOptions = {
   query?: string;
   hasDraftContent: (note: VaultNote) => boolean;
   bodyText: (body: string, title: string) => string;
+  searchBodyText?: (note: VaultNote) => string;
 };
 
 export function isDraftNote(note: VaultNote | null | undefined): boolean {
@@ -42,12 +43,12 @@ export function selectNotes(notes: readonly VaultNote[], options: NoteListOption
 
   const query = options.query?.trim().toLowerCase() || '';
   if (query) {
-    result = result.filter(note => [
-      note.title,
-      note.source,
-      ...(note.tags || []),
-      options.bodyText(note.body, note.title)
-    ].join(' ').toLowerCase().includes(query));
+    result = result.filter(note => {
+      const bodyText = options.searchBodyText
+        ? options.searchBodyText(note)
+        : options.bodyText(note.body, note.title);
+      return [note.title, note.source, ...(note.tags || []), bodyText].join(' ').toLowerCase().includes(query);
+    });
   }
 
   return result.sort((left, right) => options.active === 'recent'

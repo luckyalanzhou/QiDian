@@ -437,7 +437,10 @@ set_env() {
 }
 
 configured_image() (
+	configured_tag=$(uci -q get qidian.main.image_tag 2>/dev/null || true)
 	saved_image=$(sed -n 's/^QIDIAN_IMAGE=//p' "$ENV_FILE" 2>/dev/null | tail -n 1)
+	if [ "$configured_tag" = custom ]; then configured_tag=$(uci -q get qidian.main.custom_image 2>/dev/null || true); fi
+	if [ -n "$configured_tag" ]; then saved_image=$IMAGE_REPOSITORY:$configured_tag; fi
 	[ -n "$saved_image" ] || saved_image=$IMAGE_REPOSITORY:latest
 	case "$saved_image" in
 		"$IMAGE_REPOSITORY":*|luckyalanzhou/qidian:*)
@@ -645,13 +648,23 @@ run_operation() {
 			compose up -d --no-build qidian
 			printf '栖点已启动。\n'
 			;;
+		restart)
+			prepare
+			cd "$INSTALL_DIR"
+			compose restart qidian
+			printf '栖点已重启。\n'
+			;;
 		stop|remove)
 			compose_setup
 			if [ -f "$COMPOSE_FILE" ]; then
 				cd "$INSTALL_DIR"
 				if [ "$action" = remove ]; then
+					container_state=$(docker inspect --type container --format '{{.State.Status}}' qidian 2>/dev/null || true)
+					[ "$container_state" = exited ] || [ "$container_state" = created ] || [ "$container_state" = dead ] || fail '删除前必须先停止栖点服务。'
+					container_image=$(docker inspect --type container --format '{{.Image}}' qidian 2>/dev/null || true)
 					compose down
-					printf '栖点容器已卸载；知识库、附件和配置仍保留在 Docker 挂载目录及 /opt/qidian。\n'
+					if [ -n "$container_image" ] && image_is_qidian_owned "$container_image" allow-empty; then docker image rm --no-prune "$container_image" >/dev/null 2>&1 || printf '栖点镜像仍被其他容器引用，已保留。\n'; fi
+					printf '栖点容器和专用镜像已删除；知识库、附件和配置仍保留。\n'
 				else
 					compose stop qidian
 					printf '栖点已停止。\n'

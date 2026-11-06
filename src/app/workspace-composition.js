@@ -4,94 +4,47 @@ import { watch } from 'vue';
 import appPackage from '../../package.json';
 import { appSettingsStore, backupHistoryStore, backupImportStore, bookmarkDataStore, captureDialogStore, commandPaletteStore, createMenuStore, dashboardDataStore, editorDataStore, editorPageActionsStore, globalSearchDataStore, navigationActionsStore, noteListDataStore, noteTypeDialogStore, notificationDataStore, profileSettingsStore, readerActionsStore, readerDataStore, sidebarDataStore, syncConflictStore, trashDataStore, vaultDataStore, workspaceAppMounted, workspaceNavigationStore, workspaceShellActionsStore, workspaceShellStore } from './workspace-app.ts';
 import { openActionDialog } from '../features/dialogs/action-dialog-service.ts';
-import { createBookmarkView } from '../compat/bookmarks-view.js';
-import { bookmarksHTML, mergeBookmarks, parseBookmarks } from '../features/bookmarks/data.js';
-import { createRecycleBinView } from '../compat/recycle-bin-view.js';
 import { createTrashEntry } from '../domain/trash-data.js';
-import { createTrashWorkflows } from '../features/trash/workflows.ts';
-import { createVaultMutation } from '../features/vault/mutation.ts';
-import { createVaultPersistence } from '../features/vault/persistence.ts';
-import { createWorkspaceReplacementFlow } from '../features/vault/workspace-replacement-flow.ts';
-import { createSystemUpdateController } from '../features/system-updates/controller.ts';
-import { createSignOutFlow } from '../features/account/sign-out-flow.ts';
-import { createSyncConflictController } from '../features/sync/sync-conflict-controller.ts';
+import { createWorkspaceTrashFeature } from './workspace-trash.ts';
+import { createWorkspaceReplacement } from './workspace-replacement.ts';
+import { createWorkspaceVaultRuntime } from './workspace-vault-runtime.ts';
+import { createWorkspaceSystemUpdates } from './workspace-system-updates.ts';
+import { createWorkspaceAccountSession } from './workspace-account-session.ts';
+import { createWorkspaceContentProjections } from './workspace-content-projections.ts';
+import { createWorkspaceSyncConflicts } from './workspace-sync-conflicts.ts';
 import { renderReleaseNotes } from '../features/system-updates/release-notes.js';
-import { createEditorActionDispatcher } from '../features/editor/action-dispatcher.ts';
-import { createEditorCommandController } from '../features/editor/command-controller.ts';
-import { createEditorPageActions } from '../features/editor/page-actions.ts';
-import { renderLegacyEditorMarkup } from '../compat/editor/legacy-editor-view.js';
-import { createBookmarkMutationActions } from '../features/bookmarks/mutation-actions.ts';
+import { createWorkspaceNotePageActions } from './workspace-note-page-actions.ts';
+import { createWorkspaceSearch } from './workspace-search.ts';
+import { createBookmarkWorkspaceFeature } from './workspace-bookmarks.ts';
+import { createWorkspaceEditorRuntime } from './workspace-editor-runtime.ts';
 import { fetchBookmarkMetadata } from '../api/bookmark-metadata.ts';
-import { createEditorToolbarState } from '../features/editor/toolbar-state.ts';
-import { createLegacyEditorToolbarView } from '../compat/editor/legacy-toolbar-view.ts';
-import { createEditorInsertController } from '../features/editor/insert-controller.ts';
-import { createEditorRuntimeController } from '../features/editor/runtime-controller.ts';
-import { createEditorPageLifecycle } from '../features/editor/page-lifecycle.ts';
-import { createLegacyEditorPageController } from '../compat/editor/legacy-page-controller.ts';
-import { createEditorHtmlInserter } from '../features/editor/html-inserter.ts';
-import { createEditorPagePreparation } from '../features/editor/page-preparation.ts';
-import { createEditorOutlineController } from '../features/editor/outline-controller.ts';
-import { createLegacyEditorOutlineView } from '../compat/editor/legacy-editor-outline-view.ts';
-import { createNotePublishFlow } from '../features/editor/note-publish-flow.ts';
-import { createContentInsertionController } from '../features/editor/content-insertion.ts';
-import { createAttachmentUploadFlow } from '../features/editor/attachment-upload.ts';
-import { createAppSettingsActions } from '../features/settings/app-settings-actions.ts';
-import { createBackupWorkflows } from '../features/settings/backup-workflows.ts';
-import { createBackupHistoryOpenFlow } from '../features/settings/backup-history-open-flow.ts';
-import { createWorkspaceNavigationController } from '../features/navigation/workspace-navigation-controller.ts';
-import { createBrowserHistoryController } from '../features/navigation/browser-history-controller.ts';
+import { createWorkspaceEditorFeature, createWorkspaceEditorLifecycle } from './workspace-editor-feature.ts';
+import { createWorkspaceSettingsFeature } from './workspace-settings-feature.ts';
+import { mountWorkspaceSettingsStatus } from './workspace-settings-actions.ts';
+import { createWorkspaceProfileSettings } from './workspace-profile-settings.ts';
+import { createWorkspaceBackupFeature } from './workspace-backups.ts';
+import { createWorkspaceNavigationRuntime } from './workspace-navigation-runtime.ts';
 import { getWorkspaceScrollTop, scrollWorkspaceTo } from '../features/navigation/workspace-scroll.ts';
-import { createWorkspaceNavigationActions } from '../features/navigation/workspace-navigation-actions.ts';
-import { createWorkspaceShellActions } from '../features/navigation/workspace-shell-actions.ts';
-import { createMobileMenuFocusController } from '../features/navigation/mobile-menu-focus-controller.ts';
-import { createWorkspaceViewDispatcher } from '../features/navigation/workspace-view-dispatcher.ts';
-import { observeReaderFragmentRestoration } from '../features/reader/body-fragment-navigation.ts';
-import { createVueWorkspaceViewPresentation } from '../features/navigation/vue-workspace-view-presentation.ts';
-import { createLegacyWorkspaceViewPresentation } from '../compat/navigation/legacy-workspace-view-presentation.ts';
-import { createLegacyWorkspaceRenderer } from '../compat/navigation/legacy-workspace-renderer.js';
-import { createWorkspaceNavigationEventsForMode } from '../features/navigation/workspace-navigation-events.ts';
-import { createWorkspaceShellEvents } from '../features/navigation/workspace-shell-events.ts';
+import { createWorkspaceShell } from './workspace-shell.ts';
+import { createWorkspaceViewFeature } from './workspace-views.ts';
 import { createWorkspaceContentEvents } from '../features/navigation/workspace-content-events.ts';
-import { createEditorToolbarEvents } from '../features/editor/toolbar-events.ts';
-import { createEditorDraftController } from '../features/editor/draft-controller.ts';
-import { createEditorAutosaveController } from '../features/editor/autosave-controller.ts';
-import { createEditorFormAdapter } from '../features/editor/form-adapter.ts';
-import { connectSessionRecoveryFlow } from '../features/auth/session-recovery-flow.ts';
-import { createNoteDeleteWorkflow } from '../features/notes/delete-workflow.ts';
-import { createEditorDeleteWorkflow } from '../features/notes/editor-delete-workflow.ts';
-import { createDashboardActions } from '../features/dashboard/actions.ts';
-import { createNoteController as createNewNoteController } from '../features/notes/create-note-controller.ts';
-import { isDraftNote as isDraft, needsPublish, publishedNoteView as publishedView, selectNotes } from '../features/notes/selectors.ts';
-import { createNoteTypeDialogFlow } from '../features/notes/type-dialog-flow.ts';
-import { createNoteTypeDialogOpenFlow } from '../features/notes/type-dialog-open-flow.ts';
-import { createLegacyNoteTypeDialog } from '../compat/notes/legacy-type-dialog.ts';
-import { createNoteTypeDialogPresenter } from '../features/notes/type-dialog-presenter.ts';
+import { createWorkspaceNoteDeletion } from './workspace-note-deletion.ts';
+import { isDraftNote as isDraft, needsPublish, publishedNoteView as publishedView } from '../features/notes/selectors.ts';
+import { createWorkspaceNoteTypeDialogs, createWorkspaceNoteTypeLabels } from './workspace-note-types.ts';
 import { mountCodeCopyButtons } from '../features/reader/code-copy.ts';
 import { mountHeadingObserver } from '../features/reader/heading-observer.ts';
-import { createCaptureFlow } from '../features/capture/capture-flow.ts';
-import { createCaptureDialogController } from '../features/capture/capture-dialog-controller.ts';
-import { createCaptureDialogPresenter } from '../features/capture/capture-dialog-presenter.ts';
-import { createLegacyCreateMenu } from '../compat/create-menu/legacy-create-menu.ts';
+import { createWorkspaceCaptureFeature } from './workspace-capture.ts';
 import { createCaptureDOMAdapter } from '../features/capture/capture-dom-adapter.ts';
-import { createLegacyCaptureDialog } from '../compat/capture/legacy-capture-dialog.ts';
-import { createHtmlContentTools } from '../features/content/html-content.ts';
-import { createPastedTitleAutofill } from '../features/content/pasted-title-autofill.ts';
-import { createThemeController } from '../features/appearance/theme-controller.ts';
-import { createRemoteEditorRefresh } from '../features/editor/remote-refresh.ts';
-import { createReaderSnapshot } from '../features/reader/snapshot.ts';
-import { createReaderActions } from '../features/reader/actions.ts';
+import { createWorkspaceTheme } from './workspace-theme.ts';
 import { mountSkipToMainContent } from '../features/navigation/skip-to-main-content.ts';
-import { createDraftContentTools } from '../features/notes/draft-content.ts';
-import { createNoteCardSnapshot } from '../features/notes/card-snapshot.ts';
-import { createEditorSessionSnapshot, normalizeEditorPasteMode } from '../features/editor/session-snapshot.ts';
-import { createSlashMenuController } from '../features/editor/slash-menu-controller.ts';
-import { mountWorkspaceLifecycle } from '../features/lifecycle/workspace-lifecycle.ts';
-import { mountWorkspaceSession } from '../features/lifecycle/workspace-session.ts';
-import { mountWorkspaceInteractionRuntime } from '../features/lifecycle/workspace-interaction-runtime.ts';
-import { createCurrentVaultSnapshot } from '../features/sync/current-vault-snapshot.ts';
-import { createRemoteVaultUpdateController } from '../features/sync/remote-vault-update-controller.ts';
+import { normalizeEditorPasteMode } from '../features/editor/session-snapshot.ts';
+import { createWorkspaceApplicationLifecycle } from './workspace-application-lifecycle.ts';
+import { mountWorkspaceUIRuntime } from './workspace-ui-runtime.ts';
+import { createWorkspaceRemoteSyncFeature } from './workspace-remote-sync.ts';
+import { createWorkspaceContentRuntime } from './workspace-content-runtime.ts';
+import { createWorkspaceDialogControls } from './workspace-dialog-controls.ts';
 import { reauthenticateAccount, completeMfaReauthentication, beginAccountTotpEnrollment, confirmAccountTotpEnrollment, disableAccountTotp, logoutAccount, getAccountProfile, getAccountAvatar, saveAccountAvatar, removeAccountAvatar, changeAccountPassword, createExtensionPairingCode, listExtensionTokens, revokeExtensionToken, getSystemVersion, requestSystemUpdate, getSystemUpdateStatus, queueSave, commitSave, flush, getLastSyncError, onStatus, onAuthenticationRequired, onRemoteUpdate, refreshCloud, holdEditorConflict, getSyncConflict, exportSyncConflict, setOwner, upload, pruneAssets, exportBackup, exportHTML, readBackup, prepareBackup, uploadPreparedBackup, listBackups, createBackupSnapshot, getBackup, download, hasUnsaved, reloadCloud, restoreIgnoredDraft, retrySync, beginBackupImport, prepareBackupImport, createBackupImportScope, abortBackupImportScope, commitBackupImport, finishBackupImport } from '../cloud.js';
-import { DEFAULT_NOTE_TYPES, validateVault } from '../../shared/vault-validation.js';
+import { validateVault } from '../../shared/vault-validation.js';
 import { classifyClipboard, looksLikeMarkdown, plainTextToDocument, sanitizeMarkdownDocument } from '../features/content/paste.js';
 const loadMarkdownTools = () => import('../features/content/markdown.js');
 const APP_VERSION = appPackage.version;
@@ -103,96 +56,82 @@ const usesVueWorkspace=IS_PRODUCTION_BUILD||workspaceAppMounted;
 const disposeSkipToMainContent=mountSkipToMainContent(document,{closeMobileDrawer:()=>mobileMenuFocusController.close(),scheduleFocus:callback=>requestAnimationFrame(callback)});
 const navigationStore=workspaceNavigationStore;
 const icons=name=>`<span class="ico"><svg aria-hidden="true"><use href="#i-${name}"/></svg></span>`;
-const $=sel=>document.querySelector(sel);const main=$('#main');const displayTypeName=type=>type.id==='clip'&&type.name==='网页收藏'?'网页摘录':type.name;const typeLabel=id=>{const type=getVault().noteTypes.find(x=>x.id===id);return type?displayTypeName(type):'其他类型'};const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const {safeUrl,cleanHTML,plainTextToStructuredHTML,textWithBlockBreaks,htmlToCompactText,readableNoteBody,extractPastedTitle}=createHtmlContentTools({document,sanitize:html=>DOMPurify.sanitize(html),parseHTML:html=>new DOMParser().parseFromString(html,'text/html'),escapeHtml:esc,looksLikeMarkdown});
-const {editorContentSnapshot,hasDraftContent}=createDraftContentTools({cleanHTML,parseHTML:html=>new DOMParser().parseFromString(html,'text/html')});
-vaultDataStore.replace({ ...initial.data, noteTypes: initial.data.noteTypes || structuredClone(DEFAULT_NOTE_TYPES), trash: initial.data.trash || [] }); setOwner(initial.owner);
-function getVault(){
- const current=vaultDataStore.value;
- if(!current)throw new Error('知识库尚未加载');
- return current;
-}
-function replaceVault(value){
- const normalized={...value,noteTypes:Array.isArray(value.noteTypes)?value.noteTypes:structuredClone(DEFAULT_NOTE_TYPES),trash:Array.isArray(value.trash)?value.trash:[]};
- return vaultDataStore.replace(normalized);
-}
-function mutateVault(operation){return vaultDataStore.mutate(operation)}
-globalSearchDataStore.configure({bodyText:body=>htmlToCompactText(body),hasDraftContent,typeLabel,formatDate:nowString,isSafeUrl:safeUrl});
-let editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorCommands=null;
-let editorAutosave=null;
-let workspaceReplacementFlow=null;
+const $=sel=>document.querySelector(sel);const main=$('#main');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const workspaceContentRuntime=createWorkspaceContentRuntime({document,sanitizeHTML:html=>DOMPurify.sanitize(html),parseHTML:html=>new DOMParser().parseFromString(html,'text/html'),escapeHTML:esc,looksLikeMarkdown});
+const {safeUrl,cleanHTML,plainTextToStructuredHTML,textWithBlockBreaks,htmlToCompactText,noteBodyCompactText,readableNoteBody,editorContentSnapshot,hasDraftContent,autofillPastedTitle}=workspaceContentRuntime;
+const workspaceSearch=createWorkspaceSearch({store:globalSearchDataStore,commandPaletteStore,document});
+const openSearch=(query='')=>workspaceSearch.open(query);const closeSearch=()=>workspaceSearch.close();
+const vaultRuntime=createWorkspaceVaultRuntime({store:vaultDataStore,initialData:initial.data,owner:initial.owner,setOwner});
+const {getVault,replaceVault,mutateVault}=vaultRuntime;
+const {displayTypeName,typeLabel}=createWorkspaceNoteTypeLabels(getVault);
+let editorFactory=window.__qidianTestEditorFactory||null,richEditor=null,editorInputFeature=null,workspaceEditorToolbar=null;
+let editorDraftController=null,editorAutosave=null,notePublishing=null;
+let workspaceReplacement=null;
 let legacyWorkspaceRenderer=null;
 let browserHistory=null;
 const confirmAction=(message,options={})=>openActionDialog({message,...options}).then(Boolean);
 const promptAction=(message,defaultValue='',options={})=>openActionDialog({mode:'prompt',message,inputValue:defaultValue,...options});
-profileSettingsStore.configure({
+const profileSettings=createWorkspaceProfileSettings({
+ store:profileSettingsStore,
  local:!!initial.local,
  username:initial.username||'本地开发预览',
- getAccountProfile,
- getAccountAvatar,
- saveAccountAvatar,
- removeAccountAvatar,
- changeAccountPassword,
- beginTotpEnrollment:beginAccountTotpEnrollment,
- confirmTotpEnrollment:confirmAccountTotpEnrollment,
- disableTotp:disableAccountTotp,
- createExtensionPairingCode,
- listExtensionTokens,
- revokeExtensionToken,
- onProfileChange:(profile,avatarUrl)=>{
-  workspaceShellStore.setIdentity(profile.username,!!initial.local);
-  workspaceShellStore.setAvatar(avatarUrl);
+ api:{
+  getAccountProfile,
+  getAccountAvatar,
+  saveAccountAvatar,
+  removeAccountAvatar,
+  changeAccountPassword,
+  beginTotpEnrollment:beginAccountTotpEnrollment,
+  confirmTotpEnrollment:confirmAccountTotpEnrollment,
+  disableTotp:disableAccountTotp,
+  createExtensionPairingCode,
+  listExtensionTokens,
+  revokeExtensionToken
+ },
+ identity:{
+  setUsername:(username,local)=>workspaceShellStore.setIdentity(username,local),
+  setAvatar:avatarUrl=>workspaceShellStore.setAvatar(avatarUrl)
  }
 });
-const profileSettings=profileSettingsStore;
-const appSettingsActions=createAppSettingsActions({
+const {store:appSettings}=createWorkspaceSettingsFeature({
+ store:appSettingsStore,
  localPreview:!!initial.local,
+ confirmAction,
+ isEditing:()=>navigationStore.editing,
+ clearAutosave:()=>editorAutosave.clear(),
+ saveDraft:immediate=>saveDraft(immediate),
+ getCurrentData:()=>getVault(),
+ replaceWorkspace:restored=>workspaceReplacement.fromSettings(restored),
+ markIgnoredDraftHandled:()=>{initial.ignoredDraft=false;refreshSettingsIndicators()},
+ openImportPicker:()=>$('#importFile').click(),
+ actions:{
  closeSettings:closeAccountSettings,
  closeMenu,
  retrySync,
- confirmReload:sourceLabel=>confirmAction(initial.local
-  ? `重新载入会替换当前草稿。本地预览无法创建服务端回滚快照，请先手动导出需要保留的数据，再载入${sourceLabel}。是否继续？`
-  : `重新载入会替换当前草稿。继续后会保存当前修改并创建 SQLite 回滚快照；快照与附件位于同一服务端数据库，不能防止宿主数据盘丢失。是否继续？`,
-  {title:'重新载入数据',confirmText:'重新载入',danger:true}),
- saveActiveEditor:()=>{if(navigationStore.editing){editorAutosave.clear();saveDraft(true)}},
- getCurrentData:()=>structuredClone(getVault()),
  flush,
  getLastError:getLastSyncError,
  createBackupSnapshot,
  reloadCloud,
  restoreIgnoredDraft,
- replaceWorkspace:restored=>workspaceReplacementFlow.replace(restored,{navigation:'reset-home'}),
- markIgnoredDraftHandled:()=>{initial.ignoredDraft=false;refreshSettingsIndicators()},
  queueSave,
  openSyncConflict,
  openBackupHistory,
  exportJSON,
- openImportPicker:()=>$('#importFile').click(),
  notify:toast
+ }
 });
-appSettingsStore.bindActionHandler(appSettingsActions.dispatch);
-const appSettings=appSettingsStore;
-const notePublishFlow=createNotePublishFlow({
- getData:getVault,
- getNoteId:()=>navigationStore.noteId,
- getEditingDraft:()=>navigationStore.editingDraft,
- isEditing:()=>navigationStore.editing,
- prepareEditor:()=>{editorAutosave.clear();updateDraftFromDOM()},
- saveDraft:()=>saveDraft(true),
- isDraft:note=>isDraft(note),
- hasDraftContent:note=>hasDraftContent(note),
- needsPublish:note=>needsPublish(note),
- queueSave,
- flush,
- hasSyncConflict:()=>!!getSyncConflict(),
- complete:candidate=>{replaceVault(candidate);navigationStore.editing=false;navigationStore.previewing=false;navigationStore.editingDraft=null;destroyRichEditor();render();window.scrollTo({top:0})},
- setBusy:busy=>{const button=$('#saveEditor')||$('#publishDoc');if(button)button.disabled=busy},
- notify:toast
-});
-const backupWorkflows=createBackupWorkflows({
+const backupFeature=createWorkspaceBackupFeature({
  localPreview:!!initial.local,
+ backupHistoryStore,
+ listBackups,
+ isEditing:()=>navigationStore.editing,
+ clearAutosave:()=>editorAutosave.clear(),
+ saveActiveDraft:()=>saveDraft(true),
+ closeSettings:closeAccountSettings,
+ closeMenu,
+ isSettingsOpen:()=>appSettingsStore.open,
+ ignoreNextSettingsDialogClose:()=>browserHistory?.ignoreNextDialogClose('app-settings'),
  getData:()=>structuredClone(getVault()),
- saveActiveEditor:()=>{if(navigationStore.editing){editorAutosave.clear();return saveDraft(true)}},
  confirmAction,
  getBackup,
  exportBackup,
@@ -204,124 +143,75 @@ const backupWorkflows=createBackupWorkflows({
  validateVault,
  cleanHTML,
  commitSave,
-  beginImport:()=>{beginBackupImport();backupImportStore.begin()},
+ importLifecycle:{store:backupImportStore,beginCloudImport:beginBackupImport,finishCloudImport:finishBackupImport},
   prepareImport:prepareBackupImport,
   createImportScope:createBackupImportScope,
   abortImportScope:abortBackupImportScope,
   commitImport:commitBackupImport,
-  finishImport:()=>{finishBackupImport();backupImportStore.finish()},
-  setImportProgress:progress=>backupImportStore.setProgress(progress),
- replaceWorkspace:(restored,mode)=>workspaceReplacementFlow.replace(restored,{
-  navigation:mode==='import'?'reset-home':'preserve-list',
-  closeBackupHistory:true
- }),
+ replaceWorkspace:(restored,mode)=>workspaceReplacement.fromBackup(restored,mode),
  downloadJSON:(value,filename)=>download(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}),filename),
  pruneAssets,
  clearImportFile:()=>{const input=$('#importFile');if(input)input.value=''},
  notify:toast
 });
-backupHistoryStore.configure({
- listBackups,
- localPreview:initial.local,
- downloadSnapshot:revision=>backupWorkflows.downloadSnapshot(revision),
- restoreSnapshot:revision=>backupWorkflows.restoreSnapshot(revision)
+backupFeature.configureHistory();
+const {persist,commitPersist}=vaultRuntime.createPersistence({getUnsavedNewNoteId:()=>editorDataStore.transientNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
+const editorLifecycle=createWorkspaceEditorLifecycle({
+ drafts:{editorStore:editorDataStore,navigationStore,getVault,getEditor:()=>richEditor,getElement:$,usesVueWorkspace,isDraft,hasDraftContent,snapshot:editorContentSnapshot,mutateVault,persist,cleanHTML,setTimer:(callback,delay)=>window.setTimeout(callback,delay),clearTimer:handle=>window.clearTimeout(handle)},
+ publishing:{getData:getVault,getNoteId:()=>navigationStore.noteId,getEditingDraft:()=>navigationStore.editingDraft,isEditing:()=>navigationStore.editing,isDraft:note=>isDraft(note),hasDraftContent:note=>hasDraftContent(note),needsPublish:note=>needsPublish(note),queueSave,flush,hasSyncConflict:()=>!!getSyncConflict(),completion:{replaceVault,navigationStore,destroyEditor:destroyRichEditor,render,scrollToTop:()=>window.scrollTo({top:0})},setBusy:busy=>{const button=$('#saveEditor')||$('#publishDoc');if(button)button.disabled=busy},notify:toast}
 });
-const noteTypesExpanded=()=>getVault().noteTypesExpanded!==false;
-const {persist,commitPersist}=createVaultPersistence({getVault,getUnsavedNewNoteId:()=>editorDataStore.transientNewNoteId,isDraft,hasDraftContent,queueSave,commitSave});
-const legacyNoteTypeDialog=usesVueWorkspace?null:createLegacyNoteTypeDialog({document,escapeHtml:esc});
-const noteTypeDialogPresenter=createNoteTypeDialogPresenter({getVault,defaultNoteTypes:DEFAULT_NOTE_TYPES,displayTypeName,vueMounted:usesVueWorkspace,vueDialog:noteTypeDialogStore,legacyDialog:legacyNoteTypeDialog,notify:toast});
-const noteTypeDialogOpenFlow=createNoteTypeDialogOpenFlow({closeMenu,isEditing:()=>navigationStore.editing,saveDraft:()=>saveDraft(true),clearAutosave:()=>editorAutosave.clear(),leaveEditor:()=>{navigationStore.editing=false;navigationStore.editingDraft=null},render,openDialog:(mode,id)=>noteTypeDialogPresenter.open(mode,id)});
-const noteTypeDialogFlow=createNoteTypeDialogFlow({getVault,mutateVault,replaceVault,getTypeFilter:()=>navigationStore.typeFilter,setTypeFilter:filter=>{navigationStore.typeFilter=filter},commit:()=>commitPersist(),close:()=>{if(usesVueWorkspace)noteTypeDialogStore.close();legacyNoteTypeDialog?.close()},render,notify:toast});
-if(usesVueWorkspace)noteTypeDialogStore.bindSave(input=>noteTypeDialogFlow.save(input));
-function versionOf(n){return {title:n.title,type:n.type,category:n.category,tags:[...(n.tags||[])],body:n.body,source:n.source||'',updated:n.updated}}
- const editorFormAdapter=createEditorFormAdapter({
-  getVueForm:()=>usesVueWorkspace?editorDataStore.form:null,
-  getLegacyForm:()=>{
-   const title=$('#editTitle');if(!title)return null;
-   return {title:title.value,type:$('#editType').value,category:$('#editCategory').value,tags:$('#editTags').value,source:$('#editSource').value};
-  },
-  getBodyHTML:()=>richEditor?.getHTML()||$('#editorSurface').innerHTML,
-  cleanHTML
- });
-const editorDraftController=createEditorDraftController({
- getVault,
- getNoteId:()=>navigationStore.noteId,
- getEditingDraft:()=>navigationStore.editingDraft,
- setEditingDraft:note=>{navigationStore.editingDraft=note},
- isEditing:()=>navigationStore.editing,
- isDraft:note=>isDraft(note),
- hasDraftContent:note=>hasDraftContent(note),
- getBaseline:()=>editorDataStore.baseline,
- setBaseline:value=>editorDataStore.setBaseline(value),
- getTransientNewNoteId:()=>editorDataStore.transientNewNoteId,
- clearTransientNewNote:()=>editorDataStore.clearTransientNewNote(),
- createPublishedSnapshot:versionOf,
- snapshot:editorContentSnapshot,
-  readEditorFields:editorFormAdapter.readEditorFields,
- resetPendingPublish:()=>notePublishFlow.resetPending(),
- mutateVault,
- persist
+({draftController:editorDraftController,autosave:editorAutosave,publishing:notePublishing}=editorLifecycle);
+const noteTypeDialogs=createWorkspaceNoteTypeDialogs({
+ document,escapeHTML:esc,usesVueWorkspace,dialogStore:noteTypeDialogStore,navigationStore,getElement:$,
+ getVault,mutateVault,persist,replaceVault,displayTypeName,closeMenu,
+ saveDraft:()=>saveDraft(true),clearAutosave:()=>editorAutosave.clear(),render,
+ commit:()=>commitPersist(),notify:toast
 });
-editorAutosave=createEditorAutosaveController({
- isEditing:()=>navigationStore.editing,
- hasEditingDraft:()=>!!navigationStore.editingDraft,
- saveDraft:()=>editorDraftController.saveDraft(true),
- setTimer:(callback,delay)=>window.setTimeout(callback,delay),
- clearTimer:handle=>window.clearTimeout(handle)
-});
-const bookmarksView=usesVueWorkspace?null:createBookmarkView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},download,notify:toast,viewState:bookmarkDataStore.viewState,onChange:()=>{if(navigationStore.page==='bookmarks')bookmarksView?.renderLegacy()}});
 const isMobileViewport=()=>!!window.matchMedia?.('(max-width: 720px)').matches;
-function syncBookmarkPreferences(){if(usesVueWorkspace)bookmarkDataStore.syncPreferences(isMobileViewport());else bookmarksView?.syncPreferences()}
-function openBookmarkFolder(folderId){if(usesVueWorkspace)bookmarkDataStore.openFolder(folderId,isMobileViewport());else bookmarksView?.openFolder(folderId)}
-function resumeBookmarks(){if(usesVueWorkspace)window.scrollTo({top:bookmarkDataStore.resume(isMobileViewport())});else bookmarksView?.resume()}
-function leaveBookmarks(){if(usesVueWorkspace)bookmarkDataStore.leave(window.scrollY);else bookmarksView?.leave()}
-if(usesVueWorkspace)syncBookmarkPreferences();
-const recycleBinView=usesVueWorkspace?null:createRecycleBinView({main,getData:getVault,mutateData:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},notify:toast,onChange:()=>{if(navigationStore.page==='trash'&&!trashDataStore.active)recycleBinView.render()}});
-const vaultMutation=createVaultMutation({getVault,replaceVault,save:()=>commitPersist()});
-const bookmarkMutationActions=createBookmarkMutationActions({
- getBookmarks:()=>getVault().bookmarks||[],
+const vaultMutation=vaultRuntime.createMutation(()=>commitPersist());
+const trashFeature=createWorkspaceTrashFeature({
+ usesVueWorkspace,
+ store:trashDataStore,
+ main,
  getVault,
- getEditor:()=>bookmarkDataStore.editor,
- getDeleteDialog:()=>bookmarkDataStore.deleteDialog,
- getBulkDialog:()=>bookmarkDataStore.bulkDialog,
- getImportDialog:()=>bookmarkDataStore.importDialog,
- getSelectedVisibleIds:()=>bookmarkDataStore.snapshot.sections.flatMap(section=>section.links.filter(link=>link.selected).map(link=>link.id)),
- viewState:bookmarkDataStore.viewState,
- openEditor:draft=>bookmarkDataStore.openEditor(draft),
- closeEditor:()=>bookmarkDataStore.closeEditor(),
- openDeleteDialog:request=>bookmarkDataStore.openDeleteDialog(request),
- closeDeleteDialog:()=>bookmarkDataStore.closeDeleteDialog(),
- resetAfterClear:()=>bookmarkDataStore.resetAfterClear(),
- reconcileAfterDelete:(ids,parentId)=>bookmarkDataStore.reconcileAfterDelete(ids,parentId),
- clearSelection:ids=>bookmarkDataStore.clearSelection(ids),
- openBulkDialog:(mode,ids)=>bookmarkDataStore.openBulkDialog(mode,ids),
- closeBulkDialog:()=>bookmarkDataStore.closeBulkDialog(),
- openImportDialog:draft=>bookmarkDataStore.openImportDialog(draft),
- closeImportDialog:()=>bookmarkDataStore.closeImportDialog(),
+ mutateVault:vaultMutation,
+ mutateLegacyData:operation=>mutateVault(()=>operation(getVault())),
+ saveLegacyData:async()=>{await commitPersist();side()},
+ confirmClear:count=>confirmAction(`将永久删除回收站中的 ${count} 项内容，无法再还原。是否继续？`,{title:'永久清空回收站',confirmText:'永久清空回收站',danger:true}),
+ notify:toast,
+ shouldRefreshLegacyView:()=>navigationStore.page==='trash'&&!trashDataStore.active,
+ isLegacyTrashPage:()=>navigationStore.page==='trash'&&!usesVueWorkspace
+});
+const recycleBinView=trashFeature.legacyView;
+const bookmarkFeature=createBookmarkWorkspaceFeature({
+ store:bookmarkDataStore,
+ getVault,
  download,
- parseImport:html=>parseBookmarks(html,window.DOMParser),
- mergeImport:mergeBookmarks,
- serializeExport:bookmarksHTML,
- setEditorError:message=>{if(bookmarkDataStore.editor)bookmarkDataStore.editor.error=message},
  fetchMetadata:fetchBookmarkMetadata,
  uploadAsset:upload,
  mutation:vaultMutation,
- notify:toast
+ notify:toast,
+ domParser:window.DOMParser,
+ navigation:{usesVueWorkspace,isMobileViewport,getScrollY:()=>window.scrollY,scrollTo:top=>window.scrollTo({top})},
+ legacyView:{main,getVault,mutateVault:operation=>mutateVault(()=>operation(getVault())),save:async()=>{await commitPersist();side()},download,notify:toast,isBookmarksPage:()=>navigationStore.page==='bookmarks'}
 });
-const captureFlow=createCaptureFlow({getVault,mutateVault:vaultMutation,cleanBody:html=>cleanHTML(html,true),bodyText:html=>htmlToCompactText(html)});
-const legacyCaptureDialog=usesVueWorkspace?null:createLegacyCaptureDialog({document,escapeHtml:esc});
-const captureDialogController=createCaptureDialogController({save:input=>captureFlow.save(input),openNote:id=>openNote(id),legacyDialog:legacyCaptureDialog,notify:toast});
-const captureDialogPresenter=createCaptureDialogPresenter({closeMenu,vueMounted:usesVueWorkspace,getTypes:()=>getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),getPasteMode:preferredPasteMode,vueDialog:captureDialogStore,legacyDialog:legacyCaptureDialog});
-if(usesVueWorkspace)captureDialogStore.bindSave(input=>captureDialogController.saveVue(input));
-const trashWorkflows=usesVueWorkspace?createTrashWorkflows({
- getVault,
- mutateVault:vaultMutation,
- confirmClear:count=>confirmAction(`将永久删除回收站中的 ${count} 项内容，无法再还原。是否继续？`,{title:'永久清空回收站',confirmText:'永久清空回收站',danger:true}),
- notify:toast
-}):null;
-const noteDeleteWorkflow=createNoteDeleteWorkflow({getVault,mutateVault:vaultMutation,notify:toast});
-const editorDeleteWorkflow=createEditorDeleteWorkflow({
- getVault,
+const bookmarksView=bookmarkFeature.legacyView;
+const syncBookmarkPreferences=()=>bookmarkFeature.syncPreferences();
+const openBookmarkFolder=folderId=>bookmarkFeature.openFolder(folderId);
+const resumeBookmarks=()=>bookmarkFeature.resume();
+const leaveBookmarks=()=>bookmarkFeature.leave();
+const captureFeature=createWorkspaceCaptureFeature({
+ document,escapeHTML:esc,getVault,mutateVault:vaultMutation,
+ cleanBody:html=>cleanHTML(html,true),bodyText:html=>htmlToCompactText(html),
+ vueMounted:usesVueWorkspace,closeMenu,
+ getTypes:()=>getVault().noteTypes.map(type=>({id:type.id,name:displayTypeName(type)})),
+ getPasteMode:preferredPasteMode,vueDialog:captureDialogStore,
+ openNote:id=>openNote(id),notify:toast
+});
+const {noteDeleteWorkflow,editorDeleteWorkflow,confirmNoteDelete}=createWorkspaceNoteDeletion({
+ note:{getVault,mutateVault:vaultMutation,notify:toast},
+ confirmNoteDelete:()=>confirmAction('将这篇笔记移入回收站，可在 30 天内还原。是否继续？',{title:'移入回收站',confirmText:'移入回收站',danger:true}),
+ editor:{getVault,
  getNoteId:()=>navigationStore.noteId,
  getEditingDraft:()=>navigationStore.editingDraft,
  prepareEditingDraft:()=>updateDraftFromDOM(),
@@ -330,23 +220,25 @@ const editorDeleteWorkflow=createEditorDeleteWorkflow({
  hasDraftContent:note=>hasDraftContent(note),
  confirm:(message,options)=>confirmAction(message,options),
  clearAutosave:()=>editorAutosave.clear(),
- discardDetachedNote:id=>mutateVault(vault=>{vault.notes=vault.notes.filter(note=>note.id!==id)}),
- storeEditingDraft:note=>{
-  const index=getVault().notes.findIndex(item=>item.id===note.id);
-  const saved=structuredClone(note);
-  mutateVault(vault=>{if(index>=0)vault.notes[index]=saved;else vault.notes.unshift(saved)});
- },
- moveToTrash:id=>noteDeleteWorkflow.moveToTrash(id),
+ mutateVault,
  clearTransientState:()=>editorDataStore.clearTransientNewNote(),
  closeEditor:()=>{navigationStore.editing=false;destroyRichEditor();navigationStore.editingDraft=null;navigationStore.noteId=null},
  openHome:()=>openHome(navigationStore.active)
+ }
 });
-function workspaceNavigationState(){return navigationStore.getWorkspaceState()}
-function applyWorkspaceNavigationState(state){navigationStore.setWorkspaceState(state)}
-function restoreNoteCardFocus(noteId){void Promise.resolve().then(()=>requestAnimationFrame(()=>{const card=[...document.querySelectorAll('[data-open]')].find(element=>element.getAttribute('data-open')===noteId);(card||$('#notePageSearch')||$('#searchTop'))?.focus({preventScroll:true})}))}
-const mobileMenuFocusController=createMobileMenuFocusController({document,isOpen:()=>workspaceShellStore.mobileMenuOpen,close:()=>workspaceShellStore.closeMobileMenu(),getSidebar:()=>$('#sidebar'),getMenuButton:()=>$('#menuBtn'),getMain:()=>main,scheduleFocus:callback=>requestAnimationFrame(callback)});
-const workspaceNavigation=createWorkspaceNavigationController({getState:workspaceNavigationState,setState:applyWorkspaceNavigationState,findNote:id=>getVault().notes.find(n=>n.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>editorAutosave.clear(),closeMenu,render,getScrollY:()=>getWorkspaceScrollTop(window),scrollTo:position=>scrollWorkspaceTo(window,position),restoreNoteFocus:restoreNoteCardFocus,openBookmarkFolder,resumeBookmarks,onNavigate:(state,mode,previousState,previousScrollY)=>browserHistory?.navigate(state,mode,previousState,previousScrollY)});
-workspaceReplacementFlow=createWorkspaceReplacementFlow({
+const workspaceNavigationRuntime=createWorkspaceNavigationRuntime({
+ usesVueWorkspace,document,window,main,getElement:$,icons,
+ navigationStore,editorStore:editorDataStore,shellStore:workspaceShellStore,navigationActionsStore,createMenuStore,
+ navigation:{findNote:id=>getVault().notes.find(note=>note.id===id),isDraft:note=>isDraft(note),saveDraft:()=>saveDraft(true),clearAutoSave:()=>editorAutosave.clear(),render},
+ actions:{isEditing:()=>navigationStore.editing,editorHasChanges,confirmLeaveEditor:()=>confirmAction('当前笔记有修改，是否保存后离开？点击取消将继续编辑。',{title:'离开编辑',confirmText:'保存并离开'}),closeSearch},
+ noteCreation:{getVault,mutateVault,saveDraft,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100),getEditorBaseline:editorContentSnapshot},
+ createMenu:{openImagePicker:()=>$('#imageFile').click(),setTimer:(callback,delay)=>window.setTimeout(callback,delay)},
+ bookmarks:{openFolder:folderId=>bookmarkFeature.openFolder(folderId),resume:resumeBookmarks,addToFolder:folderId=>bookmarkFeature.addToFolder(folderId)},
+ openCapture:options=>openCapture(options),
+ onNavigate:(state,mode,previousState,previousScrollY)=>browserHistory?.navigate(state,mode,previousState,previousScrollY)
+});
+const {mobileMenuFocusController,navigation:workspaceNavigation,events:workspaceNavigationEvents,legacyCreateMenu,openCreateMenu}=workspaceNavigationRuntime;
+workspaceReplacement=createWorkspaceReplacement({
  isEditing:()=>navigationStore.editing,
  clearAutosave:()=>editorAutosave.clear(),
  destroyEditor:destroyRichEditor,
@@ -359,74 +251,60 @@ workspaceReplacementFlow=createWorkspaceReplacementFlow({
  returnHomePreservingList:()=>workspaceNavigation.returnHomePreservingList(),
  closeBackupHistory:()=>backupHistoryStore.close()
 });
-const newNoteController=createNewNoteController({getContext:()=>({editing:navigationStore.editing,typeFilter:navigationStore.typeFilter,active:navigationStore.active}),getVault,mutateVault,saveDraft,activate:note=>{editorDataStore.setTransientNewNoteId(note.id);navigationStore.noteId=note.id;navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=JSON.parse(JSON.stringify(note));editorDataStore.setBaseline(editorContentSnapshot(navigationStore.editingDraft));navigationStore.page='note'},closeMenu,render,scrollToTop:()=>window.scrollTo(0,0),focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),100)});
-function openBookmarks(folderId=null){workspaceNavigation.openBookmarks(folderId)}
-function addBookmark(folderId=''){openBookmarks();if(usesVueWorkspace)bookmarkDataStore.dispatch({type:'add-link',parentId:folderId});else bookmarksView?.addBookmark(folderId)}
-function openTrash(){workspaceNavigation.openTrash()}
-const legacyCreateMenu=usesVueWorkspace?null:createLegacyCreateMenu({document,icons});
-const workspaceNavigationActions=createWorkspaceNavigationActions({
- navigation:workspaceNavigation,
- isEditing:()=>navigationStore.editing,
- editorHasChanges,
- confirmLeaveEditor:()=>confirmAction('当前笔记有修改，是否保存后离开？点击取消将继续编辑。',{title:'离开编辑',confirmText:'保存并离开'}),
- addBookmark,
- openCreateMenu,
- openCapture:()=>openCapture(),
- createNew,
-  createFromMenu:kind=>{if(usesVueWorkspace)createMenuStore.closeForNavigation();legacyCreateMenu?.close();if(kind==='bookmark')addBookmark();else if(kind==='capture')openCapture({restoreFocusOnClose:false});else createNew()},
- createQuickImage:()=>{createNew('note');setTimeout(()=>$('#imageFile').click(),250)},
- closeSearch
-});
-const workspaceNavigationEvents=createWorkspaceNavigationEventsForMode(usesVueWorkspace,{execute:workspaceNavigationActions.execute});
-navigationActionsStore.bind(command=>workspaceNavigationActions.execute(command));
-const editorToolbarEvents=usesVueWorkspace?null:createEditorToolbarEvents({closeSlashMenu,format:doFormat,insert:doInsert,tableAction:runTableAction});
-const workspaceShellActions=createWorkspaceShellActions({
+const workspaceShellFeature=createWorkspaceShell({
+ store:workspaceShellActionsStore,
+ chrome:{
  closeThemeMenu,
  applyTheme:theme=>applyTheme(theme,{save:true}),
  toggleThemeMenu,
  closeAccountMenu,
  toggleAccountMenu:()=>workspaceShellStore.toggleAccountMenu(),
  openProfileSettings:()=>{void profileSettings.show()},
- openAppSettings,
+  openAppSettings:()=>{void appSettings.show()},
  signOut:()=>{void signOut()},
  closeSlashMenu,
- toggleNoteTypes:()=>{const next=!noteTypesExpanded();mutateVault(vault=>{vault.noteTypesExpanded=next});if(!usesVueWorkspace){const list=$('#sideTypes'),toggle=$('#toggleNoteTypes');if(list)list.hidden=!next;toggle?.setAttribute('aria-expanded',String(next));toggle?.setAttribute('aria-label',next?'折叠笔记类型':'展开笔记类型');toggle?.setAttribute('title',next?'折叠笔记类型':'展开笔记类型')}persist()},
+ },
+ noteTypes:{
+  toggleNoteTypes:noteTypeDialogs.toggleExpanded,
  addNoteType:()=>openTypeDialog('create'),
  openTypeDialog,
  noteTypeCount:()=>getVault().noteTypes.length,
  toast,
- confirmDeleteNote:()=>confirmAction('将这篇笔记移入回收站，可在 30 天内还原。是否继续？',{title:'移入回收站',confirmText:'移入回收站',danger:true}),
+ },
+ noteDeletion:{
+ confirmDeleteNote:confirmNoteDelete,
  moveNoteToTrash,
  render
+ },
+ events:{
+  closeSearch,
+   closeTarget:id=>workspaceDialogControls.closeTarget(id)
+ }
 });
-const workspaceShellEvents=usesVueWorkspace?null:createWorkspaceShellEvents({
- execute:workspaceShellActions.execute,
- closeThemeMenu,closeAccountMenu,closeSlashMenu,closeSearch,
- closeTarget:id=>{if(id==='profileSettingsOverlay')profileSettings.close();else if(id==='appSettingsOverlay')appSettings.close();else if(id==='backupHistoryOverlay')backupHistoryStore.close();else $('#'+id)?.classList.remove('open')}
-});
-workspaceShellActionsStore.bind(command=>workspaceShellActions.execute(command));
-const readerActions=createReaderActions({
+const {events:legacyWorkspaceShellEvents}=workspaceShellFeature;
+const workspaceShellEvents=usesVueWorkspace?null:legacyWorkspaceShellEvents;
+const {readerActions,editorPageActions}=createWorkspaceNotePageActions({
+ readerStore:readerActionsStore,
+ editorPageStore:editorPageActionsStore,
+ navigationStore,
+ render,
+ reader:{
  getVault,
  getCurrentNoteId:()=>navigationStore.noteId,
  isPreviewing:()=>navigationStore.previewing,
  isDraft,
  publishedView,
  mutation:vaultMutation,
- startEditing:()=>{navigationStore.editing=true;navigationStore.previewing=false;navigationStore.editingDraft=null;render()},
- previewPendingChanges:()=>{navigationStore.previewing=true;render()},
  publishCurrent:publishCurrentNote,
- confirmDelete:()=>confirmAction('将这篇笔记移入回收站，可在 30 天内还原。是否继续？',{title:'移入回收站',confirmText:'移入回收站',danger:true}),
  moveToTrash:noteDeleteWorkflow.moveToTrash,
  openHome:()=>openHome(),
  openNote,
  notify:toast
-});
-readerActionsStore.bind(readerActions.execute);
-const editorPageActions=createEditorPageActions({
- saveCurrent:()=>{void publishCurrentNote()},
+ },
+ confirmNoteDelete,
+ editorPage:{
  chooseAttachment:()=>$('#attachmentFile').click(),
  chooseImage:()=>$('#imageFile').click(),
- deleteCurrent:()=>deleteEditorNote(),
  isEditing:()=>navigationStore.editing,
  isPreviewing:()=>navigationStore.previewing,
  saveDraft,
@@ -436,8 +314,9 @@ const editorPageActions=createEditorPageActions({
  cleanHTML,
  exportHTML,
  notify:toast
+ },
+ deleteEditorNote:()=>deleteEditorNote()
 });
-editorPageActionsStore.bind(editorPageActions.execute);
 const workspaceContentEvents=usesVueWorkspace?null:createWorkspaceContentEvents({
  openCreateMenu,
  openCapture,
@@ -459,12 +338,14 @@ const workspaceContentEvents=usesVueWorkspace?null:createWorkspaceContentEvents(
  restoreBackup:revision=>{void restoreBackupSnapshot(revision)},
  openSearch,
  closeSearch,
- searchOpen:()=>globalSearchDataStore.open
+ searchOpen:workspaceSearch.isOpen
 });
-function refreshSettingsIndicators(message){appSettings.setIndicators({hasConflict:!!getSyncConflict(),hasIgnoredDraft:!!initial.ignoredDraft});if(message&&/(失败|尚未写入|未完成|冲突|失效|超时|不可用|未能|超[出过])/.test(message))toast(message)}
-onStatus(refreshSettingsIndicators);refreshSettingsIndicators();
-const remoteEditorRefresh=createRemoteEditorRefresh({document,getEditingDraft:()=>navigationStore.editingDraft,getBaseline:()=>editorDataStore.baseline,setEditingDraft:note=>{navigationStore.editingDraft=note},setBaseline:value=>editorDataStore.setBaseline(value),snapshot:editorContentSnapshot,cleanBody:html=>cleanHTML(html,true),getEditor:()=>richEditor,syncToolbarState,onConflict:({base,local,remote})=>holdEditorConflict({noteId:remote.id,baseNote:base,localNote:local})});
-const remoteVaultUpdateController=createRemoteVaultUpdateController({
+const settingsStatus=mountWorkspaceSettingsStatus({store:appSettings,subscribe:onStatus,hasConflict:()=>!!getSyncConflict(),hasIgnoredDraft:()=>!!initial.ignoredDraft,notify:toast});
+const refreshSettingsIndicators=settingsStatus.refresh;
+const remoteSyncFeature=createWorkspaceRemoteSyncFeature({
+ remoteEditor:{document,getEditingDraft:()=>navigationStore.editingDraft,getBaseline:()=>editorDataStore.baseline,setEditingDraft:note=>{navigationStore.editingDraft=note},setBaseline:value=>editorDataStore.setBaseline(value),snapshot:editorContentSnapshot,cleanBody:html=>cleanHTML(html,true),getEditor:()=>richEditor,syncToolbarState,onConflict:({base,local,remote})=>holdEditorConflict({noteId:remote.id,baseNote:base,localNote:local})},
+ editorLifecycle:{navigationStore,destroyEditor:destroyRichEditor,clearAutosave:()=>editorAutosave.clear(),persistRestoredDraft:persist,mutateVault},
+ remoteVaultUpdate:{
  getEditingState:()=>({editing:navigationStore.editing,noteId:navigationStore.noteId,draft:navigationStore.editingDraft}),
  getTransientNewNoteId:()=>editorDataStore.transientNewNoteId,
  hasLocalEditorChanges:editorHasChanges,
@@ -474,18 +355,12 @@ const remoteVaultUpdateController=createRemoteVaultUpdateController({
  applyTheme:()=>applyTheme(getVault().theme),
  syncBookmarkPreferences,
  findNote:id=>getVault().notes.find(note=>note.id===id),
- restoreTransientDraft:note=>mutateVault(vault=>{vault.notes.unshift(note)}),
- persistRestoredDraft:persist,
- clearAutoSave:()=>editorAutosave.clear(),
- closeEditor:()=>{navigationStore.editing=false;destroyRichEditor();navigationStore.editingDraft=null;navigationStore.noteId=null},
- refreshEditor:(note,preserveLocalChanges)=>remoteEditorRefresh.refresh(note,preserveLocalChanges),
  refreshSidebar:side,
  render,
   getScrollY:()=>getWorkspaceScrollTop(window),
   scrollTo:position=>scrollWorkspaceTo(window,position)
-});
-onRemoteUpdate(remoteVaultUpdateController.handle);
-const snapshotCurrentVault=createCurrentVaultSnapshot({
+ },
+ currentVaultSnapshot:{
  getVault,
  isEditing:()=>navigationStore.editing,
  getEditingDraft:()=>navigationStore.editingDraft,
@@ -494,164 +369,97 @@ const snapshotCurrentVault=createCurrentVaultSnapshot({
  isDraft,
  hasDraftContent,
  mutateVault
+ },
+ onRemoteUpdate
 });
- connectSessionRecoveryFlow({
+const snapshotCurrentVault=remoteSyncFeature.snapshotCurrentVault;
+const accountSession=createWorkspaceAccountSession({
+ recovery:{
   subscribe:onAuthenticationRequired,
   showAuthentication,
   authenticate:reauthenticateAccount,
   completeMfaLogin:completeMfaReauthentication,
   username:initial.username,
-  applyAuthenticated:result=>{
-   replaceVault(structuredClone(result.data));syncBookmarkPreferences();
-   if(navigationStore.editing&&navigationStore.noteId){const current=getVault().notes.find(note=>note.id===navigationStore.noteId);if(current)navigationStore.editingDraft=structuredClone(current)}
-   destroyRichEditor();render();
-  },
   notify:toast
- });
-function noteBodyText(body,title=''){return htmlToCompactText(readableNoteBody(body,title).html)}
-const autofillPastedTitle=createPastedTitleAutofill({document,extractPastedTitle});
-const syncConflictController=createSyncConflictController({
+ },
+ authenticatedWorkspace:{
+  replaceVault,syncBookmarkPreferences,
+  isEditing:()=>navigationStore.editing,
+  getEditingNoteId:()=>navigationStore.noteId,
+  findNote:id=>getVault().notes.find(note=>note.id===id),
+  setEditingDraft:note=>{navigationStore.editingDraft=note},
+  destroyEditor:destroyRichEditor,render
+ },
+ signOut:{isEditing:()=>navigationStore.editing,clearAutosave:()=>editorAutosave.clear(),saveDraft:()=>saveDraft(true),flush,logout:()=>logoutAccount(),reload:()=>location.reload(),notify:toast}
+});
+const contentProjections=createWorkspaceContentProjections({
+ document,
+ navigationStore,
+ stores:{reader:readerDataStore,dashboard:dashboardDataStore,sidebar:sidebarDataStore,noteList:noteListDataStore,globalSearch:globalSearchDataStore},
+ getVault,
+ mutateVault,
+ persist,
+ readableNoteBody,
+ htmlToCompactText,
+ noteBodyCompactText,
+ displayTypeName,
+ typeLabel,
+ safeUrl,
+ formatFullDate:timestamp=>new Date(timestamp).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'}),
+ isDraft,
+ needsPublish,
+ publishedView,
+ hasDraftContent
+});
+const {noteBodyText,nowString,fullDate,noteCardSnapshot,editorSessionSnapshot,readerSnapshot,listNotes}=contentProjections;
+const syncConflictFeature=createWorkspaceSyncConflicts({
  store:syncConflictStore,
+ editor:{isEditing:()=>navigationStore.editing,hasDraft:()=>!!navigationStore.editingDraft,clearAutosave:()=>editorAutosave.clear(),updateDraftFromEditor:updateDraftFromDOM,saveDraft:()=>saveDraft(true)},
  getConflict:getSyncConflict,
  getPreviewText:html=>htmlToCompactText(cleanHTML(html,false)),
- prepareEditor:()=>{if(navigationStore.editing&&navigationStore.editingDraft){editorAutosave.clear();updateDraftFromDOM();saveDraft(true)}},
  exportConflict:exportSyncConflict,
  confirmRestore:()=>confirmAction('将用已保存版本替换当前内容。刚下载的对照备份包含两边修改，可用于找回本地版本。继续吗？',{title:'载入已保存版本',confirmText:'载入已保存版本'}),
  reloadCloud,
- replaceWorkspace:restored=>workspaceReplacementFlow.replace(restored,{navigation:'reset-home'}),
+ replaceWorkspace:restored=>workspaceReplacement.fromSyncConflict(restored),
  notify:toast
 });
-function openSyncConflict(){syncConflictController.open()}
-syncConflictStore.bindActions(action=>action==='download-backup'?syncConflictController.downloadBackup():syncConflictController.restoreCloudVersion());
-function nowString(t){return new Date(t).toLocaleDateString('zh-CN',{month:'2-digit',day:'2-digit'})};const fullDate=t=>new Date(t).toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'});
+function openSyncConflict(){syncConflictFeature.open()}
 function closeMenu(returnToButton=false){mobileMenuFocusController.close(returnToButton)}
 function setBreadcrumb(s){workspaceShellStore.setBreadcrumbTitle(s)}
 function side(){legacyWorkspaceRenderer?.renderSidebar()}
 function openHome(cat='all'){workspaceNavigation.openHome(cat)}
-function openDashboard(){workspaceNavigation.openDashboard()}
 function openNote(id,forceEdit=false){workspaceNavigation.openNote(id,forceEdit)}
-function backFromNotePage(){workspaceNavigation.backFromNote()}
-const noteCardSnapshot=createNoteCardSnapshot({typeName:typeLabel,bodyText:noteBodyText,formatDate:nowString});
-const editorSessionSnapshot=createEditorSessionSnapshot({displayTypeName,isDraft});
-function readerSnapshot(stored,working,n){return createReaderSnapshot({document,stored,note:n,working,previewing:navigationStore.previewing,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish})}
-readerDataStore.configure({document,readableNoteBody,typeLabel,formatDate:fullDate,safeUrl,isDraft,needsPublish,publishedView});
-function listNotes(q=''){return selectNotes(getVault().notes,{active:navigationStore.active,typeFilter:navigationStore.typeFilter,query:q,hasDraftContent,bodyText:noteBodyText})}
 function moveNoteToTrash(id){return noteDeleteWorkflow.moveToTrash(id)}
-let legacyEditorOutlineView=null;
-function destroyRichEditor(){if(richEditor)editorRuntime.destroy();legacyEditorOutlineView?.dispose()}
-const editorOutlineController=createEditorOutlineController({getEditor:()=>richEditor,setOutline:items=>editorDataStore.setOutline(items)});
-legacyEditorOutlineView=usesVueWorkspace?null:createLegacyEditorOutlineView({document,main});
-function refreshEditorOutline(editor=richEditor){editorOutlineController.sync(editor);if(!usesVueWorkspace)legacyEditorOutlineView?.render(editor)}
-dashboardDataStore.configure({isDraft,publishedView,noteCard:noteCardSnapshot,isSafeUrl:safeUrl});
-dashboardDataStore.bindActions(createDashboardActions({getVault,mutateVault,persist}));
-if(typeof sidebarDataStore!=='undefined')sidebarDataStore.configure({isDraft,needsPublish,hasDraftContent,displayTypeName});
-if(typeof noteListDataStore!=='undefined')noteListDataStore.configure({hasDraftContent,bodyText:noteBodyText,noteCard:noteCardSnapshot,typeName:typeLabel,displayTypeName});
-legacyWorkspaceRenderer=usesVueWorkspace?null:createLegacyWorkspaceRenderer({
- document,window,main,getData:getVault,navigation:navigationStore,icons,escapeHtml:esc,displayTypeName,
- typeLabel,noteBodyText,nowString,fullDate,isDraft,needsPublish,hasDraftContent,publishedView,listNotes,
- readerSnapshot,safeUrl,dashboardStore:dashboardDataStore,destroyRichEditor,setBreadcrumb,openHome,
- organizeDocumentActions,mountCodeCopyButtons,mountHeadingObserver,noteTypesExpanded,
- enabled:false,notify:toast
+let editorWorkspace=null;
+function destroyRichEditor(){editorWorkspace?.destroy()}
+function refreshEditorOutline(editor=richEditor){editorWorkspace?.refreshOutline(editor)}
+const workspaceViewFeature=createWorkspaceViewFeature({
+ usesVueWorkspace,
+ legacyRenderer:{document,window,main,getData:getVault,navigation:navigationStore,icons,escapeHtml:esc,displayTypeName,typeLabel,noteBodyText,nowString,fullDate,isDraft,needsPublish,hasDraftContent,publishedView,listNotes,readerSnapshot,safeUrl,dashboardStore:dashboardDataStore,destroyRichEditor,setBreadcrumb,openHome,organizeDocumentActions,mountCodeCopyButtons,mountHeadingObserver,noteTypesExpanded:noteTypeDialogs.isExpanded,notify:toast},
+ vuePresentation:{main,getHost:()=>$('#dashboardHost'),destroyRichEditor,prepareEditorPage:prepareVueEditorPage},
+ legacyPresentation:{main,getVueHost:()=>$('#dashboardHost'),destroyRichEditor,setBreadcrumb,renderBookmarks:()=>bookmarksView?.renderLegacy(),renderTrash:()=>recycleBinView?.render(),renderEditor:renderEditorLegacy},
+ dispatcher:{getState:()=>({page:navigationStore.page,editing:navigationStore.editing}),pruneExpiredTrash:()=>trashFeature.pruneExpired(),leaveBookmarks,disconnectReaderHeadingObserver:()=>{main.__readerHeadingCleanup?.();main.__readerHeadingCleanup=null}}
 });
+legacyWorkspaceRenderer=workspaceViewFeature.legacyRenderer;
 function ensureDraft(){return editorDraftController.ensureDraft()}
-const editorPagePreparation=createEditorPagePreparation({destroyEditor:destroyRichEditor,ensureDraft,getOptions:()=>({noteTypes:getVault().noteTypes,categories:getVault().categories}),getPasteMode:preferredPasteMode,createSession:input=>editorSessionSnapshot(input),sync:session=>editorDataStore.sync(session)});
-function prepareVueEditorPage(){editorPagePreparation.prepare()}
-function renderEditor(){if(!usesVueWorkspace){renderEditorLegacy();return}prepareVueEditorPage()}
-function hasVueEditorActions(){return usesVueWorkspace}
-const editorRuntime=createEditorRuntimeController({
- getEditor:()=>richEditor,
- setEditor:editor=>{richEditor=editor},
- getEditorFactory:()=>editorFactory,
- setEditorFactory:factory=>{editorFactory=factory},
- getSurface:()=>$('#editorSurface'),
- getElement:selector=>$(selector),
- isActive:()=>navigationStore.editing&&navigationStore.page==='note',
- getInitialContent:()=>cleanHTML(ensureDraft().body,true),
- getPasteMode:preferredPasteMode,
- getDraftId:()=>ensureDraft().id,
- renderMarkdownPreview:()=>`<pre>${esc(richEditor?.getText({blockSeparator:'\n\n'})||'')}</pre>`,
- handlePaste:handleEditorPaste,
- onUpdate:({editor,surface})=>{updateDraftFromDOM();scheduleSave();refreshEditorOutline(editor);if(surface.textContent.endsWith('/'))openSlashHint()},
- onSelectionUpdate:({editor})=>syncToolbarState(editor),
- onBlur:flushEditorSave,
- onSlashMenu:openSlashMenu,
- onFieldChange:()=>{updateDraftFromDOM();scheduleSave()},
- shouldListenToFieldEvents:()=>!usesVueWorkspace,
- onPasteModeChange:mode=>{mutateVault(vault=>{vault.pasteMode=mode});saveDraft(true)},
- onToolbarMouseDown:event=>{ensureEditorCommands().captureToolbarSelection();if(event.target.closest('button, summary'))event.preventDefault()},
- onMounted:editor=>{syncToolbarState(editor);if(!usesVueWorkspace)organizeEditorTools();syncToolbarState(editor);refreshEditorOutline(editor);ensureEditorCommands()},
- onBeforeDestroy:(_editor,draftId)=>{if(navigationStore.editing&&navigationStore.editingDraft&&draftId===navigationStore.editingDraft.id)updateDraftFromDOM()}
-});
-function ensureEditorCommands(){
- if(!editorCommands)editorCommands=createEditorCommandController({getEditor:()=>richEditor,afterChange:editor=>{if(!editor)return;updateDraftFromDOM();scheduleSave();syncToolbarState(editor);refreshEditorOutline(editor)},toast});
- return editorCommands;
-}
-const editorActionDispatcher=createEditorActionDispatcher({
- isReady:()=>Boolean(richEditor),
- goToOutline:position=>editorOutlineController.goTo(position),
- format:(action,value)=>ensureEditorCommands().doFormat(action,value),
- insert:action=>doInsert(action),
- table:action=>ensureEditorCommands().runTableAction(action),
- editor:action=>ensureEditorCommands().runEditorAction(action),
- paragraph:action=>ensureEditorCommands().runParagraphAction(action)
-});
-editorDataStore.bindRuntime({initialize:initializeEditorView,dispatch:action=>editorActionDispatcher.dispatch(action),formChanged:()=>{updateDraftFromDOM();scheduleSave()},formBlurred:flushEditorSave});
-function mountEditorSurface(){if(!editorFactory||!navigationStore.editing||navigationStore.page!=='note'||!$('#editorSurface'))return;const editor=editorRuntime.mount();if(editor)ensureEditorCommands();return editor}
-const editorPageLifecycle=createEditorPageLifecycle({
- getFactory:()=>editorFactory,
- loadFactory:()=>editorRuntime.loadFactory(),
- isActive:()=>navigationStore.editing&&navigationStore.page==='note',
- mount:mountEditorSurface,
- focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),0),
- onLoadError:error=>{
-  const surface=$('#editorSurface');
-  if(surface)surface.innerHTML='<p class="hint">编辑器加载失败，请刷新后重试。</p>';
-  toast(error?.message||'编辑器加载失败');
- }
-});
-function initializeEditorView(){return editorPageLifecycle.initialize()}
-const legacyEditorPageController=usesVueWorkspace?null:createLegacyEditorPageController({
- getFactory:()=>editorFactory,
- setFactory:factory=>{editorFactory=factory},
- loadFactory:()=>import('../features/editor/editor.js').then(module=>module.createQidianEditor),
- isActive:()=>navigationStore.editing&&navigationStore.page==='note',
- renderLoading:()=>{main.innerHTML='<div class="empty editor-loading">正在加载富文本编辑器…</div>'},
- renderPage:renderEditorLegacyReady,
- focusTitle:()=>setTimeout(()=>$('#editTitle')?.focus(),0),
- renderFailure:()=>{main.innerHTML='<div class="empty editor-loading">编辑器加载失败，请刷新后重试。</div>'},
- onLoadError:error=>toast(error?.message||'编辑器加载失败')
-});
-function renderEditorLegacy(){return legacyEditorPageController?.render()}
-function renderEditorLegacyReady(){destroyRichEditor();const n=ensureDraft();setBreadcrumb(n.title||'新建笔记');const publishLabel=isDraft(n)?'发布笔记':'保存笔记';main.innerHTML=renderLegacyEditorMarkup({note:n,noteTypes:getVault().noteTypes,publishLabel,icons,escapeHtml:esc,displayTypeName,preferredPasteMode});mountEditorSurface()}
+function prepareVueEditorPage(){editorWorkspace.prepareVueEditorPage()}
+function ensureEditorCommands(){return editorWorkspace.ensureCommands()}
+function renderEditorLegacy(){return editorWorkspace.renderLegacyEditor()}
 
 function openTypeDialog(mode,id=null){
- noteTypeDialogOpenFlow.open(mode,id);
+ noteTypeDialogs.open(mode,id);
 }
 async function saveTypeDialog(){
- if(!legacyNoteTypeDialog)return;
- await noteTypeDialogFlow.save(legacyNoteTypeDialog.readSubmission(DEFAULT_NOTE_TYPES.find(type=>type.id==='note')));
+ await noteTypeDialogs.saveLegacy();
 }
 const systemThemeMedia=window.matchMedia?.('(prefers-color-scheme: dark)');
 function closeThemeMenu(){workspaceShellStore.closeThemeMenu()}
-const themeController=createThemeController({document,media:systemThemeMedia,getPreference:()=>getVault().theme,setPreference:preference=>mutateVault(vault=>{vault.theme=preference}),persist,setResolvedState:(preference,dark)=>workspaceShellStore.setThemeState(preference,dark)});
+const themeController=createWorkspaceTheme({document,media:systemThemeMedia,getThemePreference:()=>getVault().theme,updateThemePreference:preference=>mutateVault(vault=>{vault.theme=preference}),persist,setResolvedState:(preference,dark)=>workspaceShellStore.setThemeState(preference,dark)});
 function applyTheme(mode,options={}){themeController.apply(mode,options)}
 function toggleThemeMenu(){workspaceShellStore.toggleThemeMenu()}
 const disposeTheme=themeController.mount();
-const workspaceViewPresentation=usesVueWorkspace
- ?createVueWorkspaceViewPresentation({main,getHost:()=>$('#dashboardHost'),destroyRichEditor,prepareEditorPage:prepareVueEditorPage})
- :createLegacyWorkspaceViewPresentation({main,getVueHost:()=>$('#dashboardHost'),destroyRichEditor,setBreadcrumb,renderBookmarks:()=>bookmarksView?.renderLegacy(),renderTrash:()=>recycleBinView?.render(),renderDashboard:()=>legacyWorkspaceRenderer?.renderDashboard(),renderHome:()=>legacyWorkspaceRenderer?.renderHome(),renderEditor:renderEditorLegacy,renderReader:()=>legacyWorkspaceRenderer?.renderReader()});
-const workspaceViewDispatcher=createWorkspaceViewDispatcher({
- getState:()=>({page:navigationStore.page,editing:navigationStore.editing}),
- presentation:workspaceViewPresentation,
- pruneExpiredTrash:()=>{if(trashWorkflows)trashWorkflows.pruneExpired();else recycleBinView?.pruneExpired()},
- leaveBookmarks,
- disconnectReaderHeadingObserver:()=>{main.__readerHeadingCleanup?.();main.__readerHeadingCleanup=null},
- renderSidebar:()=>legacyWorkspaceRenderer?.renderSidebar()
-});
-function render(){workspaceViewDispatcher.render()}
-function cleanExpiredTrash(){const count=trashWorkflows?trashWorkflows.pruneExpired():recycleBinView?.pruneExpired()||0;if(count&&navigationStore.page==='trash'&&!usesVueWorkspace)recycleBinView?.render()}
-const disposeWorkspaceLifecycle=mountWorkspaceLifecycle({document,window,isLocal:!!initial.local,refreshCloud:()=>{void refreshCloud(snapshotCurrentVault)},pruneExpiredTrash:cleanExpiredTrash});
-function createNew(type='note'){return newNoteController.create(type)}
+function render(){workspaceViewFeature.render()}
+const workspaceApplicationLifecycle=createWorkspaceApplicationLifecycle({lifecycle:{document,window,isLocal:!!initial.local,refreshCloud:()=>{void refreshCloud(snapshotCurrentVault)},pruneExpiredTrash:()=>trashFeature.cleanExpired()}});
 function updateDraftFromDOM(){editorDraftController.updateFromEditor()}
 function editorHasChanges(){return editorDraftController.hasChanges()}
 function saveDraft(quiet=false){return editorDraftController.saveDraft(quiet)}
@@ -659,105 +467,103 @@ function scheduleSave(){editorAutosave.schedule()}
 function flushEditorSave(){return editorAutosave.flush()}
 function deleteEditorNote(){return editorDeleteWorkflow.removeCurrentNote()}
 
-async function publishCurrentNote(){await notePublishFlow.publish()}
-const legacyEditorToolbar=usesVueWorkspace?null:createLegacyEditorToolbarView({document,window,getToolbar:()=>$('#editorToolbar'),getMain:()=>main,getElement:$,getToolbarState:createEditorToolbarState,getEditing:()=>navigationStore.editing,icons,onEditorAction:runEditorAction,onParagraphAction:runParagraphAction,onDeleteCallout:()=>{if(!richEditor?.isActive('callout'))return;richEditor.chain().focus().deleteNode('callout').run();updateDraftFromDOM();scheduleSave()}});
+async function publishCurrentNote(){await notePublishing.publish()}
 function syncToolbarState(editor){
- if(!editor)return;
- if(hasVueEditorActions()){
-  editorDataStore.setToolbarState(createEditorToolbarState(editor));
-  return;
- }
- legacyEditorToolbar?.sync(editor);
+ workspaceEditorToolbar.sync(editor);
 }
-function organizeDocumentActions(){legacyEditorToolbar?.organizeDocumentActions()}
-function organizeEditorTools(){legacyEditorToolbar?.organize()}
-function runEditorAction(action){return ensureEditorCommands().runEditorAction(action)}
-function runParagraphAction(action){return ensureEditorCommands().runParagraphAction(action)}
-function runTableAction(action){return ensureEditorCommands().runTableAction(action)}
-const editorHtmlInserter=createEditorHtmlInserter({getEditor:()=>richEditor,sanitize:html=>cleanHTML(html,true),afterInsert:()=>{updateDraftFromDOM();scheduleSave()}});
-function insertHTML(html){editorHtmlInserter.insert(html)}
-function doFormat(cmd,arg=null){if(!richEditor)return;return ensureEditorCommands().doFormat(cmd,arg)}
-const editorInsertController=createEditorInsertController({getEditor:()=>richEditor,insertHTML,openImagePicker:()=>$('#imageFile').click(),prompt:promptAction,format:(command,value)=>doFormat(command,value),afterChange:editor=>{updateDraftFromDOM();scheduleSave();syncToolbarState(editor);refreshEditorOutline(editor)},safeUrl,escapeHTML:esc,toast});
-async function doInsert(kind){return editorInsertController.insert(kind)}
+function organizeDocumentActions(){workspaceEditorToolbar.organizeDocumentActions()}
 function preferredPasteMode(){return normalizeEditorPasteMode(getVault().pasteMode)}
 const captureDOM=createCaptureDOMAdapter({window,document,getPad:()=>$('#capturePad')});
 const {captureSelection,insertHTML:insertCaptureHTML,insertText:insertCaptureText}=captureDOM;
-const contentInsertion=createContentInsertionController({window,document,purifier:DOMPurify,getMode:id=>$('#'+id)?.value||'rich',classifyClipboard,plainTextToDocument,sanitizeMarkdownDocument,loadMarkdownTools,cleanHTML,plainTextToStructuredHTML,safeUrl,escapeHTML:esc,autofillPastedTitle,upload,insertEditorHTML:insertHTML,getEditor:()=>richEditor,insertCaptureHTML,captureSelection,insertCaptureText,toast});
-const attachmentUpload=createAttachmentUploadFlow({upload,insertHTML,escapeHTML:esc,notify:toast});
-function handleEditorPaste(payload){return contentInsertion.handleEditorPaste(payload)}
-const slashMenuController=createSlashMenuController({window,show:position=>editorDataStore.showSlashMenu(position),close:()=>editorDataStore.closeSlashMenu()});
-function openSlashMenu(){slashMenuController.open()}function closeSlashMenu(){slashMenuController.close()}function openSlashHint(){openSlashMenu()}
-function storeImage(file,destination,bookmark=null,range=null){return contentInsertion.storeImage(file,destination,bookmark,range)}
-function pasteRich(event){return contentInsertion.handleCapturePaste(event)}
-if(usesVueWorkspace)captureDialogStore.bindPasteHandler(pasteRich);
-function openCapture(options={}){captureDialogPresenter.open(options)}
-function closeCapture(){captureDialogPresenter.close()}
-async function saveCapture(){await captureDialogController.saveLegacy()}
-const backupHistoryOpenFlow=createBackupHistoryOpenFlow({isEditing:()=>navigationStore.editing,saveActiveDraft:()=>saveDraft(true),closeSettings:closeAccountSettings,closeMenu,showDialog:()=>backupHistoryStore.show(),refresh:()=>backupHistoryStore.refresh()});
- async function openBackupHistory(){if(appSettingsStore.open)browserHistory?.ignoreNextDialogClose('app-settings');await backupHistoryOpenFlow.open()}
-function downloadBackupSnapshot(revision){return backupWorkflows.downloadSnapshot(revision)}
-function restoreBackupSnapshot(revision){return backupWorkflows.restoreSnapshot(revision)}
-function exportJSON(){return backupWorkflows.exportFullBackup()}
-function importJSON(file){return backupWorkflows.importBackup(file)}
-function openCreateMenu(){closeMenu();if(usesVueWorkspace){createMenuStore.open();return}legacyCreateMenu?.open()}
-function openSearch(query=''){globalSearchDataStore.show(query)};function closeSearch(){globalSearchDataStore.close()}
+const workspaceEditorFeature=createWorkspaceEditorFeature({
+ toolbar:{
+  usesVueWorkspace,document,window,
+  getToolbar:()=>$('#editorToolbar'),getMain:()=>main,getElement:$,
+  getEditing:()=>navigationStore.editing,getEditor:()=>richEditor,
+  getCommands:()=>ensureEditorCommands(),
+  setVueToolbarState:state=>editorDataStore.setToolbarState(state),
+  icons,updateDraftFromDOM,scheduleSave
+ },
+ input:{
+ htmlInserter:{getEditor:()=>richEditor,sanitize:html=>cleanHTML(html,true),afterInsert:()=>{updateDraftFromDOM();scheduleSave()}},
+ editorInsert:{getEditor:()=>richEditor,openImagePicker:()=>$('#imageFile').click(),prompt:promptAction,safeUrl,escapeHTML:esc,toast},
+ contentInsertion:{window,document,purifier:DOMPurify,getMode:id=>$('#'+id)?.value||'rich',classifyClipboard,plainTextToDocument,sanitizeMarkdownDocument,loadMarkdownTools,cleanHTML,plainTextToStructuredHTML,safeUrl,escapeHTML:esc,autofillPastedTitle,upload,getEditor:()=>richEditor,insertCaptureHTML,captureSelection,insertCaptureText,toast},
+ attachmentUpload:{upload,escapeHTML:esc,notify:toast},
+ slashMenu:{window,show:position=>editorDataStore.showSlashMenu(position),close:()=>editorDataStore.closeSlashMenu()},
+ },
+ runtime:{
+  document,window,main,getElement:$,usesVueWorkspace,
+  state:{getEditor:()=>richEditor,setEditor:editor=>{richEditor=editor},getEditorFactory:()=>editorFactory,setEditorFactory:factory=>{editorFactory=factory}},
+  editorStore:editorDataStore,navigationStore,
+  ensureDraft,getVault,
+  getEditorOptions:()=>({noteTypes:getVault().noteTypes||[],categories:getVault().categories}),
+  getPasteMode:preferredPasteMode,createSession:input=>editorSessionSnapshot(input),
+  updateDraftFromDOM,scheduleSave,flushEditorSave,saveDraft,
+  mutateVault,cleanHTML,escapeHTML:esc,isDraft,setBreadcrumb,displayTypeName,icons,toast
+ },
+ createRuntime:createWorkspaceEditorRuntime
+});
+({toolbar:workspaceEditorToolbar,input:editorInputFeature,runtime:editorWorkspace}=workspaceEditorFeature);
+const editorToolbarEvents=workspaceEditorToolbar.events;
+function insertHTML(html){return editorInputFeature.insertHTML(html)}
+async function doInsert(kind){return editorInputFeature.insert(kind)}
+function handleEditorPaste(payload){return editorInputFeature.handleEditorPaste(payload)}
+function openSlashMenu(){editorInputFeature.openSlashMenu()}function closeSlashMenu(){editorInputFeature.closeSlashMenu()}function openSlashHint(){openSlashMenu()}
+function storeImage(file,destination,bookmark=null,range=null){return editorInputFeature.storeImage(file,destination,bookmark,range)}
+function pasteRich(event){return editorInputFeature.handleCapturePaste(event)}
+captureFeature.bindPasteHandler(pasteRich);
+function openCapture(options={}){captureFeature.open(options)}
+function closeCapture(){captureFeature.close()}
+async function saveCapture(){await captureFeature.saveLegacy()}
+function openBackupHistory(){return backupFeature.openBackupHistory()}
+function downloadBackupSnapshot(revision){return backupFeature.downloadSnapshot(revision)}
+function restoreBackupSnapshot(revision){return backupFeature.restoreSnapshot(revision)}
+function exportJSON(){return backupFeature.exportFullBackup()}
+function importJSON(file){return backupFeature.importBackup(file)}
 function toast(s){notificationDataStore.show(s)}
 function closeAccountMenu(){workspaceShellStore.closeAccountMenu()}
-function closeAccountSettings(){profileSettings.close();appSettings.close();systemUpdates.close()}
-const systemUpdates=createSystemUpdateController({document,window,appVersion:APP_VERSION,getSystemVersion,getSystemUpdateStatus,requestSystemUpdate,flush,renderReleaseNotes,closeAccountMenu,closeAppSettings:()=>appSettings.close(),onDialogOpen:()=>browserHistory?.dialogChanged('version-info',true),onDialogClose:()=>browserHistory?.dialogChanged('version-info',false)});
-bookmarkDataStore.bindActions(async action=>{await bookmarkMutationActions.execute(action)});
-trashDataStore.bindActions(trashWorkflows||{
- restore:id=>recycleBinView?.restore(id)||Promise.resolve(false),
- clearAll:async()=>false,
- pruneExpired:()=>recycleBinView?.pruneExpired()||0
-});
-function openAppSettings(){closeAccountMenu();void appSettings.show()}
-const signOutFlow=createSignOutFlow({isEditing:()=>navigationStore.editing,clearAutosave:()=>editorAutosave.clear(),saveDraft:()=>saveDraft(true),flush,logout:()=>logoutAccount(),reload:()=>location.reload(),notify:toast});
-function signOut(){void signOutFlow.run()}
+function closeAccountSettings(){workspaceDialogControls.closeSettingsOverlays()}
+const systemUpdates=createWorkspaceSystemUpdates({document,window,appVersion:APP_VERSION,getSystemVersion,getSystemUpdateStatus,requestSystemUpdate,flush,renderReleaseNotes,closeAccountMenu,closeAppSettings:()=>appSettings.close(),onDialogOpen:()=>browserHistory?.dialogChanged('version-info',true),onDialogClose:()=>browserHistory?.dialogChanged('version-info',false)});
+const workspaceDialogControls=createWorkspaceDialogControls({profileSettings,appSettings,backupHistory:backupHistoryStore,systemUpdates,getElement:$});
+bookmarkFeature.bindActions();
+trashFeature.bindActions();
+function signOut(){void accountSession.signOut()}
 workspaceShellStore.setIdentity(initial.username||'本地预览',!!initial.local);
 if(!initial.local)void profileSettings.refresh().catch(()=>{});
-function restoreWorkspaceDialog(dialog){
- appSettings.close();profileSettings.close();backupHistoryStore.close();systemUpdates.close();
- if(dialog==='app-settings')appSettings.show();
- else if(dialog==='profile-settings')void profileSettings.show();
- else if(dialog==='backup-history'){backupHistoryStore.show();void backupHistoryStore.refresh()}
- else if(dialog==='version-info')void systemUpdates.open();
-}
-browserHistory=createBrowserHistoryController({
+const workspaceUIRuntime=mountWorkspaceUIRuntime({
+ history:{
  window,
- getNavigation:workspaceNavigationState,
+ watch,
+ navigationStore,
+ dialogs:{appSettings,profileSettings,backupHistory:backupHistoryStore,systemUpdates},
+ getNavigation:()=>navigationStore.getWorkspaceState(),
  restoreNavigation:(state,scrollY)=>workspaceNavigation.restoreFromHistory(state,scrollY),
- restoreDialog:restoreWorkspaceDialog,
  hasUnsavedEditorChanges:()=>navigationStore.editing&&editorHasChanges(),
  saveEditorBeforeLeaving:()=>{editorAutosave.clear();saveDraft(true);return flush()},
  confirmLeaveEditor:()=>confirmAction('当前笔记有修改，是否保存后离开？点击取消将继续编辑。',{title:'离开编辑',confirmText:'保存并离开'}),
- onInvalidRoute:()=>toast('笔记不存在、已删除或当前账号无权访问，已返回首页。')
-});
-const stopNavigationHistoryWatch=navigationStore.$subscribe(()=>browserHistory?.stateChanged());
-const stopAppSettingsHistoryWatch=watch(()=>appSettingsStore.open,open=>browserHistory?.dialogChanged('app-settings',open));
-const stopProfileSettingsHistoryWatch=watch(()=>profileSettingsStore.controller?.state.visible,open=>browserHistory?.dialogChanged('profile-settings',!!open));
-const stopBackupHistoryWatch=watch(()=>backupHistoryStore.open,open=>browserHistory?.dialogChanged('backup-history',open));
-browserHistory.start();
-const stopReaderFragmentRestoration = observeReaderFragmentRestoration(document.querySelector('#dashboardHost'));
-const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
+ onInvalidRoute:()=>toast('笔记不存在、已删除或当前账号无权访问，已返回首页。'),
+ watchAppSettings:callback=>watch(()=>appSettingsStore.open,callback),
+ watchProfileSettings:callback=>watch(()=>profileSettingsStore.controller?.state.visible,open=>callback(!!open)),
+ watchBackupHistory:callback=>watch(()=>backupHistoryStore.open,callback)
+ },
+ readerFragmentRoot:document.querySelector('#dashboardHost'),
+ interactions:{
+ usesVueWorkspace,
  document,window,
  staticDom:usesVueWorkspace?null:{closeCapture,closeCreateMenu:()=>legacyCreateMenu?.close(),handleCapturePaste:pasteRich,saveNoteType:saveTypeDialog},
  editorLifecycle:{isEditing:()=>navigationStore.editing,hasEditorChanges:editorHasChanges,saveDraft,hasUnsavedChanges:hasUnsaved},
- routeHandlers:[
-  ...(usesVueWorkspace?[]:[event=>workspaceNavigationEvents.handle(event)]),
-  ...(editorToolbarEvents?[event=>editorToolbarEvents.handleClick(event.target)]:[]),
-  ...(usesVueWorkspace?[]:[event=>workspaceShellEvents.handle(event)]),
-  ...(workspaceContentEvents?[event=>workspaceContentEvents.handleClick(event.target)]:[])
- ],
- handleChange:editorToolbarEvents?target=>editorToolbarEvents.handleChange(target):null,
+ navigationEvents:workspaceNavigationEvents,
+ editorToolbarEvents,
+ shellEvents:workspaceShellEvents,
+ contentEvents:workspaceContentEvents,
  editorFiles:{
-  uploadAttachments:files=>attachmentUpload.insertFiles(files),
+  uploadAttachments:files=>editorInputFeature.insertAttachments(files),
   storeImages:async files=>{for(const file of files)await storeImage(file,'edit')}
  },
  importBackupFile:importJSON,
  keyboard:{
   isEditing:()=>navigationStore.editing,
-  openGlobalSearch:()=>{commandPaletteStore.close();globalSearchDataStore.show('',document.activeElement instanceof HTMLElement?document.activeElement:null)},
+  openGlobalSearch:workspaceSearch.openFromShortcut,
   saveDraft,
   updateEditorBaseline:()=>editorDataStore.setBaseline(editorContentSnapshot(navigationStore.editingDraft)),
   closeSearch,
@@ -771,18 +577,31 @@ const disposeWorkspaceInteractions=mountWorkspaceInteractionRuntime({
   closeSlashMenu,
   openNote
  }
+ }
 });
-return mountWorkspaceSession({
- initial,
- theme:getVault().theme,
- currentVersion:APP_VERSION,
- vault:getVault(),
- applyTheme,
- render,
- renderVersionBadge:state=>systemUpdates.renderBadge(state),
- checkUpdates:()=>systemUpdates.check(),
- queueSave,
- dispose:[disposeWorkspaceInteractions,disposeWorkspaceLifecycle,disposeTheme,()=>editorAutosave.clear(),destroyRichEditor,()=>browserHistory?.dispose(),stopReaderFragmentRestoration,stopNavigationHistoryWatch,stopAppSettingsHistoryWatch,stopProfileSettingsHistoryWatch,stopBackupHistoryWatch,disposeSkipToMainContent]
+const workspaceHistory=workspaceUIRuntime.history;
+browserHistory=workspaceHistory.controller;
+return workspaceApplicationLifecycle.startSession({
+ session:{
+  initial,
+  theme:getVault().theme,
+  currentVersion:APP_VERSION,
+  vault:getVault(),
+  applyTheme,
+  render,
+  renderVersionBadge:state=>systemUpdates.renderBadge(state),
+  checkUpdates:()=>systemUpdates.check(),
+  queueSave
+ },
+ dispose:{
+  interactions:workspaceUIRuntime.disposeInteractions,
+  theme:disposeTheme,
+  clearAutosave:()=>editorAutosave.clear(),
+  destroyEditor:destroyRichEditor,
+  history:workspaceUIRuntime.disposeHistory,
+  readerFragmentRestoration:workspaceUIRuntime.disposeReaderFragmentRestoration,
+  skipToMainContent:disposeSkipToMainContent
+ }
 });
 })();
 }

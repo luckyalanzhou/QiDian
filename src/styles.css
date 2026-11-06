@@ -639,6 +639,8 @@ body.booting > #appBoot{min-height:100svh;display:grid;place-content:center;just
 .note-list .note-foot{margin-top:auto;padding-top:10px}
 .note-list .note-item-menu{top:10px;right:10px}
 .note-list>.empty{grid-column:1/-1}
+/* Keep the full list available for search and keyboard navigation while skipping offscreen card layout and paint. */
+.note-list>.note-card{content-visibility:auto;contain-intrinsic-size:auto 240px}
 @media(max-width:1000px){.note-list{grid-template-columns:minmax(0,1fr)}}
 
 /* Editor search, outline and task lists */

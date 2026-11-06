@@ -1,4 +1,5 @@
 local sys = require "luci.sys"
+local util = require "luci.util"
 
 local function run_action(action)
 	if sys.call("test -d /tmp/qidian-operation.lock || test -f /tmp/qidian-operation.queued") == 0 then
@@ -48,6 +49,25 @@ trusted_proxy_ip.rmempty = true
 trusted_proxy_ip:depends("trust_proxy_enabled", "1")
 trusted_proxy_ip.description = translate("填写直接连接栖点容器的代理地址；启用反代时必填。")
 
+local image_tag = s:taboption("basic", ListValue, "image_tag", translate("Docker 镜像"))
+image_tag:value("latest", "docker.io/luckyalanzhou/qidian:latest")
+local package_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null"))
+if package_version ~= "" then image_tag:value(package_version, "docker.io/luckyalanzhou/qidian:" .. package_version) end
+image_tag:value("custom", translate("-- 自定义 --"))
+image_tag.default = "latest"
+image_tag.rmempty = false
+
+local custom_image = s:taboption("basic", Value, "custom_image", translate("自定义镜像标签"))
+custom_image:depends("image_tag", "custom")
+custom_image.placeholder = "latest 或 0.0.48"
+custom_image.datatype = "uciname"
+custom_image.rmempty = true
+
+local data_path = s:taboption("basic", Value, "data_path", translate("配置文件路径"))
+data_path.placeholder = "/opt/docker/volumes/qidian/data"
+data_path.datatype = "string"
+data_path.rmempty = true
+
 local account = s:taboption("basic", DummyValue, "_account_tools", translate("管理员密码重置"))
 account.template = "qidian/account-tools"
 
@@ -55,15 +75,6 @@ if not docker_ready or not compose_ready then
 	local environment = s:taboption("basic", DummyValue, "environment_display", translate("环境检查"))
 	environment.default = not docker_ready and translate("请先启动 Docker 服务。") or translate("请先安装 Docker Compose。")
 end
-
-local needs_deployment = not docker_ready or sys.call("docker inspect --type container qidian >/dev/null 2>&1") ~= 0 or sys.call("test -f /tmp/qidian-deployment.failed") == 0
-if needs_deployment then
-	local install = s:taboption("basic", Button, "_install", "")
-	button(install, translate("重试部署"), "apply", "install-package")
-end
-
-local updates = s:taboption("basic", Button, "_check_update", "")
-button(updates, translate("检查更新"), "apply", "check-update")
 
 local clear_logs = s:taboption("logs", Button, "_clear_logs", translate("日志"))
 clear_logs.inputtitle = translate("清空日志")
@@ -75,11 +86,25 @@ end
 local logs = s:taboption("logs", DummyValue, "_operation_log", translate("操作日志"))
 logs.template = "qidian/logs"
 
-local start = s:taboption("basic", Button, "_start", translate("服务控制"))
-button(start, translate("启动服务"), "apply", "start")
-local stop = s:taboption("basic", Button, "_stop", translate("服务控制"))
-button(stop, translate("停止服务"), "reset", "stop")
-local remove = s:taboption("basic", Button, "_remove", translate("服务控制"))
-button(remove, translate("卸载服务"), "remove", "remove")
+local state = util.trim(sys.exec("/usr/libexec/istorec/qidian.sh status 2>/dev/null"))
+local container_exists = sys.call("docker inspect --type container qidian >/dev/null 2>&1") == 0
+if not container_exists then
+	local install = s:taboption("basic", Button, "_install", "")
+	button(install, translate("安装"), "apply", "install-package")
+elseif state == "running" then
+	local apply = s:taboption("basic", Button, "_apply", "")
+	button(apply, translate("升级/应用"), "apply", "check-update")
+	local stop = s:taboption("basic", Button, "_stop", "")
+	button(stop, translate("停止"), "reset", "stop")
+	local restart = s:taboption("basic", Button, "_restart", "")
+	button(restart, translate("重启"), "apply", "restart")
+elseif state == "exited" or state == "created" or state == "dead" then
+	local apply = s:taboption("basic", Button, "_apply", "")
+	button(apply, translate("升级/应用"), "apply", "check-update")
+	local start = s:taboption("basic", Button, "_start", "")
+	button(start, translate("启动"), "apply", "start")
+	local remove = s:taboption("basic", Button, "_remove", "")
+	button(remove, translate("删除"), "remove", "remove")
+end
 
 return m

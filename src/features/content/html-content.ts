@@ -31,6 +31,8 @@ export function createHtmlContentTools({
   }
 
   const allowed = new Set('p div span b strong i em u s strike del mark small sub sup h1 h2 h3 h4 h5 h6 ul ol li blockquote pre code br hr a img figure figcaption table colgroup col thead tbody tfoot tr th td caption details summary section article main header footer aside nav dl dt dd kbd samp var abbr cite q'.split(' '));
+  const discardedContent = new Set('script style iframe object embed form input button textarea select option svg math meta link base video audio canvas noscript template'.split(' '));
+  const compactTextBlocks = new Set('p div li blockquote pre h1 h2 h3 h4 h5 h6'.split(' '));
   const headingSlug = (value: unknown, index: number) => String(value || '')
     .toLocaleLowerCase()
     .trim()
@@ -354,6 +356,32 @@ export function createHtmlContentTools({
     return (holder.textContent || '').replace(/\s+/g, ' ').trim();
   }
 
+  function noteBodyCompactText(body: unknown, title = ''): string {
+    const input = parseHTML(String(body || ''));
+    const richContent = input.querySelector('h1,h2,h3,h4,h5,h6,a[href],b,strong,i,em,u,s,del,mark,blockquote,pre,code,ul,ol,li,table,img,figure,details,hr,.callout');
+    if (!richContent) {
+      const markdown = textWithBlockBreaks(input.body);
+      if (looksLikeMarkdown(markdown)) {
+        return htmlToCompactText(readableNoteBody(body, title).html);
+      }
+    }
+
+    const text = (node: Node): string => {
+      if (node.nodeType === 3) return node.nodeValue || '';
+      if (node.nodeType !== 1) return '';
+      const element = node as HTMLElement;
+      const tag = element.tagName.toLowerCase();
+      if (discardedContent.has(tag)) return '';
+      if (tag === 'br') return ' ';
+      if (tag === 'img') {
+        return safeUrl(element.getAttribute('src'), true) ? '' : (element.getAttribute('alt') || '').trim();
+      }
+      const content = [...element.childNodes].map(text).join('');
+      return compactTextBlocks.has(tag) ? `${content} ` : content;
+    };
+    return [...input.body.childNodes].map(text).join('').replace(/\s+/g, ' ').trim();
+  }
+
   function readableNoteBody(body: unknown, title = ''): ReadableNoteBody {
     const safe = cleanHTML(body, true);
     const holder = document.createElement('div');
@@ -393,5 +421,5 @@ export function createHtmlContentTools({
     return '';
   }
 
-  return { safeUrl, cleanHTML, plainTextToStructuredHTML, textWithBlockBreaks, htmlToCompactText, readableNoteBody, extractPastedTitle };
+  return { safeUrl, cleanHTML, plainTextToStructuredHTML, textWithBlockBreaks, htmlToCompactText, noteBodyCompactText, readableNoteBody, extractPastedTitle };
 }

@@ -48,21 +48,32 @@ export const useSidebarStore = defineStore('sidebar', () => {
     if (!vault.ready || !value || !configured) return emptySnapshot();
 
     const notes = value.notes || [];
-    const publishedNotes = notes.filter(note => !configured.isDraft(note));
+    let all = 0;
+    let pinned = 0;
+    let drafts = 0;
+    const typeCounts = new Map<string, number>();
+    for (const note of notes) {
+      if (configured.needsPublish(note) && configured.hasDraftContent(note)) drafts++;
+      if (configured.isDraft(note)) continue;
+      all++;
+      if (note.pinned) pinned++;
+      const typeId = note.type;
+      typeCounts.set(typeId, (typeCounts.get(typeId) || 0) + 1);
+    }
     const types = value.noteTypes || [];
     return {
       counts: {
-        all: publishedNotes.length,
-        recent: publishedNotes.length,
-        pinned: publishedNotes.filter(note => note.pinned).length,
-        drafts: notes.filter(note => configured.needsPublish(note) && configured.hasDraftContent(note)).length,
+        all,
+        recent: all,
+        pinned,
+        drafts,
         bookmarks: bookmarkLinkCount(value.bookmarks || []),
         trash: (value.trash || []).length
       },
       noteTypes: types.map((type: NoteType) => ({
         id: type.id,
         name: configured.displayTypeName(type),
-        count: publishedNotes.filter(note => note.type === type.id).length
+        count: typeCounts.get(type.id) || 0
       })),
       typesExpanded: value.noteTypesExpanded !== false
     };

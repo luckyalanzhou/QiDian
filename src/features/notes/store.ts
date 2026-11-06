@@ -42,26 +42,49 @@ export const useNoteListStore = defineStore('note-list', () => {
   const navigation = useNavigationStore();
   const active = computed(() => vault.ready && navigation.page === 'home');
   let dependencies: NoteListSnapshotDependencies | null = null;
+  let cachedSearchGeneration = -1;
+  let cachedSearchProviderRevision = -1;
+  let cachedSearchView: 'published' | 'drafts' | null = null;
+  let cachedBodyText = new Map<string, string>();
 
   const snapshot = computed(() => {
     // These explicit dependencies invalidate the projection after account data
     // changes or when the user changes the active list, type, or query.
-    void vault.generation;
+    const generation = vault.generation;
     void navigation.active;
     void navigation.typeFilter;
     void navigation.noteQuery;
-    void providerRevision.value;
+    const currentProviderRevision = providerRevision.value;
     const value = vault.value;
     const configured = dependencies;
     if (!vault.ready || !value || !configured) return emptySnapshot();
 
     const activeView = ['all', 'recent', 'pinned', 'drafts'].includes(navigation.active) ? navigation.active : 'all';
+    const searchView = activeView === 'drafts' ? 'drafts' : 'published';
     const filtered = selectNotes(value.notes || [], {
       active: activeView,
       typeFilter: navigation.typeFilter,
       query: navigation.noteQuery,
       hasDraftContent: configured.hasDraftContent,
-      bodyText: configured.bodyText
+      bodyText: configured.bodyText,
+      searchBodyText: note => {
+        if (
+          cachedSearchGeneration !== generation
+          || cachedSearchProviderRevision !== currentProviderRevision
+          || cachedSearchView !== searchView
+        ) {
+          cachedSearchGeneration = generation;
+          cachedSearchProviderRevision = currentProviderRevision;
+          cachedSearchView = searchView;
+          cachedBodyText = new Map();
+        }
+        let bodyText = cachedBodyText.get(note.id);
+        if (bodyText === undefined) {
+          bodyText = configured.bodyText(note.body, note.title);
+          cachedBodyText.set(note.id, bodyText);
+        }
+        return bodyText;
+      }
     });
     const heading = navigation.typeFilter !== 'all'
       ? configured.typeName(navigation.typeFilter)

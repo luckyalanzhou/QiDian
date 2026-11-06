@@ -24,10 +24,7 @@
 - 每次代码改动都必须用最新生产构建启动生产预览，逐项验证本次改动涉及的用户可见行为与关键路径；按影响覆盖桌面和手机视口。测试和构建不能替代生产预览验收；无法实际验证的部分须明确标为未验证。
 - 按 SQLite/API、DOM、桌面/手机浏览器、实机、Docker 部署分别报告实际验证结果及未验证项；源码检查或构建不代表已发布或部署。
 - 使用 Windows 原生环境、PowerShell 终端和 Windows 路径；仅任务明确要求时使用 Bash/WSL/Git Bash，并先说明原因。
-- 按任务选择已加载且符合触发条件的技能；用户指定优先。
-- 按任务描述自动选择匹配技能：项目文档/报告用 `project-docs`、`codegen-doc`、`md-report-summary`；图表用 `codegen-diagram`、`drawio-diagram`、`excalidraw-diagram`、`pptgen-drawio`；PDF/Office 用 `pdf`、`office-file-process`；论文/专利/公众号写作用 `paper-write`、`patent-write`、`wechat-article-writer`；Skill 与 Prompt 转换用 `skill-prompt-convert`。外部添加技能与 Codex 自带技能功能重合时优先使用外部技能；只加载当前任务相关技能，项目规则和用户授权优先。`allow_implicit_invocation: false` 的技能仅在用户显式调用时使用。
-- UI 设计、评审与改版优先使用 `impeccable`，遵循项目现有技术、品牌和设计约束；需要额外设计方向与视觉迭代时使用 `design-taste-frontend`。
-
+- UI 改动严格遵循本文件中的技术、主题和界面约束。
 ## Git/GitHub
 - 每个新 Git/GitHub 任务从普通权限 Git 开始，不因历史失败或记忆跳过步骤。
 - 尝试顺序：Git → 权限受限时申请提权重试 → 仍失败且可替代时用 `D:\gh.exe` → gh 权限受限时申请提权重试。

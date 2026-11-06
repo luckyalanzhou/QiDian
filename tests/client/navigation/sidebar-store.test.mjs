@@ -66,3 +66,42 @@ test('sidebar facets derive counts and note types directly from the active vault
   assert.equal(sidebar.snapshot.noteTypes[1].count, 2);
   assert.equal(sidebar.snapshot.typesExpanded, true);
 });
+
+test('sidebar counts each published note type once when the vault has many types', async t => {
+  const server = await createServer({
+    configFile: false,
+    root: fileURLToPath(new URL('../../../', import.meta.url)),
+    server: { middlewareMode: true },
+    appType: 'custom'
+  });
+  t.after(() => server.close());
+
+  const [{ useVaultStore }, { useSidebarStore }] = await Promise.all([
+    server.ssrLoadModule('/src/features/vault/store.ts'),
+    server.ssrLoadModule('/src/features/navigation/sidebar-store.ts')
+  ]);
+  const pinia = createPinia();
+  const vault = useVaultStore(pinia);
+  const sidebar = useSidebarStore(pinia);
+  let typeReads = 0;
+  const noteTypes = Array.from({ length: 20 }, (_, index) => ({ id: `type-${index}`, name: `类型 ${index}` }));
+  const notes = Array.from({ length: 200 }, (_, index) => {
+    const value = note({ id: `note-${index}`, title: `笔记 ${index}` });
+    Object.defineProperty(value, 'type', {
+      enumerable: true,
+      get() { typeReads++; return `type-${index % noteTypes.length}`; }
+    });
+    return value;
+  });
+  vault.replace({ noteTypes, notes, bookmarks: [], trash: [] });
+  sidebar.configure({
+    isDraft: item => item.status === 'draft',
+    needsPublish: item => item.status === 'draft' || !!item.publishedSnapshot,
+    hasDraftContent: item => !!(item.title.trim() || item.body.trim()),
+    displayTypeName: type => type.name
+  });
+
+  assert.equal(sidebar.snapshot.counts.all, 200);
+  assert.deepEqual(sidebar.snapshot.noteTypes.map(type => type.count), Array(20).fill(10));
+  assert.equal(typeReads, 200, 'each note contributes its type count in one pass');
+});
