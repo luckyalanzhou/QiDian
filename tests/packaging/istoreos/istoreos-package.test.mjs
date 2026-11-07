@@ -427,6 +427,8 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /check-update\)\s*check_and_apply_updates/);
   assert.match(manager, /version_is_newer "\$latest_version" "\$installed_plugin_version"/);
   assert.match(manager, /version_is_newer "\$latest_version" "\$container_version"/);
+  assert.match(manager, /asset_url_lower=.*tr '\[:upper:\]' '\[:lower:\]'/);
+  assert.match(updater, /asset_url_lower=.*tr '\[:upper:\]' '\[:lower:\]'/);
   assert.match(manager, /sha256sum -c "\$checksum"/);
   assert.ok(manager.indexOf('sha256sum -c "$checksum"') < manager.indexOf('QIDIAN_UPDATE_WORKER=1 "./$archive"'), 'verify the plugin installer before execution');
   assert.match(manager, /QIDIAN_UPDATE_WORKER=1 "\.\/\$archive"/);

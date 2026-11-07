@@ -215,7 +215,9 @@ release_asset_url() {
 	asset_label=$2
 	asset_url=$(jsonfilter -i "$UPDATE_WORK_DIR/release.json" -e "@.assets[@.name='$asset_name'].browser_download_url" 2>/dev/null || true)
 	[ -n "$asset_url" ] || asset_url=$(jsonfilter -i "$UPDATE_WORK_DIR/release.json" -e "@.assets[@.label='$asset_label'].browser_download_url" 2>/dev/null || true)
-	case "$asset_url" in "$UPDATE_ASSET_PREFIX"*) printf '%s' "$asset_url" ;; *) return 1 ;; esac
+	asset_url_lower=$(printf '%s' "$asset_url" | tr '[:upper:]' '[:lower:]')
+	asset_prefix_lower=$(printf '%s' "$UPDATE_ASSET_PREFIX" | tr '[:upper:]' '[:lower:]')
+	case "$asset_url_lower" in "$asset_prefix_lower"*) printf '%s' "$asset_url" ;; *) return 1 ;; esac
 }
 
 check_and_apply_updates() {
