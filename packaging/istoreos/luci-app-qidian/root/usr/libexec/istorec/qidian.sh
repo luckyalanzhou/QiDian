@@ -690,6 +690,6 @@ case "${1:-status}" in
 		trap 'rm -f "$UPDATE_WORKER_PATH" /tmp/qidian-operation.queued' EXIT
 		run_operation check-update
 		;;
-	apply-config|install|upgrade|install-package|start|stop|remove) run_operation "$1" ;;
+	apply-config|install|upgrade|install-package|start|stop|restart|remove) run_operation "$1" ;;
 	*) fail "未知操作：$1" ;;
 esac

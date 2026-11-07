@@ -1,0 +1,16 @@
+**
+!packaging/
+!packaging/istoreos/
+!packaging/istoreos/luci-app-qidian/
+!packaging/istoreos/luci-app-qidian/root/
+!packaging/istoreos/luci-app-qidian/root/usr/
+!packaging/istoreos/luci-app-qidian/root/usr/lib/
+!packaging/istoreos/luci-app-qidian/root/usr/lib/lua/
+!packaging/istoreos/luci-app-qidian/root/usr/lib/lua/luci/**
+!packaging/istoreos/luci-app-qidian/root/etc/
+!packaging/istoreos/luci-app-qidian/root/etc/config/
+!packaging/istoreos/luci-app-qidian/root/etc/config/qidian
+!scripts/
+!scripts/luci-preview/
+!scripts/luci-preview/start.sh
+!scripts/luci-preview/luci-theme-argon_2.4.7_all.ipk

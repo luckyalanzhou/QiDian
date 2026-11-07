@@ -328,6 +328,19 @@ test('version reset offers two-digit Patch releases to devices on the previous 0
   assert.equal((await response.json()).updateAvailable,true);
 });
 
+test('latest GitHub release accepts the repository canonical URL casing', async () => {
+  const response = await handle(request('/system/version','GET',undefined,{},alice.cookie), {
+    ...env, SELF_HOSTED:'true', QIDIAN_VERSION:'0.0.48',
+    fetchRelease:async () => Response.json({
+      tag_name:'v0.0.49',
+      html_url:'https://github.com/luckyalanzhou/QiDian/releases/tag/v0.0.49',
+      assets:[], draft:false, prerelease:false
+    })
+  });
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).latestVersion,'0.0.49');
+});
+
 test('registration is controlled by deployment configuration', async () => {
   const disabled = await handle(request('/auth/register','POST',JSON.stringify({ username:'closed_user' })), { ...env, LOCAL_DEV:'true', REGISTRATION_ENABLED:'false' });
   assert.equal(disabled.status,403);

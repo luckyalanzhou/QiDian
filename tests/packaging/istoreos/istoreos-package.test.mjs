@@ -32,7 +32,7 @@ test('LuCI version action retains its native form submission and follows operati
   const controls = ['_start', '_stop', '_restart', '_remove', '_install', '_apply', '_clear_logs'].map(name =>
     `<div class="cbi-value" id="row${name}"><div class="cbi-value-title">Label</div><div class="cbi-value-field"><input type="submit" name="cbid.qidian.main.${name}" value="${name}"></div></div>`
   ).join('');
-  const dom = new JSDOM(`<form>${render(service)}<div class="basic-tab">${controls}</div>${render(logs)}</form>`, {
+  const dom = new JSDOM(`<form>${render(service)}<div class="basic-tab">${controls}</div>${render(logs)}<div class="cbi-page-actions"></div></form>`, {
     url: 'http://router.example/cgi-bin/luci/admin/services/qidian', runScripts: 'outside-only'
   });
   try {
@@ -42,6 +42,8 @@ test('LuCI version action retains its native form submission and follows operati
     window.eval(script(service));
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
     assert.equal(document.querySelector('#qidian-service-action-fields input[name$="._apply"]'), update);
+    assert.equal(document.querySelector('#qidian-service-operations').nextElementSibling, document.querySelector('.cbi-page-actions'));
+    assert.equal(document.querySelector('.cbi-page-actions').hidden, true, 'the lifecycle actions replace the default footer buttons');
     assert.equal(update.form, document.querySelector('form'));
     assert.equal(update.name, 'cbid.qidian.main._apply');
     assert.ok(deploy.closest('#qidian-service-action-fields'), 'deployment is grouped with lifecycle actions');
@@ -412,7 +414,7 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /apply-config\)\s*if ! docker info/);
   assert.match(manager, /docker image inspect "\$deployed_image"/);
   assert.match(manager, /compose up -d --no-build --force-recreate qidian/);
-  assert.match(manager, /apply-config\|install\|upgrade\|install-package\|start\|stop\|remove\) run_operation/);
+  assert.match(manager, /apply-config\|install\|upgrade\|install-package\|start\|stop\|restart\|remove\) run_operation/);
   assert.match(applyTrigger, /"config":\s*"qidian"/);
   assert.match(applyTrigger, /"exec":\s*"\/usr\/libexec\/istorec\/qidian\.sh apply-config"/);
   assert.match(installer, /\/etc\/init\.d\/ucitrack restart \|\| \/etc\/init\.d\/ucitrack start/);
@@ -438,8 +440,15 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(model, /translate\("启动"\)/);
   assert.match(model, /translate\("停止"\)/);
   assert.match(model, /translate\("删除"\)/);
-  assert.match(model, /s:taboption\("basic", ListValue, "image_tag"/);
+  assert.match(model, /s:taboption\("basic", Value, "image_tag"/);
   assert.match(model, /s:taboption\("basic", Value, "data_path"/);
+  assert.match(model, /image_tag\.template = "cbi\/dropdown"/);
+  assert.match(model, /data_path\.template = "cbi\/dropdown"/);
+  assert.match(model, /image_tag\.custom = translate\("-- 自定义 --"\)/);
+  assert.match(model, /data_path\.custom = translate\("-- 自定义 --"\)/);
+  assert.match(model, /image_tag:value\("latest"/);
+  assert.match(model, /data_path:value\("\/opt\/docker\/volumes\/qidian\/data"\)/);
+  assert.match(model, /value == "custom"[\s\S]*custom_image/);
   assert.doesNotMatch(model, /发现更新时自动安装。/);
   assert.doesNotMatch(manager, /docker build/);
 });
@@ -463,7 +472,7 @@ test('Docker service and LuCI use HTTP 9908 without requiring certificates', asy
   assert.match(compose, /QIDIAN_IMAGE:\?请先在LuCI执行安装或更新/);
   assert.doesNotMatch(compose, /TLS_CERT_PATH|TLS_KEY_PATH|certs\//);
   assert.doesNotMatch(manager, /openssl req|QIDIAN_CERT_PATH|QIDIAN_KEY_PATH/);
-  assert.match(installer, /QIDIAN_INSTALL_LOCK_HELD=1 \/usr\/libexec\/istorec\/qidian\.sh install-package/);
+  assert.doesNotMatch(installer, /QIDIAN_INSTALL_LOCK_HELD=1 \/usr\/libexec\/istorec\/qidian\.sh install-package/);
   assert.ok(view.includes('href="http://localhost:'));
   assert.ok(view.includes('"http://" + window.location.hostname'));
 });
@@ -501,12 +510,11 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.doesNotMatch(model, /栖点容器管理与更新|首次部署，或应用配置更改|默认端口：9908|首个管理员仍可创建|多架构镜像会自动匹配设备|发现更新时自动安装/);
   assert.match(service, /class="cbi-section qidian-overview"/);
   assert.match(service, /<h3><%:服务状态%><\/h3>/);
-  assert.match(service, /qidian-status-description/);
+  assert.doesNotMatch(service, /栖点的状态信息如下/);
   assert.match(service, /qidian-status-badge/);
-  assert.match(service, /<table class="table cbi-section-table">[\s\S]*?<%:状态%>[\s\S]*?<%:版本%>[\s\S]*?id="qidian-version-text"[\s\S]*?<%:网页入口%>[\s\S]*?<\/table>/, 'show concise service details without storage or account internals');
+  assert.match(service, /<table class="table cbi-section-table">[\s\S]*?<%:状态%>[\s\S]*?<%:网页入口%>[\s\S]*?<\/table>/, 'show concise service details without storage or account internals');
   assert.doesNotMatch(service, /Docker 数据目录|qidian-data-path|账号状态|qidian-account-state|account-status/);
-  assert.match(service, /local version_text = plugin_version == app_version and plugin_version or/);
-  assert.match(service, /<span id="qidian-version-text"><%=util.pcdata\(version_text\)%><\/span>/);
+  assert.doesNotMatch(service, /qidian-version-text/);
   assert.doesNotMatch(service, /qidian-version-actions/);
   assert.doesNotMatch(service, /<strong id="qidian-(?:plugin|image)-version"/);
   assert.doesNotMatch(service, /<div class="cbi-value"><div class="cbi-value-title"><%:访问端口%>/, 'do not squeeze read-only service details into editable CBI rows');
@@ -518,7 +526,7 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.doesNotMatch(service, /cbi-value-title"><%:运行状态%>|cbi-value-title"><%:网页入口%>/);
   assert.doesNotMatch(service, /<details|<summary|qidian-modal|仅在需要重置密码时展开/);
   assert.match(service, /@media screen and \(max-width: 600px\)/);
-  assert.match(service, /#qidian-service-action-fields \{ display: inline-flex; flex-wrap: wrap;/);
+  assert.match(service, /#qidian-service-action-fields \{ display: flex; flex-wrap: wrap; justify-content: flex-end;/);
   assert.match(service, /\.cbi-section-table td \{ border: 0; \}/);
   assert.match(service, /\.cbi-section-table th \{ width: 30%; text-align: start;/);
   assert.match(service, /name\$="\.' \+ suffix/);
@@ -549,7 +557,7 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(logs, /updateOverview\(data\)/);
   assert.match(logs, /\["_install", "_apply", "_start", "_stop", "_restart", "_remove"\]/);
   assert.match(logs, /followLog/);
-  assert.match(logs, /class="cbi-input-textarea" rows="18" readonly/);
+  assert.match(logs, /class="cbi-input-textarea" rows="10" readonly/);
   assert.match(logs, /class="cbi-value qidian-log-output"/);
   assert.doesNotMatch(logs, /操作输出/);
   assert.match(logs, /id="qidian-panel-log"[^>]*aria-label="<%:日志内容%>"/);
@@ -559,13 +567,13 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.match(logs, /\.qidian-log-toolbar \.cbi-value-title \{ display: none; \}/);
   assert.match(logStyles, /\.cbi-value\.qidian-log-output \{ display: block; \}/);
   assert.match(logStyles, /\.qidian-log-output \.cbi-value-field \{ display: block; float: none; width: 100%; max-width: none; margin: 0; \}/);
-  assert.match(logStyles, /width: 100% !important; max-width: none !important; min-width: 0; min-height: 32em/);
+  assert.match(logStyles, /width: 100% !important; max-width: none !important; min-width: 0; min-height: 10em/);
   assert.match(logs, /class="cbi-button" type="button"><%:滚动到底部%>/);
   assert.doesNotMatch(logs, /最多显示最近 64 KB|日志操作|qidian-service-description|请查看日志了解操作进度|首次访问时创建管理员账号/);
   assert.match(logs, /if \(followLog\) panelLog\.scrollTop = panelLog\.scrollHeight/);
   assert.doesNotMatch(logs, /qidian-log-refresh|刷新日志/);
   assert.match(logs, /qidian-log-bottom/);
-  assert.match(logStyles, /textarea#qidian-panel-log \{ display: block; box-sizing: border-box; width: 100% !important; max-width: none !important; min-width: 0; min-height: 32em;/);
+  assert.match(logStyles, /textarea#qidian-panel-log \{ display: block; box-sizing: border-box; width: 100% !important; max-width: none !important; min-width: 0; min-height: 10em; height: 16em; max-height: 60vh; resize: vertical;/);
   assert.doesNotMatch(logStyles, /\b(background|color|grid|border-radius|border-color|border-width|@media|@keyframes)\b|display:\s*flex/i);
   assert.doesNotMatch(logs, /操作已完成|等待操作|正在部署栖点|部署已完成|安装 \/ 更新过程|请保持页面打开|最近一次操作的实时输出/);
   const inlineScript = service.match(/<script>\s*([\s\S]*?)\s*<\/script>/)?.[1];

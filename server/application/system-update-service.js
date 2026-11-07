@@ -44,7 +44,7 @@ export function createSystemUpdateService(accountRepository) {
     let releaseUrl;
     try {
       const url = new URL(release.html_url);
-      if (url.origin !== 'https://github.com' || !url.pathname.startsWith('/luckyalanzhou/qidian/releases/tag/')) throw new Error('invalid release URL');
+      if (url.origin !== 'https://github.com' || !url.pathname.toLowerCase().startsWith('/luckyalanzhou/qidian/releases/tag/')) throw new Error('invalid release URL');
       releaseUrl = url.href;
     } catch { throw new HttpError(503, '最新版本信息格式无效'); }
     if (!parts || !RELEASE_VERSION.test(release.tag_name) || release.draft || release.prerelease) throw new HttpError(503, '最新版本信息格式无效');

@@ -124,14 +124,8 @@ if [ -x /etc/init.d/qidian-updater ]; then
 fi
 
 if [ "$INSTALL_LOCK_OWNED" = 1 ]; then
-	printf '管理界面已安装，正在部署栖点…\n'
-	printf 'running\n' > /tmp/qidian-operation.result
-	if QIDIAN_INSTALL_LOCK_HELD=1 /usr/libexec/istorec/qidian.sh install-package 2>&1 | tee /tmp/qidian-operation.log; then
-		[ "$(cat /tmp/qidian-operation.result 2>/dev/null)" = success ] || fail '管理界面已保留；请在 LuCI 查看日志，解决问题后点击“重试部署”。'
-		printf '安装完成，可在 LuCI 查看服务状态。\n'
-	else
-		fail '部署日志写入失败，请在 LuCI 查看状态后重试。'
-	fi
+	printf '管理插件已安装，请在 LuCI 管理栖点服务。\n'
+	printf 'success\n' > /tmp/qidian-operation.result
 else
 	printf '管理插件已更新，容器由当前更新任务统一处理。\n'
 fi

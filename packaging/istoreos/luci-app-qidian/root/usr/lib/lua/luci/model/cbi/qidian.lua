@@ -18,6 +18,14 @@ local compose_ready = sys.call("docker compose version >/dev/null 2>&1") == 0 or
 local m = Map("qidian", translate("栖点知识库"))
 local status = m:section(SimpleSection)
 status.template = "qidian/status"
+local pending_action
+function m.on_after_save(self)
+	if pending_action then
+		self.uci:commit("qidian")
+		run_action(pending_action)
+		pending_action = nil
+	end
+end
 
 local s = m:section(NamedSection, "main", "qidian", translate("部署设置"))
 s.addremove = false
@@ -27,13 +35,37 @@ local function button(option, title, style, action)
 	option.inputtitle = title
 	option.inputstyle = style
 	option.write = function()
-		run_action(action)
+		pending_action = action
 	end
 	return option
 end
 
 s:tab("basic", translate("基本设置"))
 s:tab("logs", translate("日志"))
+
+local image_tag = s:taboption("basic", Value, "image_tag", translate("Docker 镜像"))
+image_tag.template = "cbi/dropdown"
+image_tag.custom = translate("-- 自定义 --")
+image_tag:value("latest", "docker.io/luckyalanzhou/qidian:latest")
+local package_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null"))
+if package_version ~= "" then image_tag:value(package_version, "docker.io/luckyalanzhou/qidian:" .. package_version) end
+image_tag.default = "latest"
+image_tag.rmempty = false
+image_tag.datatype = "uciname"
+function image_tag.cfgvalue(self, section)
+	local value = Value.cfgvalue(self, section)
+	if value == "custom" then return m.uci:get("qidian", section, "custom_image") end
+	return value
+end
+
+local data_path = s:taboption("basic", Value, "data_path", translate("配置文件路径"))
+data_path.template = "cbi/dropdown"
+data_path.custom = translate("-- 自定义 --")
+data_path.title = translate("数据目录")
+data_path.placeholder = "/opt/docker/volumes/qidian/data"
+data_path:value("/opt/docker/volumes/qidian/data")
+data_path.datatype = "string"
+data_path.rmempty = true
 
 local registration = s:taboption("basic", Flag, "registration_enabled", translate("允许创建其他账号"))
 registration.default = "0"
@@ -48,25 +80,6 @@ trusted_proxy_ip.datatype = "ipaddr"
 trusted_proxy_ip.rmempty = true
 trusted_proxy_ip:depends("trust_proxy_enabled", "1")
 trusted_proxy_ip.description = translate("填写直接连接栖点容器的代理地址；启用反代时必填。")
-
-local image_tag = s:taboption("basic", ListValue, "image_tag", translate("Docker 镜像"))
-image_tag:value("latest", "docker.io/luckyalanzhou/qidian:latest")
-local package_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null"))
-if package_version ~= "" then image_tag:value(package_version, "docker.io/luckyalanzhou/qidian:" .. package_version) end
-image_tag:value("custom", translate("-- 自定义 --"))
-image_tag.default = "latest"
-image_tag.rmempty = false
-
-local custom_image = s:taboption("basic", Value, "custom_image", translate("自定义镜像标签"))
-custom_image:depends("image_tag", "custom")
-custom_image.placeholder = "latest 或 0.0.48"
-custom_image.datatype = "uciname"
-custom_image.rmempty = true
-
-local data_path = s:taboption("basic", Value, "data_path", translate("配置文件路径"))
-data_path.placeholder = "/opt/docker/volumes/qidian/data"
-data_path.datatype = "string"
-data_path.rmempty = true
 
 local account = s:taboption("basic", DummyValue, "_account_tools", translate("管理员密码重置"))
 account.template = "qidian/account-tools"

@@ -5,12 +5,13 @@
 <div id="qidian-account-tools" <% if state ~= "running" or account_status ~= "ready" then %>hidden<% end %>>
 	<div class="cbi-value">
 		<div class="cbi-value-title"><%:重置密码命令%></div>
-		<div class="cbi-value-field"><code id="qidian-reset-command">docker exec -it qidian node server/reset-password.mjs</code> <button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制命令%></button><div id="qidian-copy-message" role="status" aria-live="polite"></div></div>
+		<div class="cbi-value-field"><div class="qidian-command-group"><code id="qidian-reset-command" tabindex="0">docker exec -it qidian node server/reset-password.mjs</code><button type="button" id="qidian-copy-reset" class="cbi-button"><%:复制%></button></div><div id="qidian-copy-message" role="status" aria-live="polite"></div></div>
 	</div>
 </div>
 
 <script>
 (function () {
+	var resetTimer;
 	function copyText(value, onResult) {
 		var fallback = function () {
 			var field = document.createElement("textarea"); field.value = value; field.setAttribute("readonly", ""); field.style.position = "fixed"; field.style.opacity = "0"; document.body.appendChild(field); field.select();
@@ -21,8 +22,25 @@
 	}
 	document.getElementById("qidian-copy-reset").addEventListener("click", function () {
 		copyText(document.getElementById("qidian-reset-command").textContent, function (copied) {
-			document.getElementById("qidian-copy-message").textContent = copied ? "命令已复制" : "复制失败，请手动选择命令";
+			var button = document.getElementById("qidian-copy-reset");
+			var message = document.getElementById("qidian-copy-message");
+			button.textContent = copied ? "已复制" : "复制";
+			message.textContent = copied ? "命令已复制" : "复制失败，请手动选择命令";
+			clearTimeout(resetTimer);
+			resetTimer = setTimeout(function () { button.textContent = "复制"; if (copied) message.textContent = ""; }, 2000);
 		});
 	});
 })();
 </script>
+
+<style>
+#qidian-account-tools .qidian-command-group { display: flex; align-items: stretch; width: 360px; max-width: 100%; min-width: 0; }
+#qidian-reset-command { display: block; box-sizing: border-box; flex: 1 1 auto; min-width: 0; min-height: 40px; padding: .6em .75em; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid #dce1e8; border-radius: 4px 0 0 4px; background: transparent; }
+#qidian-copy-reset { box-sizing: border-box; flex: 0 0 auto; height: auto; min-height: 40px; margin: 0; border-radius: 0 4px 4px 0; }
+#qidian-copy-message { font-size: .85em; }
+@media (max-width: 600px) {
+	#qidian-account-tools .qidian-command-group { flex-wrap: wrap; justify-content: flex-end; gap: .5em; }
+	#qidian-reset-command { flex-basis: 100%; border-radius: 4px; }
+	#qidian-copy-reset { border-radius: 4px; }
+}
+</style>
