@@ -46,6 +46,7 @@ s:tab("logs", translate("日志"))
 local image_tag = s:taboption("basic", Value, "image_tag", translate("Docker 镜像"))
 image_tag.template = "cbi/dropdown"
 image_tag.custom = translate("-- 自定义 --")
+image_tag:value("", translate("-- 请选择 --"))
 image_tag:value("latest", "docker.io/luckyalanzhou/qidian:latest")
 local package_version = util.trim(sys.exec("cat /etc/qidian-version 2>/dev/null"))
 if package_version ~= "" then image_tag:value(package_version, "docker.io/luckyalanzhou/qidian:" .. package_version) end
@@ -62,10 +63,23 @@ local data_path = s:taboption("basic", Value, "data_path", translate("配置文�
 data_path.template = "cbi/dropdown"
 data_path.custom = translate("-- 自定义 --")
 data_path.title = translate("数据目录")
-data_path.placeholder = "/opt/docker/volumes/qidian/data"
-data_path:value("/opt/docker/volumes/qidian/data")
+local current_data_path = util.trim(sys.exec("uci -q get qidian.main.data_path 2>/dev/null"))
+if current_data_path == "" then
+	current_data_path = util.trim(sys.exec("sed -n 's/^QIDIAN_DATA_PATH=//p' /opt/qidian/.env 2>/dev/null | tail -n 1"))
+end
+if current_data_path == "" and docker_ready then
+	local docker_root = util.trim(sys.exec("docker info --format '{{.DockerRootDir}}' 2>/dev/null")):gsub("/+$", "")
+	if docker_root ~= "" then current_data_path = docker_root .. "/volumes/qidian/data" end
+end
+data_path:value("", translate("-- 请选择 --"))
+if current_data_path ~= "" then data_path:value(current_data_path, current_data_path) end
 data_path.datatype = "string"
 data_path.rmempty = true
+function data_path.cfgvalue(self, section)
+	local value = Value.cfgvalue(self, section)
+	if (value == nil or value == "") and current_data_path ~= "" then return current_data_path end
+	return value
+end
 
 local registration = s:taboption("basic", Flag, "registration_enabled", translate("允许创建其他账号"))
 registration.default = "0"

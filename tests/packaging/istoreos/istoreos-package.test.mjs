@@ -448,8 +448,12 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(model, /data_path\.template = "cbi\/dropdown"/);
   assert.match(model, /image_tag\.custom = translate\("-- 自定义 --"\)/);
   assert.match(model, /data_path\.custom = translate\("-- 自定义 --"\)/);
+  assert.match(model, /image_tag:value\("", translate\("-- 请选择 --"\)\)/);
   assert.match(model, /image_tag:value\("latest"/);
-  assert.match(model, /data_path:value\("\/opt\/docker\/volumes\/qidian\/data"\)/);
+  assert.match(model, /data_path:value\("", translate\("-- 请选择 --"\)\)/);
+  assert.match(model, /docker info --format '\{\{\.DockerRootDir\}\}'/);
+  assert.match(model, /data_path:value\(current_data_path, current_data_path\)/);
+  assert.match(model, /function data_path\.cfgvalue/);
   assert.match(model, /value == "custom"[\s\S]*custom_image/);
   assert.doesNotMatch(model, /发现更新时自动安装。/);
   assert.doesNotMatch(manager, /docker build/);
@@ -547,6 +551,7 @@ test('LuCI uses native CBI sections, controls, tabs, and log output', async () =
   assert.doesNotMatch(service, /qidian-copy-path|复制路径|function copyText/);
   assert.match(account, /id="qidian-account-tools"/);
   assert.match(account, /docker exec -it qidian node server\/reset-password\.mjs/);
+  assert.doesNotMatch(account, /flex-wrap:\s*wrap|flex-basis:\s*100%/);
   assert.match(account, /navigator\.clipboard/);
   assert.doesNotMatch(account, /在 OpenWrt 终端运行命令/);
   assert.match(model, /_operation_log", translate\("操作日志"\)/);
