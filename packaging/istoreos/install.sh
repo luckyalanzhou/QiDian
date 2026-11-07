@@ -18,7 +18,7 @@ command -v jsonfilter >/dev/null 2>&1 || fail '缺少 jsonfilter，请先通过�
 [ -d /usr/lib/lua/luci/model/cbi ] || fail '当前系统没有 LuCI CBI 管理界面，无法提供服务配置页。'
 
 # Online updaters already own both operation locks and deploy once themselves.
-# A manual installer owns the operation lock across file installation and deployment.
+# A manual installer owns the operation lock while its plugin files are being installed.
 INSTALL_LOCK_OWNED=0
 if [ "${QIDIAN_UPDATE_WORKER:-0}" != 1 ]; then
 	[ ! -d /tmp/qidian-web-update.lock ] && [ ! -f /tmp/qidian-operation.queued ] || fail '另一项更新正在执行，请稍后重试。'

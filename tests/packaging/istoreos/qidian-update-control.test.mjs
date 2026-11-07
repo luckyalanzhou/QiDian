@@ -4,9 +4,9 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { bash } from '../../support/git-bash.mjs';
 
 const managerPath = new URL('../../../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian.sh', import.meta.url);
-const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
 
 function quote(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;

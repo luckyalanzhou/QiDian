@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { bash } from '../../support/git-bash.mjs';
 
 const source = await readFile(new URL('../../../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian.sh', import.meta.url), 'utf8');
 const functions = source.slice(0, source.lastIndexOf('\ncase "${1:-status}" in')).replaceAll('\r\n', '\n');
 const oldImage = `sha256:${'a'.repeat(64)}`;
 const newImage = `sha256:${'b'.repeat(64)}`;
-const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
 const mock = `
 OLD_IMAGE=${oldImage}
 NEW_IMAGE=${newImage}

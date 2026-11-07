@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, access } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { bash } from '../../support/git-bash.mjs';
 
 test('device updater passes a bounded timeout to both download clients', async () => {
   const source = await readFile(new URL('../../../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh', import.meta.url), 'utf8');
@@ -22,7 +23,6 @@ test('device updater clears stale output and records failures in its configured 
   const source = await readFile(new URL('../../../packaging/istoreos/luci-app-qidian/root/usr/libexec/istorec/qidian-updater.sh', import.meta.url), 'utf8');
   const entry = source.lastIndexOf('\ncase "${1:-serve}" in');
   assert.ok(entry > 0);
-  const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash';
   const result = spawnSync(bash, ['-s'], {
     input: `${source.slice(0, entry)}\nif command -v cygpath >/dev/null 2>&1; then QIDIAN_TEST_ROOT=$(cygpath -u "$QIDIAN_TEST_ROOT"); fi\nCONTROL_ROOT=$QIDIAN_TEST_ROOT\nOPERATION_LOCK="$QIDIAN_TEST_ROOT/operation.lock"\ndownload() { return 1; }\nrun_update "$QIDIAN_TEST_ROOT/request" "$QIDIAN_TEST_ROOT/web.lock" "$QIDIAN_TEST_ROOT/outbox"\n`,
     env: { ...process.env, QIDIAN_TEST_ROOT:root.replaceAll('\\', '/') },
