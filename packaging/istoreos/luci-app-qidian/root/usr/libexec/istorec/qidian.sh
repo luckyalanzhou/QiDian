@@ -210,11 +210,24 @@ download_update_file() {
 	fi
 }
 
+prepare_release_assets() {
+	jsonfilter -i "$UPDATE_WORK_DIR/release.json" -e '@.assets[*]' > "$UPDATE_WORK_DIR/release-assets.jsonl"
+}
+
 release_asset_url() {
 	asset_name=$1
 	asset_label=$2
-	asset_url=$(jsonfilter -i "$UPDATE_WORK_DIR/release.json" -e "@.assets[@.name='$asset_name'].browser_download_url" 2>/dev/null || true)
-	[ -n "$asset_url" ] || asset_url=$(jsonfilter -i "$UPDATE_WORK_DIR/release.json" -e "@.assets[@.label='$asset_label'].browser_download_url" 2>/dev/null || true)
+	asset_url=
+	while IFS= read -r asset_json; do
+		[ -n "$asset_json" ] || continue
+		asset_record_name=$(printf '%s\n' "$asset_json" | jsonfilter -e '@.name' 2>/dev/null || true)
+		asset_record_label=$(printf '%s\n' "$asset_json" | jsonfilter -e '@.label' 2>/dev/null || true)
+		if [ "$asset_record_name" = "$asset_name" ] || [ "$asset_record_label" = "$asset_label" ]; then
+			asset_url=$(printf '%s\n' "$asset_json" | jsonfilter -e '@.browser_download_url' 2>/dev/null || true)
+			break
+		fi
+	done < "$UPDATE_WORK_DIR/release-assets.jsonl"
+	[ -n "$asset_url" ] || return 1
 	asset_url_lower=$(printf '%s' "$asset_url" | tr '[:upper:]' '[:lower:]')
 	asset_prefix_lower=$(printf '%s' "$UPDATE_ASSET_PREFIX" | tr '[:upper:]' '[:lower:]')
 	case "$asset_url_lower" in "$asset_prefix_lower"*) printf '%s' "$asset_url" ;; *) return 1 ;; esac
@@ -279,26 +292,31 @@ check_and_apply_updates() {
 		checksum="$archive.sha256"
 		installer_name="qidian-$latest_version.run"
 		checksum_name="qidian-$latest_version.run.release.sha256"
-		installer_url=$(release_asset_url "$installer_name" "$archive" || true)
-		checksum_url=$(release_asset_url "$checksum_name" "$checksum" || true)
-		if [ -z "$installer_url" ] || [ -z "$checksum_url" ]; then
-			printf 'Release 缺少管理插件安装包或 SHA-256 文件，跳过插件更新。\n'
-			update_failed=1
-		elif ! download_update_file "$installer_url" "$UPDATE_WORK_DIR/$archive" || ! download_update_file "$checksum_url" "$UPDATE_WORK_DIR/$checksum"; then
-			printf '管理插件安装包下载失败，跳过插件更新。\n'
-			update_failed=1
-		elif ! (cd "$UPDATE_WORK_DIR" && sha256sum -c "$checksum"); then
-			printf '管理插件安装包 SHA-256 校验失败，未执行安装包。\n'
+		if ! prepare_release_assets; then
+			printf '无法解析 Release 附件清单，跳过管理插件更新。\n'
 			update_failed=1
 		else
-			printf '校验通过，正在更新 LuCI 管理插件…\n'
-			chmod 755 "$UPDATE_WORK_DIR/$archive"
-			if (cd "$UPDATE_WORK_DIR" && QIDIAN_UPDATE_WORKER=1 "./$archive") && [ "$(cat /etc/qidian-version 2>/dev/null || true)" = "$latest_version" ]; then
-				QIDIAN_PACKAGE_UPDATED=true
-				printf 'LuCI 管理插件已更新到 %s。\n' "$latest_version"
-			else
-				printf 'LuCI 管理插件更新失败，继续检查 Docker 镜像。\n'
+			installer_url=$(release_asset_url "$installer_name" "$archive" || true)
+			checksum_url=$(release_asset_url "$checksum_name" "$checksum" || true)
+			if [ -z "$installer_url" ] || [ -z "$checksum_url" ]; then
+				printf 'Release 缺少管理插件安装包或 SHA-256 文件，跳过插件更新。\n'
 				update_failed=1
+			elif ! download_update_file "$installer_url" "$UPDATE_WORK_DIR/$archive" || ! download_update_file "$checksum_url" "$UPDATE_WORK_DIR/$checksum"; then
+				printf '管理插件安装包下载失败，跳过插件更新。\n'
+				update_failed=1
+			elif ! (cd "$UPDATE_WORK_DIR" && sha256sum -c "$checksum"); then
+				printf '管理插件安装包 SHA-256 校验失败，未执行安装包。\n'
+				update_failed=1
+			else
+				printf '校验通过，正在更新 LuCI 管理插件…\n'
+				chmod 755 "$UPDATE_WORK_DIR/$archive"
+				if (cd "$UPDATE_WORK_DIR" && QIDIAN_UPDATE_WORKER=1 "./$archive") && [ "$(cat /etc/qidian-version 2>/dev/null || true)" = "$latest_version" ]; then
+					QIDIAN_PACKAGE_UPDATED=true
+					printf 'LuCI 管理插件已更新到 %s。\n' "$latest_version"
+				else
+					printf 'LuCI 管理插件更新失败，继续检查 Docker 镜像。\n'
+					update_failed=1
+				fi
 			fi
 		fi
 	elif [ "$plugin_is_ahead" = true ]; then

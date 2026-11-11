@@ -423,6 +423,9 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /set_env QIDIAN_IMAGE "\$image_name"/);
   assert.match(manager, /image_name=\$IMAGE_REPOSITORY:latest/);
   assert.match(manager, /verify_image_version "\$image_name" "\$latest_version"/);
+  assert.match(manager, /jsonfilter -i "\$UPDATE_WORK_DIR\/release\.json" -e '@\.assets\[\*\]'/);
+  assert.match(manager, /if ! prepare_release_assets/);
+  assert.doesNotMatch(manager, /@\.assets\[@\.name=/);
   assert.equal((manager.match(/docker pull --quiet "\$image_name"/g) || []).length, 2, 'both update and package install suppress per-layer progress output');
   assert.match(manager, /check-update\)\s*check_and_apply_updates/);
   assert.match(manager, /version_is_newer "\$latest_version" "\$installed_plugin_version"/);
