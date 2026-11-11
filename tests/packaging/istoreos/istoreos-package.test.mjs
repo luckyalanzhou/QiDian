@@ -322,11 +322,10 @@ test('web updates use a limited host agent, verify the public release checksum, 
   const dockerignore = await read('../../../.dockerignore');
 
   assert.match(updater, /api\.github\.com\/repos\/\$REPOSITORY\/releases\/latest/);
-  assert.match(updater, /@\.assets\[@\.label='\$asset_label'\]/);
-  assert.match(updater, /@\.assets\[@\.name='\$asset_name'\]/);
+  assert.doesNotMatch(updater, /@\.assets\[/, 'construct deterministic Release asset URLs instead of parsing JSON arrays');
+  assert.match(updater, /printf '%s%s' "\$asset_prefix" "\$asset_name"/);
   assert.match(updater, /sha256sum -c/);
   assert.match(updater, /栖点-\$version\.run/);
-  assert.match(updater, /browser_download_url/);
   assert.match(updater, /archive="栖点-\$version\.run"/);
   assert.match(updater, /asset_name="qidian-\$version\.run"/);
   assert.match(updater, /checksum_asset_name="qidian-\$version\.run\.release\.sha256"/);
@@ -423,15 +422,13 @@ test('LuCI service manager defaults to 9908 and guards Docker-mounted knowledge 
   assert.match(manager, /set_env QIDIAN_IMAGE "\$image_name"/);
   assert.match(manager, /image_name=\$IMAGE_REPOSITORY:latest/);
   assert.match(manager, /verify_image_version "\$image_name" "\$latest_version"/);
-  assert.match(manager, /jsonfilter -i "\$UPDATE_WORK_DIR\/release\.json" -e '@\.assets\[\*\]'/);
-  assert.match(manager, /if ! prepare_release_assets/);
-  assert.doesNotMatch(manager, /@\.assets\[@\.name=/);
+  assert.doesNotMatch(manager, /@\.assets\[/, 'construct deterministic Release asset URLs instead of parsing JSON arrays');
+  assert.match(manager, /printf '%s%s' "\$UPDATE_ASSET_PREFIX" "\$asset_name"/);
   assert.equal((manager.match(/docker pull --quiet "\$image_name"/g) || []).length, 2, 'both update and package install suppress per-layer progress output');
   assert.match(manager, /check-update\)\s*check_and_apply_updates/);
   assert.match(manager, /version_is_newer "\$latest_version" "\$installed_plugin_version"/);
   assert.match(manager, /version_is_newer "\$latest_version" "\$container_version"/);
-  assert.match(manager, /asset_url_lower=.*tr '\[:upper:\]' '\[:lower:\]'/);
-  assert.match(updater, /asset_url_lower=.*tr '\[:upper:\]' '\[:lower:\]'/);
+  assert.match(updater, /printf '%s%s' "\$asset_prefix" "\$asset_name"/);
   assert.match(manager, /sha256sum -c "\$checksum"/);
   assert.ok(manager.indexOf('sha256sum -c "$checksum"') < manager.indexOf('QIDIAN_UPDATE_WORKER=1 "./$archive"'), 'verify the plugin installer before execution');
   assert.match(manager, /QIDIAN_UPDATE_WORKER=1 "\.\/\$archive"/);

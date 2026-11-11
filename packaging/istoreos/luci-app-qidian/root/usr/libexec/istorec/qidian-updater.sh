@@ -20,12 +20,13 @@ append_log() { printf '%s\n' "$*" >> "$LOG_FILE"; }
 
 release_asset_url() {
 	asset_name=$1
-	asset_label=${2:-$asset_name}
-	asset_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.name='$asset_name'].browser_download_url" 2>/dev/null || true)
-	[ -n "$asset_url" ] || asset_url=$(jsonfilter -i "$work_dir/release.json" -e "@.assets[@.label='$asset_label'].browser_download_url" 2>/dev/null || true)
-	asset_url_lower=$(printf '%s' "$asset_url" | tr '[:upper:]' '[:lower:]')
-	asset_prefix_lower=$(printf '%s' "$asset_prefix" | tr '[:upper:]' '[:lower:]')
-	case "$asset_url_lower" in "$asset_prefix_lower"*) printf '%s' "$asset_url" ;; *) return 1 ;; esac
+	case "$asset_name" in
+		qidian-*.run|qidian-*.run.release.sha256) ;;
+		*) return 1 ;;
+	esac
+	case "$asset_name" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+	[ -n "$asset_prefix" ] || return 1
+	printf '%s%s' "$asset_prefix" "$asset_name"
 }
 
 download() {
@@ -124,10 +125,8 @@ run_update() {
 	checksum="$archive.sha256"
 	asset_name="qidian-$version.run"
 	checksum_asset_name="qidian-$version.run.release.sha256"
-	asset_label=$archive
-	checksum_label=$checksum
-	installer_url=$(release_asset_url "$asset_name" "$asset_label") || { append_log 'Release 安装包链接无效。'; exit 1; }
-	checksum_url=$(release_asset_url "$checksum_asset_name" "$checksum_label") || { append_log 'Release 校验文件链接无效。'; exit 1; }
+	installer_url=$(release_asset_url "$asset_name") || { append_log 'Release 安装包链接无效。'; exit 1; }
+	checksum_url=$(release_asset_url "$checksum_asset_name") || { append_log 'Release 校验文件链接无效。'; exit 1; }
 	append_log "发现栖点 $version，正在下载安装包和校验文件…"
 	if ! download "$installer_url" "$work_dir/$archive" || ! download "$checksum_url" "$work_dir/$checksum"; then
 		append_log '安装包下载失败；请检查设备是否能访问 GitHub Release。'
