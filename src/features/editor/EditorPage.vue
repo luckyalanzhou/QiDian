@@ -58,7 +58,7 @@ watch(
             <span class="ico"><svg aria-hidden="true"><use :href="icon('back')" /></svg></span>返回阅读
           </button>
           <div class="doc-action-row">
-            <button class="primary-btn" id="saveEditor" type="button" @click.stop="pageActions.execute({ type: 'save-current' })"><span class="ico"><svg aria-hidden="true"><use :href="icon('check')" /></svg></span>{{ editor.snapshot.publishLabel }}</button>
+            <button class="primary-btn" id="saveEditor" type="button" @mousedown.prevent @click.stop="pageActions.execute({ type: 'save-current' })"><span class="ico"><svg aria-hidden="true"><use :href="icon('check')" /></svg></span>{{ editor.snapshot.publishLabel }}</button>
             <button class="secondary-btn" id="addAttachment" type="button" @click.stop="pageActions.execute({ type: 'choose-attachment' })">＋ 附件</button>
             <button class="secondary-btn" id="addImgButton" type="button" @click.stop="pageActions.execute({ type: 'choose-image' })"><span class="ico"><svg aria-hidden="true"><use :href="icon('image')" /></svg></span>插入图片</button>
             <details class="item-menu editor-document-menu">

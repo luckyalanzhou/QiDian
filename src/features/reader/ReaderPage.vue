@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useReaderStore } from './store';
+import { useGlobalSearchStore } from '../search/store';
 import { useNavigationActionsStore } from '../navigation/navigation-actions-store';
 import { useToastStore } from '../notifications/store';
 import { useReaderActionsStore } from './reader-actions-store';
@@ -9,9 +10,12 @@ import { mountHeadingObserver } from './heading-observer';
 import { navigateReaderFragment, scheduleReaderFragmentRestore } from './body-fragment-navigation';
 
 const reader = useReaderStore();
+const search = useGlobalSearchStore();
 const navigationActions = useNavigationActionsStore();
 const toast = useToastStore();
 const readerActions = useReaderActionsStore();
+
+watch(() => reader.snapshot.noteId, noteId => search.clearReturnContext(noteId));
 const currentSection = ref('');
 const readerBody = ref<HTMLElement | null>(null);
 let cleanupHeadingObserver: (() => void) | null = null;
@@ -99,7 +103,10 @@ onBeforeUnmount(() => {
     <div v-if="reader.active" class="note-shell reader-shell">
       <section>
         <div class="doc-head">
-          <button class="doc-back" id="backDoc" type="button" @click.stop="navigationActions.execute({ type: 'back' })">
+          <button v-if="search.returnContext?.id === reader.snapshot.noteId && search.returnContext" class="doc-back doc-back-search" id="backDoc" type="button" @click.stop="search.returnToResults()">
+            <span class="ico"><svg aria-hidden="true"><use :href="icon('back')" /></svg></span>返回搜索结果
+          </button>
+          <button v-else class="doc-back" id="backDoc" type="button" @click.stop="navigationActions.execute({ type: 'back' })">
             <span class="ico"><svg aria-hidden="true"><use :href="icon('back')" /></svg></span>返回笔记列表
           </button>
           <div class="doc-meta">
@@ -154,8 +161,8 @@ onBeforeUnmount(() => {
       </section>
 
       <aside class="right-rail">
-        <h3>本文目录</h3>
-        <nav class="outline" aria-label="本文目录">
+        <h3 v-if="reader.snapshot.outline.length">本文目录</h3>
+        <nav v-if="reader.snapshot.outline.length" class="outline" aria-label="本文目录">
           <a
             v-for="item in reader.snapshot.outline"
             :key="item.id"
@@ -163,9 +170,8 @@ onBeforeUnmount(() => {
             :class="[{ sub: item.level > 2 }, `toc-level-${item.level}`, { current: currentSection === item.id }]"
             :aria-current="currentSection === item.id ? 'location' : undefined"
           >{{ item.name }}</a>
-          <span v-if="!reader.snapshot.outline.length" class="hint">暂无标题</span>
         </nav>
-        <div class="rail-rule" />
+        <div v-if="reader.snapshot.outline.length" class="rail-rule" />
         <h3>笔记信息</h3>
         <div class="rail-source">
           创建：{{ reader.snapshot.createdLabel }}<br>

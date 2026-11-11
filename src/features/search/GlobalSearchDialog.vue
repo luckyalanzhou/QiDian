@@ -3,12 +3,19 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useGlobalSearchStore } from './store';
 import { useNavigationActionsStore } from '../navigation/navigation-actions-store';
 import { firstRestorableFocusTarget } from '../dialogs/dialog-focus-return';
+import SearchResults from './SearchResults.vue';
 
 const store = useGlobalSearchStore();
 const navigationActions = useNavigationActionsStore();
 const searchLayer = ref<HTMLElement | null>(null);
 const dialog = ref<HTMLElement | null>(null);
 const input = ref<HTMLInputElement | null>(null);
+const results = ref<HTMLElement | null>(null);
+
+function openResult(id: string) {
+  store.returnContext = { id, query: store.query, scrollTop: results.value?.scrollTop ?? 0 };
+  navigationActions.execute({ type: 'search-result', id });
+}
 const returnFocus = ref<HTMLElement | null>(null);
 let restoreFocusOnClose = false;
 let searchHistoryEntryOpen = false;
@@ -107,6 +114,17 @@ watch(() => store.open, async open => {
       || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     await nextTick();
     startSearchViewportTracking();
+    if (store.restoringResult && store.returnContext) {
+      const context = store.returnContext;
+      store.restoringResult = false;
+      const item = Array.from(results.value?.querySelectorAll<HTMLButtonElement>('[data-search-id]') ?? [])
+        .find(button => button.dataset.searchId === context.id);
+      if (results.value) results.value.scrollTop = context.scrollTop;
+      if (item) {
+        item.focus({ preventScroll: true });
+        return;
+      }
+    }
     input.value?.focus();
     return;
   }
@@ -188,37 +206,17 @@ function handleKeydown(event: KeyboardEvent) {
           >
           <button class="switcher-close" type="button" aria-label="关闭搜索" @click="closeFromEscape">关闭</button>
         </div>
-        <div id="switcherList" class="switcher-list" role="group" aria-label="搜索结果" aria-live="polite">
-          <button
-            v-for="note in store.snapshot.notes"
-            :key="`note-${note.id}`"
-            class="switcher-item"
-            type="button"
-            :data-search-id="note.id"
-            @click.stop="navigationActions.execute({ type: 'search-result', id: note.id })"
-          >
-            <span class="search-kind">笔记</span>{{ note.title }}
-            <small>{{ note.typeLabel }} · {{ note.updatedLabel }}</small>
-          </button>
-          <a
-            v-for="bookmark in store.snapshot.bookmarks"
-            :key="`bookmark-${bookmark.id}`"
-            class="switcher-item"
-            :href="bookmark.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-search-bookmark
-            @click.stop="store.close()"
-          >
-            <span class="search-kind">书签</span>{{ bookmark.title }}
-            <small>{{ bookmark.path || '未分组' }} · {{ bookmark.hostname }}</small>
-          </a>
-          <div v-if="!store.snapshot.notes.length && !store.snapshot.bookmarks.length" class="empty" style="padding:25px" role="status" aria-live="polite">
-            {{ store.query.trim() ? '没有找到匹配的内容' : '还没有可搜索的内容。添加笔记或书签后，即可在这里搜索。' }}
-          </div>
-          <p v-if="store.snapshot.hasMoreNotes || store.snapshot.hasMoreBookmarks" class="muted" role="status" aria-live="polite">
-            仅显示部分匹配结果，请输入更具体的关键词。
-          </p>
+        <div id="switcherList" ref="results" class="switcher-list" role="group" aria-label="搜索结果" aria-live="polite">
+          <SearchResults
+            :snapshot="store.snapshot"
+            :query="store.query"
+            :filter="store.filter"
+            :return-context="store.returnContext"
+            @open-note="openResult"
+            @open-bookmark="store.close()"
+            @filter="store.setFilter"
+            @load-more="store.loadMore"
+          />
         </div>
       </section>
     </div>

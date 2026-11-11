@@ -90,6 +90,19 @@ test('global search keeps the newest twelve notes and bookmarks and reports when
   assert.equal(exactLimit.hasMoreBookmarks, false, 'exactly twelve bookmarks do not imply hidden matches');
 });
 
+test('global search snapshot supports separate progressive result limits', () => {
+  const notes = Array.from({ length: 28 }, (_, index) => note(`n${index}`, { updated: index }));
+  const bookmarks = Array.from({ length: 25 }, (_, index) => ({
+    id: `b${index}`, kind: 'link', title: `链接 ${index}`, url: `https://example.com/${index}`
+  }));
+  const result = createGlobalSearchSnapshot({ notes, bookmarks, query: '', noteLimit: 24, bookmarkLimit: 12, ...dependencies });
+
+  assert.equal(result.notes.length, 24);
+  assert.equal(result.hasMoreNotes, true);
+  assert.equal(result.bookmarks.length, 12);
+  assert.equal(result.hasMoreBookmarks, true);
+});
+
 test('global bookmark search stops traversing after twelve safe matches at the 10000-item limit', () => {
   const bookmarks = [{
     id: 'root',
@@ -156,6 +169,58 @@ test('global search store opens with a command query and reacts to vault replace
   assert.deepEqual(store.snapshot.notes.map(item => item.id), ['n2']);
   store.close();
   assert.equal(store.open, false);
+});
+
+test('global search store filters result groups and loads each group in independent batches', () => {
+  setActivePinia(createPinia());
+  const vault = useVaultStore();
+  const store = useGlobalSearchStore();
+  store.configure(dependencies);
+  vault.replace({
+    categories: [],
+    notes: Array.from({ length: 25 }, (_, index) => note(`n${index}`, { title: '匹配笔记', updated: index })),
+    bookmarks: Array.from({ length: 25 }, (_, index) => ({
+      id: `b${index}`, kind: 'link', title: '匹配书签', url: `https://example.com/${index}`
+    }))
+  });
+
+  store.show('匹配');
+  assert.equal(store.filter, 'all');
+  assert.equal(store.snapshot.notes.length, 12);
+  assert.equal(store.snapshot.bookmarks.length, 12);
+  assert.equal(store.snapshot.hasMoreNotes, true);
+  assert.equal(store.snapshot.hasMoreBookmarks, true);
+
+  store.loadMore('notes');
+  assert.equal(store.snapshot.notes.length, 24);
+  assert.equal(store.snapshot.bookmarks.length, 12, 'loading notes does not expand bookmarks');
+
+  store.setFilter('bookmarks');
+  assert.deepEqual(store.snapshot.notes, []);
+  assert.equal(store.snapshot.bookmarks.length, 12);
+
+  store.loadMore('bookmarks');
+  assert.equal(store.snapshot.bookmarks.length, 24);
+  assert.equal(store.snapshot.hasMoreBookmarks, true, 'the second page still reports remaining bookmarks');
+  store.loadMore('bookmarks');
+  assert.equal(store.snapshot.bookmarks.length, 25);
+  assert.equal(store.snapshot.hasMoreBookmarks, false, 'the final bookmark page clears the load-more state');
+  store.setFilter('notes');
+  assert.equal(store.snapshot.notes.length, 12, 'changing result group resets paging to the first batch');
+  assert.deepEqual(store.snapshot.bookmarks, []);
+});
+
+test('global search clears a reader return origin after leaving its result note', () => {
+  setActivePinia(createPinia());
+  const store = useGlobalSearchStore();
+  store.returnContext = { id: 'note-a', query: 'example', scrollTop: 140 };
+
+  store.clearReturnContext('note-b');
+  assert.equal(store.returnContext, null);
+
+  store.returnContext = { id: 'note-a', query: 'example', scrollTop: 140 };
+  store.clearReturnContext('note-a');
+  assert.deepEqual(store.returnContext, { id: 'note-a', query: 'example', scrollTop: 140 });
 });
 
 test('global search store reuses its note text index across queries and rebuilds after vault mutations', () => {

@@ -2,7 +2,7 @@
 import { useNoteListStore } from './store';
 import { useNavigationStore } from '../navigation/store';
 import { useNavigationActionsStore } from '../navigation/navigation-actions-store';
-import NoteCard from './NoteCard.vue';
+import NoteListRow from './NoteListRow.vue';
 
 const notesPage = useNoteListStore();
 const navigation = useNavigationStore();
@@ -40,8 +40,11 @@ function icon(name: string) {
         <button v-for="type in notesPage.snapshot.noteTypes" :key="type.id" type="button" :data-type="type.id" :class="{ selected: notesPage.snapshot.typeFilter === type.id }" :aria-pressed="notesPage.snapshot.typeFilter === type.id" @click.stop="navigationActions.execute({ type: 'filter-home', typeFilter: type.id })">{{ type.name }}</button>
       </div>
 
-      <div v-if="notesPage.snapshot.notes.length" class="notes note-list">
-        <NoteCard v-for="note in notesPage.snapshot.notes" :key="note.id" :note="note" />
+      <div v-if="notesPage.snapshot.notes.length" class="note-list-compact-wrap">
+        <div class="note-list-header" aria-hidden="true"><span>标题</span><span>类型</span><span>标签</span><span>更新</span></div>
+        <div class="notes note-list note-list-compact">
+          <NoteListRow v-for="note in notesPage.snapshot.notes" :key="note.id" :note="note" />
+        </div>
       </div>
       <div v-else-if="notesPage.snapshot.query" class="notes note-list">
         <div class="empty" role="status" aria-live="polite">{{ notesPage.snapshot.emptyMessage }}</div>

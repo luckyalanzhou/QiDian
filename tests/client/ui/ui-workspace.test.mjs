@@ -76,6 +76,17 @@ test('dashboard quick capture action stays on one line at narrow desktop widths'
   assert.match(styles, /\.dashboard-intro > \.secondary-btn\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/);
 });
 
+test('compact notes table aligns desktop headings and hides them on mobile', async () => {
+  const styles = (await readFile(new URL('../../../src/styles/workspace.css', import.meta.url), 'utf8')).replace(/\s+/g, '');
+  const mobile = styles.slice(styles.lastIndexOf('@media(max-width:720px)'));
+  const headings = styles.indexOf('.note-list-header{display:grid;');
+  const mobileHeadingRule = mobile.indexOf('.note-list-header{display:none;}');
+
+  assert.ok(headings >= 0, 'desktop column names use the compact list grid');
+  assert.ok(mobileHeadingRule > 0, 'mobile hides desktop column names after the base layout rule');
+  assert.ok(mobile.includes('.switcher-filtersbutton{min-height:44px;'), 'search filters remain comfortable touch targets');
+});
+
 test('reader fragment headings use the shared themed focus indicator', async () => {
   const styles = await readFile(new URL('../../../src/styles/workspace.css', import.meta.url), 'utf8');
   assert.match(styles, /\.doc-content :is\(h1, h2, h3, h4, h5, h6\)\[tabindex="-1"\]:focus-visible\s*\{\s*outline:\s*2px solid var\(--accent\);\s*outline-offset:\s*4px;\s*border-radius:\s*4px;\s*\}/);

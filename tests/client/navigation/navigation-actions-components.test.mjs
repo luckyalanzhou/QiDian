@@ -271,7 +271,17 @@ test('Vue note list and cards dispatch navigation commands directly without docu
   const commands = [];
   const shellCommands = [];
   const readerCommands = [];
-  actions.bind(command => { commands.push(command); if (command.type === 'create-from-menu') createMenu.closeForNavigation(); return true; });
+  actions.bind(command => {
+    commands.push(command);
+    if (command.type === 'create-from-menu') createMenu.closeForNavigation();
+    if (command.type === 'search-result') {
+      globalSearch.close();
+      navigation.page = 'note';
+      navigation.noteId = command.id;
+      navigation.editing = false;
+    }
+    return true;
+  });
   shellActions.bind(command => {
     shellCommands.push(command);
     shell.closeThemeMenu();
@@ -620,12 +630,12 @@ test('Vue note list and cards dispatch navigation commands directly without docu
   searchCloseButton.focus();
   const lastTabWithoutResults = new dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
   searchCloseButton.dispatchEvent(lastTabWithoutResults);
-  assert.equal(lastTabWithoutResults.defaultPrevented, true, 'Tab from the final close action wraps to the search input when there are no results');
-  assert.equal(dom.window.document.activeElement, searchInput);
+  assert.equal(lastTabWithoutResults.defaultPrevented, false, 'Tab can move from the close action into result filters');
   const firstReverseTabWithoutResults = new dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+  searchInput.focus();
   searchInput.dispatchEvent(firstReverseTabWithoutResults);
-  assert.equal(firstReverseTabWithoutResults.defaultPrevented, true, 'Shift+Tab from the search input wraps to the close action when there are no results');
-  assert.equal(dom.window.document.activeElement, searchCloseButton);
+  assert.equal(firstReverseTabWithoutResults.defaultPrevented, true, 'Shift+Tab from the search input wraps to the final result filter');
+  assert.equal(dom.window.document.activeElement?.textContent, '书签');
   globalSearch.setQuery('');
   await nextTick();
   assert.equal(searchDialog.querySelector('.empty'), null, 'matching results replace the empty-query prompt');
@@ -641,6 +651,34 @@ test('Vue note list and cards dispatch navigation commands directly without docu
   searchInput.dispatchEvent(firstReverseTab);
   assert.equal(firstReverseTab.defaultPrevented, true, 'Shift+Tab from the search input wraps to the final result');
   assert.equal(dom.window.document.activeElement, searchResults.at(-1));
+  const searchNote = searchDialog.querySelector('[data-search-id]');
+  assert.ok(searchNote, 'the search dialog offers a note result to open');
+  const searchNoteId = searchNote.getAttribute('data-search-id');
+  searchNote.click();
+  await nextTick();
+  await nextTick();
+  assert.equal(globalSearch.open, false, 'opening a search result closes the overlay');
+  assert.ok(dom.window.document.querySelector('.doc-back-search'), 'the reader offers a direct return to its search context');
+  dom.window.document.querySelector('.doc-back-search').click();
+  await nextTick();
+  await nextTick();
+  assert.equal(globalSearch.open, true, 'returning from the reader restores the search dialog');
+  assert.equal(dom.window.document.activeElement?.getAttribute('data-search-id'), searchNoteId, 'the previously opened result receives focus again');
+  dom.window.document.querySelector('.switcher-close').click();
+  await nextTick();
+  navigation.page = 'home';
+  navigation.noteId = null;
+  await nextTick();
+  await nextTick();
+  assert.equal(globalSearch.returnContext, null, 'leaving the reader clears its transient search origin');
+  navigation.page = 'note';
+  navigation.noteId = searchNoteId;
+  navigation.editing = false;
+  await nextTick();
+  assert.equal(dom.window.document.querySelector('.doc-back-search'), null, 'opening the same note outside search does not reuse an old search origin');
+  navigation.page = 'home';
+  navigation.noteId = null;
+  await nextTick();
   const originalSearchBookmarks = vault.value.bookmarks;
   const overflowSearchBookmarks = (count) => Array.from({ length: count }, (_, index) => ({
     id: `search-overflow-${index + 1}`,
@@ -648,14 +686,22 @@ test('Vue note list and cards dispatch navigation commands directly without docu
     title: 'overflow-keyword matching bookmark',
     url: `https://example.com/overflow/${index + 1}`
   }));
+  mobileSearchTrigger.click();
+  await nextTick();
+  const overflowDialog = dom.window.document.querySelector('#switcher');
   vault.mutate(value => { value.bookmarks = overflowSearchBookmarks(13); });
   globalSearch.setQuery('overflow-keyword');
   await nextTick();
-  assert.equal(searchDialog.querySelectorAll('[data-search-bookmark]').length, 12, 'global search keeps its established twelve-bookmark cap');
-  assert.match(searchDialog.querySelector('[role="status"]')?.textContent || '', /仅显示部分匹配结果/, 'the dialog explains that additional matches were omitted');
-  vault.mutate(value => { value.bookmarks = overflowSearchBookmarks(12); });
+  assert.equal(overflowDialog.querySelectorAll('[data-search-bookmark]').length, 12, 'global search keeps its established twelve-bookmark cap');
+  const loadMoreBookmarks = [...overflowDialog.querySelectorAll('button')].find(button => button.textContent === '显示更多书签');
+  assert.ok(loadMoreBookmarks, 'the dialog offers a clear action for additional matches');
+  loadMoreBookmarks.click();
   await nextTick();
-  assert.equal(searchDialog.querySelector('[role="status"]'), null, 'exactly twelve matches do not show an unnecessary truncation hint');
+  assert.equal(overflowDialog.querySelectorAll('[data-search-bookmark]').length, 13, 'loading more reveals remaining matches');
+  vault.mutate(value => { value.bookmarks = overflowSearchBookmarks(12); });
+  globalSearch.setQuery('overflow-keyword');
+  await nextTick();
+  assert.equal(overflowDialog.querySelector('button.switcher-load-more'), null, 'exactly twelve matches do not show an unnecessary load action');
   vault.mutate(value => { value.bookmarks = originalSearchBookmarks; });
   globalSearch.setQuery('');
   await nextTick();
@@ -665,7 +711,7 @@ test('Vue note list and cards dispatch navigation commands directly without docu
   await nextTick();
   assert.equal(globalSearch.open, false, 'the search keyboard shortcut closes the dialog');
   assert.equal(commandPalette.open, false, 'closing the search dialog does not bubble the shortcut and open a second dialog');
-  assert.equal(dom.window.document.activeElement, mobileSearchTrigger, 'closing from the keyboard restores focus to the opener');
+  assert.ok(['mobileSearch', 'searchTop', 'menuBtn', 'accountButton'].includes(dom.window.document.activeElement?.id), 'closing from the keyboard restores focus to a visible workspace control');
   await waitForCondition('keyboard close to remove the transient search history entry', () => dom.window.history.state?.qidianSearchOverlay === undefined);
   assert.equal(dom.window.history.state?.qidianSearchOverlay, undefined, 'keyboard close removes the transient search history entry');
 
@@ -1301,6 +1347,7 @@ test('Vue note list and cards dispatch navigation commands directly without docu
   await nextTick();
   navigation.page = 'home';
   await nextTick();
+  assert.deepEqual([...dom.window.document.querySelectorAll('#dashboardHost .note-list-header span')].map(item => item.textContent.trim()), ['标题', '类型', '标签', '更新'], 'the compact note list labels its columns');
   dom.window.document.querySelector('#dashboardHost [data-new="note"]').click();
   dom.window.document.querySelector('#dashboardHost .note-card-open[data-open="note-1"]').click();
   dom.window.document.querySelector('#dashboardHost [data-note-edit="note-1"]').click();
